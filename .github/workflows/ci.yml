@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Verify skill organization
+        run: bash tests/test_skills_reorg.sh
+
+      - name: Verify profiles
+        run: bash tests/test_profiles.sh
+
+      - name: Verify artifact contract smoke
+        run: bash tests/test_artifact_contract.sh
+
+      - name: Verify work-item lifecycle
+        run: bash tests/test_work_items.sh
+
+      - name: Verify plan contracts
+        run: bash tests/test_plan_sync.sh
+
+      - name: Verify journey eval harness
+        run: bash tests/test_journey_evals.sh
+
+      - name: Verify machine gate automation
+        run: bash tests/test_gate_automation.sh
+
+      - name: Verify release convergence contracts
+        run: bash tests/test_release_convergence.sh
+
+      - name: Verify bootstrap
+        run: bash tests/bootstrap/run-all.sh
+
+      - name: Lint documentation
+        run: bash scripts/lint-docs.sh

@@ -1,0 +1,13 @@
+# Public release boundary. A fresh-history export may use `git archive`; keep
+# private/repository-development history out while retaining public user docs.
+/_archive/** export-ignore
+/docs/ai-harness-engineering-anthropic.md export-ignore
+/docs/anthropic-skill-system.md export-ignore
+/docs/superpowers/** export-ignore
+/docs/work-summary.html export-ignore
+/docs/work/** export-ignore
+/docs/skills-reorg/** export-ignore
+/docs/skills-reorg/decisions.md -export-ignore
+/docs/STATUS.md export-ignore
+/docs/shared-skill-onboarding-checklist.md export-ignore
+/docs/skill-eval-sop.md export-ignore

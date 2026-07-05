@@ -1,0 +1,18 @@
+{
+  "name": "fixture-ts-web",
+  "private": true,
+  "scripts": {
+    "test": "node tests/greet.test.js",
+    "typecheck": "node scripts/typecheck.js",
+    "lint": "node --check scripts/typecheck.js",
+    "e2e": "node tests/e2e.test.js"
+  },
+  "dependencies": {
+    "express": "0.0.0",
+    "react": "0.0.0",
+    "vite": "0.0.0"
+  },
+  "devDependencies": {
+    "typescript": "0.0.0"
+  }
+}

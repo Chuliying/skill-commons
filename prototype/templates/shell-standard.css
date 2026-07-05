@@ -1,0 +1,262 @@
+/* ====================================================================
+ * PROTOTYPE BUILDER — STANDARD SHELL LAYOUT
+ * ====================================================================
+ *
+ * Three-column layout: Scenario Nav | Step Panel | Preview Area
+ * Requires: shell-common.css
+ * Usage: <link rel="stylesheet" href="shell-standard.css">
+ * ==================================================================== */
+
+/* ========================================
+   THREE-COLUMN LAYOUT
+   ======================================== */
+.l-page-container {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ========================================
+   LEFT: Scenario Nav
+   ======================================== */
+.l-scenario-nav {
+  width: 220px;
+  background: var(--color-surface-nav);
+  border-right: 1px solid #EAEAEA;
+  padding: var(--space-md) 0;
+  flex-shrink: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.l-scenario-nav__header {
+  padding: 0 var(--space-md) var(--space-lg);
+}
+
+.l-scenario-nav__title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text-heading);
+  line-height: 1.4;
+}
+
+.l-scenario-nav__subtitle {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-top: 2px;
+}
+
+.l-scenario-nav ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.l-scenario-nav ul+ul {
+  margin-top: var(--space-sm);
+}
+
+/* ========================================
+   MIDDLE: Step Panel
+   ======================================== */
+.l-step-panel {
+  width: 380px;
+  flex-shrink: 0;
+  background: var(--color-white);
+  border-right: 1px solid #EAEAEA;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.l-step-panel__header {
+  padding: 24px 24px 0;
+}
+
+.l-step-panel__label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--color-text-secondary);
+  margin-bottom: 6px;
+}
+
+.l-step-panel__scenario-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text-heading);
+  line-height: 1.4;
+  margin-bottom: 24px;
+}
+
+.l-step-panel__progress-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 24px;
+  margin-bottom: 16px;
+}
+
+.l-step-panel__progress-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--color-text-secondary);
+}
+
+.l-step-panel__progress-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  border-radius: 10px;
+  padding: 2px 10px;
+}
+
+.l-step-panel__ac {
+  padding: 0 24px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.l-step-panel__ac-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.l-step-panel__ac-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-interactive);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.l-step-panel__ac-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-heading);
+}
+
+.l-step-panel__controls {
+  padding: 20px 24px 24px;
+  border-top: 1px solid var(--color-border-subtle);
+  margin-top: auto;
+  flex-shrink: 0;
+}
+
+.l-step-panel__nav-btns {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.l-step-panel__nav-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-btn);
+  font-weight: 500;
+  border: none;
+  transition: filter .15s, opacity .15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.l-step-panel__nav-btn--prev {
+  background: var(--btn-secondary-bg);
+  color: var(--btn-secondary-text);
+  border: 1px solid var(--btn-secondary-border);
+}
+
+.l-step-panel__nav-btn--prev:hover {
+  background: var(--color-surface);
+}
+
+.l-step-panel__nav-btn--prev:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.l-step-panel__nav-btn--next {
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+}
+
+.l-step-panel__nav-btn--next:hover {
+  filter: brightness(0.92);
+}
+
+.l-step-panel__nav-btn--next:disabled {
+  background: var(--color-disabled-bg);
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+.l-step-panel__restart {
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 6px 0;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: none;
+  transition: color .15s, border-color .15s;
+}
+
+.l-step-panel__restart:hover {
+  color: var(--color-interactive);
+  border-color: var(--color-interactive);
+}
+
+/* ========================================
+   RIGHT: Preview Area
+   ======================================== */
+.l-preview-area {
+  flex: 1;
+  background: #EFEFEF;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: var(--space-xl);
+}
+
+/* ========================================
+   Scenario Panel (show/hide, floating card style)
+   ======================================== */
+.l-scenario-panel {
+  display: none;
+}
+
+.l-scenario-panel.is-active {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: var(--radius-md);
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.10);
+  overflow: hidden;
+  min-height: 0;
+}

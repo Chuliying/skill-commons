@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><!-- AI_FILL: PROTOTYPE_MAP.meta.projectName --> — Prototype QA Console</title>
+  <link rel="stylesheet" href="assets/shell-common.css">
+  <link rel="stylesheet" href="assets/shell-standard.css">
+  <link rel="stylesheet" href="assets/component-library.css">
+  <link rel="stylesheet" href="assets/print-report.css">
+</head>
+<body>
+
+  <div class="l-page-container">
+
+    <!-- ============ LEFT NAV ============ -->
+    <aside class="l-scenario-nav">
+      <div class="l-scenario-nav__header">
+        <div class="l-scenario-nav__title"><!-- AI_FILL: PROTOTYPE_MAP.meta.projectName --></div>
+        <div class="l-scenario-nav__subtitle">Prototype QA Console</div>
+      </div>
+      <ul>
+<!-- AI_FILL: NAV_HTML_START
+     格式（每個 route 照填）：
+       <li class="c-nav-group-label" data-scope="{scope}">{groupName}</li>
+       <li class="c-nav-link-item" onclick="switchScenario('{routeId}', this)">{route.name}</li>
+     規則：
+       - {route.group} 若為 "後台：合作 CPO 管理" 這種 `{scope}：{groupName}` 格式，
+         scope 拆到 data-scope（例："後台"），groupName 當文字（例："合作 CPO 管理"）。
+         分隔字元接受「：」或「:」。找不到分隔字元時 data-scope 省略，group 原樣當文字。
+       - 第一個 c-nav-link-item 加 is-active class
+       - onclick 格式固定，sid 用單引號
+     AI_FILL: NAV_HTML_END -->
+      </ul>
+    </aside>
+
+    <!-- ============ MIDDLE: Step Panel ============ -->
+    <section class="l-step-panel">
+      <div class="l-step-panel__header">
+        <div class="l-step-panel__label">Current Scenario</div>
+        <div class="l-step-panel__scenario-title" id="panel-scenario-title"></div>
+      </div>
+
+      <div class="l-step-panel__progress-header">
+        <span class="l-step-panel__progress-label">Step Progress</span>
+        <span class="l-step-panel__progress-badge" id="panel-progress-badge">1 / 1</span>
+      </div>
+
+      <div class="c-v-stepper" id="panel-stepper"></div>
+
+      <div class="l-step-panel__ac">
+        <div class="l-step-panel__ac-header">
+          <span class="l-step-panel__ac-icon">i</span>
+          <span class="l-step-panel__ac-title">需確認事項 (AC)</span>
+        </div>
+        <ul class="c-ac-list" id="panel-ac-list"></ul>
+      </div>
+
+      <div class="l-step-panel__controls">
+        <div class="l-step-panel__nav-btns">
+          <button class="l-step-panel__nav-btn l-step-panel__nav-btn--prev" id="btn-prev" onclick="prevStep()">&#x2039; 上一步</button>
+          <button class="l-step-panel__nav-btn l-step-panel__nav-btn--next" id="btn-next" onclick="nextStep()">下一步 &#x203A;</button>
+        </div>
+        <button class="l-step-panel__restart" onclick="restartScenario()">重新開始流程</button>
+        <button class="c-export-report-btn" onclick="exportReport()">&#x1F4C4; 匯出確認報告</button>
+      </div>
+    </section>
+
+    <!-- ============ RIGHT: Preview Area ============ -->
+    <main class="l-preview-area">
+
+      <!-- 全域 Prototype Map ID Bar（dev 標籤，固定不變、不屬於任何 scenario）
+           engine.js 的 updateShellIdBar(sid, stepId) 會於每次切換 scenario / 步驟時動態填入 -->
+      <div class="c-shell-id-bar" aria-label="Prototype Map 技術 ID">
+        <span class="c-shell-id-bar__label">MAP</span>
+        <span class="c-shell-id-bar__route"></span>
+        <span class="c-shell-id-bar__sep">/</span>
+        <span class="c-shell-id-bar__page"></span>
+        <span class="c-shell-id-bar__frame"></span>
+      </div>
+
+<!-- AI_FILL: PANELS_HTML_START
+     格式（每個 route 照填）：
+       <div id="scenario-{routeId}" class="l-scenario-panel">
+         其中第一個 route 加 is-active class
+         內含 c-standard-shell 或 c-mobile-shell（依 shellType）
+         每個 pageId 一個 <div id="{routeId}-{pageId}" class="c-flow-frame"></div>
+       </div>
+
+     Standard Shell 範例（c-standard-shell 不含 __header；Prototype Map ID 由上方全域 c-shell-id-bar 顯示）：
+       <div id="scenario-s1" class="l-scenario-panel is-active">
+         <div class="c-standard-shell">
+           <div class="c-standard-shell__content" style="background:#f0f2f5; padding: 24px;">
+             <div id="s1-login" class="c-flow-frame"></div>
+           </div>
+         </div>
+       </div>
+     規則：
+       - 全域 c-shell-id-bar 只保留一份、位於 l-preview-area 第一個子元素；panel 內的 shell 不得自帶 header 或 id-bar。
+       - c-shell-id-bar 的 route/page/frame 三個 span 留空，由 engine.js 的 updateShellIdBar(sid, stepId) 動態填入；frame 對應 PROTOTYPE_MAP.pages[stepId].frameRef。
+       - 禁止在 shell 內加任何品牌 / 系統名稱 / 頁面 header 文字；mock UI 的 header（如後台頁籤列）應由 frame 內容自行繪製。
+
+     Flow Shell 範例：
+       <div id="scenario-s1" class="l-scenario-panel is-active">
+         <div class="c-mobile-shell">
+           <div id="s1-step-1" class="c-flow-frame"></div>
+         </div>
+       </div>
+     AI_FILL: PANELS_HTML_END -->
+    </main>
+
+  </div>
+
+  <!-- ============ PRINT REPORT CONTAINER ============ -->
+  <div id="print-report-container" style="display:none;"></div>
+
+  <!-- ============ DATA JS（AI 唯一需要產出的 JS）============ -->
+  <script>
+/* AI_FILL: DATA_JS_START
+   以下所有變數 AI 必須填入，格式和結構嚴格遵循範例。
+   ⚠️ routes 和 pages 必須是 Object（非 Array）。
+
+   必填變數：
+     var PROTOTYPE_MAP = { meta: {...}, routes: {...}, pages: {...} };
+     var SCENARIO_TITLES = { "s1": "場景名稱", ... };
+     var NAV_PATH = { "s1": ["pageId1", "pageId2"], ... };
+     var STEPS = { "s1": [{ id: "pageId1", label: "步驟名", dotIdx: 0 }, ...], ... };
+     var STEPPER_LABELS = { "s1": ["步驟名1", "步驟名2"], ... };
+     var PANEL_MAP = { "s1": "scenario-s1", ... };
+     var AC_DATA = { "s1": { "pageId1": PROTOTYPE_MAP.pages["pageId1"].acs }, ... };
+     var SCENARIO_STATE = { "s1": {}, ... };
+     var FRAME_REGISTRY = { "frame-xxx": function(ctx) { return "<div>...</div>"; }, ... };
+     
+   UI 規範：
+     - AC 備註按鈕使用單一 icon，active 以 `is-has-note` 改藍色，不切換雙 icon。
+     - 登入/授權 frame 需置中（flex 水平/垂直置中容器）。
+   AI_FILL: DATA_JS_END */
+  </script>
+
+  <!-- ============ ENGINE JS（READONLY — 從 templates/ 複製，AI 不得修改）============ -->
+  <script src="assets/engine.js"></script>
+
+</body>
+</html>

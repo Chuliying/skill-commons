@@ -1,0 +1,38 @@
+/* ====================================================================
+ * PROTOTYPE BUILDER — PRINT REPORT STYLESHEET
+ * ====================================================================
+ *
+ * Hides interactive UI, shows print-optimized report layout.
+ * Requires: shell-common.css (for c-print-report__* base styles)
+ * Usage: <link rel="stylesheet" href="print-report.css">
+ * ==================================================================== */
+
+@media print {
+  /* Hide all interactive UI */
+  .l-page-container {
+    display: none !important;
+  }
+
+  /* Show print container */
+  #print-report-container {
+    display: block !important;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+  }
+
+  @page {
+    margin: 2cm;
+    size: A4;
+  }
+
+  .c-print-report__route {
+    page-break-inside: avoid;
+  }
+
+  .c-print-report__signoff {
+    page-break-before: always;
+  }
+}
