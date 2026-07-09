@@ -61,7 +61,7 @@ vendor 後必須重套並跑測試：
 | `brainstorming` | zh-TW 流程、artifact output、Gate B1、local handoff | 接入 work-item 與 router flow |
 | `finishing-a-development-branch` | manifest/guardrails、Gate Package、closeout、Recovery Mode、pre-merge runner | 接入跨專案安全、發布核可與 artifact closeout |
 | `subagent-driven-development` | plan-sync contract、雙 review、gate handoff | 接入本 repo orchestration contract |
-| `to-prd` | `stage`, `output`, local-first artifact body, lean PRD template aligned with `prd-interview` | 接入 work-item artifact contract v2，避免快照式 PRD 產出冗長或無法銜接 spec/qa |
+| `to-prd` | `stage`, `output`, local-first artifact body；移除內嵌 PRD 模板，改引用 canonical `prd-template.md`；產出後跑 `scripts/check-prd.py --tier core` 當 output gate | 接入 work-item artifact contract v2；PRD 形狀改由單一 canonical 模板 + check-prd 強制，消除與 `prd-interview` 的漂移並確保可銜接 spec/qa |
 | `grilling` | `stage`, durable docs mode、`output`、`meta.yml` body | 合併壓測入口並接入 work-item artifact contract v2 |
 | `caveman-review` | fresh-context dispatch、findings-first local review template | 合併 review 風格與派發能力，避免結構化 handoff 重新引入冗長 review 儀式 |
 | `humanizer` | `stage`, `maturity`, `source`, `source_kind`; condensed optional utility with disclosure boundary | 接入 optional docs utility，保留 upstream pattern taxonomy 與 MIT notice |

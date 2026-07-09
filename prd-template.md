@@ -1,4 +1,18 @@
+<!-- Canonical PRD shape. Single source of truth for both `to-prd` and
+`prd-interview`; do not fork this into a skill-local copy. `scripts/check-prd.py`
+enforces the machine-checkable subset of this shape and derives its
+placeholder set from this file, so keep placeholders in `[square brackets]`.
+
+Tier markers are authoring guidance for which sections a producer should populate:
+  core  — every profile (to-prd / personal); the connectable minimum.
+  team  — additionally expected for the formal team-sprint handoff.
+`scripts/check-prd.py` enforces a machine-checkable REQUIRED subset per tier (not
+every marked section); a `core` PRD may omit `team` sections entirely but must not
+leave placeholders unfilled. Headings are matched by name, not by number. -->
+
 # [功能名稱] PRD
+
+<!-- tier: team -->
 
 | Field | Value |
 |-------|-------|
@@ -13,17 +27,22 @@
 
 ## 1. Follow-ups
 
+<!-- tier: core -->
+
 Blocking FU must be closed before `spec`. Non-blocking FU needs an owner and close-by point.
+When there is nothing open, state it explicitly (for example `無 Blocking FU。Non-blocking FU: N/A。`).
 
 ### FU-001: [decision title]
 
 | Type | Background | Options | AI recommendation | Decision |
 |------|------------|---------|-------------------|----------|
-| Blocking / Non-blocking | [why this changes scope, behavior, or acceptance] | A: [...] / B: [...] | [option + reason] | Pending / Confirmed: [...] |
+| Blocking / Non-blocking | [why this changes scope, behavior, or acceptance] | A: [option A] / B: [option B] | [option + reason] | Pending / Confirmed: [decision] |
 
 ---
 
 ## 2. Context
+
+<!-- tier: core -->
 
 ### Goal
 
@@ -31,11 +50,15 @@ Blocking FU must be closed before `spec`. Non-blocking FU needs an owner and clo
 
 ### Persona + Pain
 
+<!-- tier: team -->
+
 | Persona | Context | Pain point |
 |---------|---------|------------|
 | [role] | [work situation] | [current problem] |
 
 ### Success metrics
+
+<!-- tier: team -->
 
 | Metric | Target | Measurement |
 |--------|--------|-------------|
@@ -52,6 +75,8 @@ Blocking FU must be closed before `spec`. Non-blocking FU needs an owner and clo
 
 ## 3. Scope
 
+<!-- tier: core -->
+
 ### In scope
 
 - [behavior, workflow, or deliverable included in this PRD]
@@ -63,6 +88,8 @@ Blocking FU must be closed before `spec`. Non-blocking FU needs an owner and clo
 ---
 
 ## 4. Flow
+
+<!-- tier: core -->
 
 Flow: N/A, because [reason] / [short user or system flow]
 
@@ -78,6 +105,8 @@ flowchart TD
 
 ## 5. Functional Requirements (FR)
 
+<!-- tier: core -->
+
 ### FR-001: [requirement name]
 
 **使用者價值**: [why this matters to the user or business]
@@ -86,11 +115,15 @@ flowchart TD
 
 **Input**:
 
+<!-- tier: team -->
+
 | Field | Required | Notes |
 |-------|----------|-------|
 | [field] | Yes / No | [meaning, constraint, or N/A] |
 
 **Output**:
+
+<!-- tier: team -->
 
 | Field | Notes |
 |-------|-------|
@@ -108,6 +141,8 @@ flowchart TD
 
 ## 6. Non-functional Requirements (NFR)
 
+<!-- tier: team -->
+
 | Category | Requirement |
 |----------|-------------|
 | Performance | [target or N/A + reason] |
@@ -118,6 +153,8 @@ flowchart TD
 ---
 
 ## 7. Error Scenarios (ERR)
+
+<!-- tier: core -->
 
 ### ERR-001: [error name]
 
@@ -131,6 +168,8 @@ flowchart TD
 
 ## 8. Acceptance Criteria (AC)
 
+<!-- tier: core -->
+
 ### AC-001: [acceptance title]
 
 ```gherkin
@@ -143,13 +182,19 @@ Then [observable result]
 
 ## 9. UI / UX
 
+<!-- tier: core -->
+
 UI: N/A (has_ui=false) / [summary of changed UI]
 
 ### Mockup evidence
 
+<!-- tier: team -->
+
 - [Figma, screenshot, wireframe, existing component path, or N/A + reason]
 
 ### Interaction and states
+
+<!-- tier: team -->
 
 | State / Step | Expected behavior | Copy |
 |--------------|-------------------|------|
@@ -159,6 +204,8 @@ UI: N/A (has_ui=false) / [summary of changed UI]
 | Empty | [empty behavior or N/A + reason] | [copy or N/A] |
 
 ### Design tokens
+
+<!-- tier: team -->
 
 | Token type | Usage |
 |------------|-------|
@@ -170,6 +217,8 @@ UI: N/A (has_ui=false) / [summary of changed UI]
 
 ## 10. Dependencies & Constraints
 
+<!-- tier: core -->
+
 - **Upstream**: [PRD, system, external team, or N/A]
 - **Downstream**: [affected features, reports, users, or N/A]
 - **Breaking change**: Yes ([impact]) / No
@@ -178,6 +227,8 @@ UI: N/A (has_ui=false) / [summary of changed UI]
 ---
 
 ## 11. Related Documents
+
+<!-- tier: team -->
 
 | Document | Link |
 |----------|------|
@@ -190,6 +241,8 @@ UI: N/A (has_ui=false) / [summary of changed UI]
 
 ## 12. Gate 1 Check
 
+<!-- tier: core -->
+
 - [ ] Every FR has user value, data source, permissions, and boundary conditions.
 - [ ] Every AC uses Given-When-Then and has an executable precondition.
 - [ ] ERR covers the main failure and recovery path.
@@ -197,4 +250,4 @@ UI: N/A (has_ui=false) / [summary of changed UI]
 - [ ] Blocking FU is closed; non-blocking FU has owner and close-by point.
 - [ ] NFR has measurable target or N/A + reason.
 - [ ] UI evidence matches `has_ui`.
-- [ ] `prd-interview/references/gate-1.md` result is PASS.
+- [ ] `scripts/check-prd.py` result is PASS.

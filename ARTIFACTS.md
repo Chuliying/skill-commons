@@ -109,6 +109,19 @@ a `shipped` or `abandoned` work item may be deleted as a whole because Git remai
 the recovery source, or moved intact to `<work_root>/_archive/<slug>/`. Never archive
 individual files from an otherwise active work item.
 
+## Schema evolution and adoption
+
+Shape gates (for example `scripts/check-prd.py`) apply forward, not retroactively:
+
+1. Existing artifacts are grandfathered. Only a new or edited artifact must pass
+   its gate; introducing or tightening a gate never retroactively fails untouched
+   history.
+2. An artifact without a schema stamp is treated as schema version 1. When a
+   canonical shape changes in a breaking way, stamp newly written artifacts with
+   the new version and leave grandfathered artifacts unstamped.
+3. A repository-wide sweep is opt-in. Run a gate across all existing artifacts
+   only as a deliberate migration, never as a default check.
+
 ## Closeout
 
 Before merge or PR, a shipped work item must:

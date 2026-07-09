@@ -234,4 +234,11 @@ for fixture_name in python-cli ts-web; do
   fi
 done
 
+# The artifact contract documents a forward-only adoption stance so introducing
+# a shape gate never retroactively fails existing history.
+artifacts_doc="$(cat "$REPO/ARTIFACTS.md")"
+assert_contains "$artifacts_doc" "## Schema evolution and adoption" "ARTIFACTS documents the schema evolution and adoption stance"
+assert_contains "$artifacts_doc" "grandfathered" "ARTIFACTS documents that existing artifacts are grandfathered"
+assert_contains "$artifacts_doc" "sweep is opt-in" "ARTIFACTS documents that a repository-wide gate sweep is opt-in"
+
 finish

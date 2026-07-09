@@ -1,17 +1,16 @@
 # skill-commons
 
-skill-commons is a set of engineering workflow skills that can be installed across Claude Code, Codex, and Cursor. It defines repeatable procedures for requirement capture, technical specification, planning, implementation, verification, and release preflight checks. v0.5.0 is the public beta; automated validation currently covers Python CLI and TypeScript/Web fixtures.
+**skill-commons makes AI-agent development output repeatable, reviewable, and resumable.** It fixes the shape of the software delivery flow: requirement, spec, plan, implementation, verification, and release each produce a shape-consistent, resumable, script-verifiable artifact that survives a change of session, model, or agent — addressing the three worst failure modes of agent development: inconsistent output shape, "done" without evidence, and losing everything when the conversation resets. It is a set of engineering workflow skills installable across Claude Code, Codex, and Cursor; v0.6.0 is the public beta, with automated validation covering Python CLI and TypeScript/Web fixtures.
 
 The skills remain zh-TW single-source. This page summarizes the positioning, design intent, and setup path for non-Chinese readers.
 
 ## Design intent
 
-1. LLM context is volatile, so durable state lives in `docs/work/<slug>/`, `meta.yml`, and plan-sync artifacts.
-2. Models can claim success without evidence, so verification and machine-readable Gate evidence are mandatory.
-3. Irreversible operations need explicit boundaries and confirmation before push, merge, or deletion.
-4. Human review should focus on judgment calls; scripts handle mechanical checks while people approve product intent, team design trade-offs, and release readiness.
-5. Contract density follows handoff needs: team work uses PRD, Spec, and QA artifacts; personal work uses snapshots and lightweight plans.
-6. Gate density follows `min(rework cost, operator debugging ability)`, so non-engineering prototype flows retain more checkpoints.
+One line: fix the shape of the flow so every output is shape-consistent, resumable, and script-verifiable. Three principles constrain its behavior:
+
+- **Durable state and evidence.** LLM context is volatile, so persistent state lives in `docs/work/<slug>/`, `meta.yml`, and plan-sync memory and survives a new session; models claim success without evidence, so every Gate and verification-before-completion demands direct proof.
+- **Safety and division of labor.** Irreversible operations (push, merge, delete) apply guardrails first, with sync-work and Recovery Mode controlling boundaries; human review focuses on judgment (requirements, design trade-offs, release and merge), while scripts handle mechanical checks.
+- **Right-sized, not over-built.** Contracts appear only at handoffs (team profile produces formal PRD, Spec, QA; personal uses snapshots and lightweight plans); Gate density follows `min(rework cost, operator debugging ability)`.
 
 ## Requirements and Quick Start
 
@@ -19,7 +18,7 @@ Requirements: git with submodule support, bash 4+, `jq`, Node.js 18+ for onboard
 
 ```bash
 git submodule add git@github.com:Chuliying/skill-commons.git .agent/skills/_shared
-git -C .agent/skills/_shared checkout v0.5.0
+git -C .agent/skills/_shared checkout v0.6.0
 bash .agent/skills/_shared/bootstrap/onboard.sh
 ```
 

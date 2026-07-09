@@ -12,112 +12,30 @@ This skill takes the current conversation context and codebase understanding and
 
 Issue tracker publication is optional. If tracker access or label vocabulary is unavailable, create the local artifact and report that publication was skipped.
 
+## PRD shape
+
+Write `prd.md` against the canonical [PRD template](../prd-template.md) — the single
+source of truth shared with `prd-interview`. Do not keep a private copy of the shape
+here. As a synthesis (no interview), populate the `core`-tier sections; omit any
+`team`-tier section you cannot fill rather than leaving its placeholders in place.
+Record open questions as Follow-ups instead of expanding scope. The shape is enforced
+by the shared PRD shape gate (`check-prd.py`), so keep headings and the `AC-<n>`
+Given-When-Then form intact. For a team-sprint handoff into `spec`, author the PRD with
+`prd-interview` (team tier) instead — a `--tier core` PRD does not satisfy spec's
+team-tier precondition (it omits NFR, dependencies, and the metadata table).
+
 ## Process
 
 1. Explore the repo to understand the current state of the codebase, if you haven't already. Use the project's domain glossary vocabulary throughout the PRD, and respect any ADRs in the area you're touching.
 
 2. Identify the smallest useful verification surface from the existing discussion and codebase evidence. Prefer one high-level observable seam; record uncertainty as a Follow-up instead of expanding the PRD.
 
-3. Write `prd.md` and update `meta.yml` under `<work_root>/<slug>/` following [`../ARTIFACTS.md`](../ARTIFACTS.md). If an issue tracker and `ready-for-agent` label are configured, publish the PRD after the local files exist.
+3. Write `prd.md` and update `meta.yml` under `<work_root>/<slug>/` following [`../ARTIFACTS.md`](../ARTIFACTS.md), using the canonical [PRD template](../prd-template.md).
 
-<prd-template>
+4. Run the shared PRD shape gate before handoff and fix any `FAIL` (this check is deterministic and does not wait for human approval):
 
-## 0. Context
+   ```bash
+   python3 <shared_skills_root>/scripts/check-prd.py --prd "<work_root>/<slug>/prd.md" --tier core
+   ```
 
-### Goal
-
-One paragraph: the problem, who benefits, and the intended outcome.
-
-### Evidence
-
-Repo paths, conversation facts, or `Skipped: existing project context is enough`.
-
-### Risk
-
-| Risk | Trigger | Mitigation |
-|------|---------|------------|
-| [real risk] | [when it happens] | [how to prevent or recover] |
-
-## 1. Scope
-
-### In scope
-
-- [behavior included]
-
-### Out of scope
-
-- [behavior explicitly excluded]
-
-### Dependencies & Constraints
-
-- **Upstream**: [system/team/artifact] / N/A
-- **Breaking change**: Yes ([impact]) / No
-- **Assumptions**: [unverified premise] / N/A
-
-## 2. Product Summary
-
-### Business Goal
-
-[measurable outcome]
-
-### Personas + Pain Points
-
-| Persona | Context | Pain Point |
-|---------|---------|------------|
-| [role] | [work situation] | [current problem] |
-
-## 3. Functional Requirements (FR)
-
-### FR-001: [name]
-
-**使用者價值**: [why this matters]
-**Behavior**: [what the system does]
-**Data source**: Existing [system/API] / New API [owner] / FU-[ID]
-**Permissions / Visibility**: [roles]
-**Boundary conditions**:
-
-- [edge case or invariant]
-
-## 4. Non-functional Requirements (NFR)
-
-| Category | Requirement |
-|----------|-------------|
-| Performance | [target or N/A with reason] |
-| Security / Compliance | [requirement or N/A with reason] |
-| Accessibility | [requirement or N/A with reason] |
-| Compatibility | [requirement or N/A with reason] |
-
-## 5. Error Scenarios (ERR)
-
-### ERR-001: [name]
-
-**Trigger**: [condition]
-**Expected behavior**: [system response]
-**Recovery**: [user or system recovery path]
-
-## 6. Acceptance Criteria (AC)
-
-### AC-001: [title]
-
-```gherkin
-Given [executable precondition]
-When [action]
-Then [observable result]
-```
-
-## 7. Flow
-
-Flow: N/A, because [reason] / [short flow]
-
-## 8. UI/UX
-
-UI: N/A (has_ui=false) / [interaction, states, token/mockup evidence]
-
-## 9. Related Documents
-
-| Document | Link |
-|----------|------|
-| Spec | N/A |
-| QA Plan | N/A |
-
-</prd-template>
+5. If an issue tracker and `ready-for-agent` label are configured, publish the PRD after the local files exist and the shape gate passes.

@@ -1,6 +1,10 @@
 .DS_Store
 .claude/settings.local.json
 
+# Python bytecode from running bundle scripts
+__pycache__/
+*.pyc
+
 # A maintainer's global excludes file may ignore .gitignore files; re-include
 # them so repo and fixture ignore rules stay tracked in fresh checkouts.
 !.gitignore

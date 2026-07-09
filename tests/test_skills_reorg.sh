@@ -988,7 +988,7 @@ for relative in required_files:
 
 readme = (repo / "README.md").read_text(errors="replace")
 head = "\n".join(readme.splitlines()[:30])
-for token in ("Claude Code", "Codex", "Cursor", "工程工作流程技能集", "TypeScript/Web", "v0.5.0 是公開 beta"):
+for token in ("Claude Code", "Codex", "Cursor", "工程工作流程技能集", "TypeScript/Web", "v0.6.0 是公開 beta"):
     if token not in head:
         errors.append(f"README first 30 lines missing positioning token {token!r}")
 
@@ -1102,7 +1102,7 @@ import sys
 
 repo = Path(sys.argv[1])
 skill_path = repo / "prd-interview/SKILL.md"
-template_path = repo / "prd-interview/resources/prd-template.md"
+template_path = repo / "prd-template.md"  # canonical shared PRD shape (SSOT)
 field_guide_path = repo / "prd-interview/references/prd-field-guide.md"
 gate_path = repo / "prd-interview/references/gate-1.md"
 to_prd_path = repo / "to-prd/SKILL.md"
@@ -1133,6 +1133,7 @@ else:
         "## Phase 5: Gate 1 自檢",
         "references/prd-field-guide.md",
         "references/gate-1.md",
+        "../prd-template.md",
         "sprint_tracking",
         "至少 1 個真實風險",
         "低新穎度",
@@ -1159,8 +1160,11 @@ else:
         if token not in shared_onboarder:
             errors.append(f"shared-skill-onboarder contract missing {token!r}")
 
+legacy_template = repo / "prd-interview/resources/prd-template.md"
+if legacy_template.is_file():
+    errors.append("prd-interview/resources/prd-template.md must be removed; use canonical prd-template.md")
 if not template_path.is_file():
-    errors.append("missing prd-interview/resources/prd-template.md")
+    errors.append("missing canonical prd-template.md")
 else:
     template = template_path.read_text(errors="replace")
     for token in (
@@ -1212,9 +1216,11 @@ if not to_prd_path.is_file():
     errors.append("missing to-prd/SKILL.md")
 else:
     to_prd = to_prd_path.read_text(errors="replace")
-    for token in ("## 1. Scope", "## 3. Functional Requirements (FR)", "## 6. Acceptance Criteria (AC)"):
+    if "<prd-template>" in to_prd:
+        errors.append("to-prd must not embed an inline PRD template; reference canonical ../prd-template.md")
+    for token in ("../prd-template.md", "check-prd.py"):
         if token not in to_prd:
-            errors.append(f"to-prd lean PRD template missing {token!r}")
+            errors.append(f"to-prd must reference {token!r}")
     for noisy in ("A LONG", "extremely extensive", "Further Notes", "Do NOT include specific file paths"):
         if noisy in to_prd:
             errors.append(f"to-prd keeps noisy old PRD instruction {noisy!r}")

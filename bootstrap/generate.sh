@@ -90,7 +90,7 @@ done
 
 # Shared top-level .md fragments that skills link via ../<file>.md (not skill folders,
 # so the loop above skips them). Copy into each agent root so those links resolve.
-SHARED_FRAGMENTS="ARTIFACTS.md GATE-PACKAGE.md graph-context-check.md SOURCES.md CHECKLIST-CONVENTION.md"
+SHARED_FRAGMENTS="ARTIFACTS.md GATE-PACKAGE.md graph-context-check.md SOURCES.md CHECKLIST-CONVENTION.md prd-template.md"
 for agent in "${AGENTS[@]}"; do
   for frag in $SHARED_FRAGMENTS; do
     [ -f "$ROOT/$frag" ] && cp "$ROOT/$frag" "$agent/$frag"
@@ -98,7 +98,7 @@ for agent in "${AGENTS[@]}"; do
 done
 
 # Runtime helpers referenced by generated skills and shared artifact docs.
-SHARED_SCRIPTS="manifest-stack.sh run-gate.sh work-items.sh work_items.py"
+SHARED_SCRIPTS="manifest-stack.sh run-gate.sh work-items.sh work_items.py check-prd.py"
 for agent in "${AGENTS[@]}"; do
   mkdir -p "$agent/scripts"
   for script in $SHARED_SCRIPTS; do

@@ -4,6 +4,18 @@
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-09
+
+### Added
+
+- Deterministic PRD shape gate (`scripts/check-prd.py`) with a single canonical `prd-template.md` as the source of truth for PRD shape, enforced as both the producer postcondition (`to-prd`, `prd-interview`) and the `spec` consumer precondition; tier-aware (`--tier core|team`).
+- Artifact contract documents a forward-only adoption stance: existing artifacts are grandfathered and a repository-wide gate sweep is opt-in.
+
+### Changed
+
+- `to-prd` no longer embeds its own PRD template; both PRD entry points reference the canonical `prd-template.md`, removing template drift.
+- README leads with meaning (repeatable, reviewable, resumable) and condenses the design intent into three principle groups.
+
 ### Fixed
 
 - Repository test suites now pass on the exported public payload: private-only
