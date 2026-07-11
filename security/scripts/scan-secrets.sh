@@ -200,7 +200,7 @@ echo "Secret scan extensions: ${extensions[*]}"
 echo "Manifest package manager: $package_manager"
 echo "Manifest framework: $framework"
 
-secrets="$(grep -riEn "${exclude_args[@]}" "${include_args[@]}" \
+secrets="$(grep -riEn "${include_args[@]}" "${exclude_args[@]}" \
   "(api_key|apikey|api-key|secret_key|secret-key|private_key|password|passwd|bearer|access_token|refresh_token)[[:space:]]*[:=][[:space:]]*['\"][^'\"]{6,}['\"]" \
   -- "${targets[@]}" 2>&1 \
   | filter_hardcoded_secret_candidates)"
@@ -253,7 +253,7 @@ if [[ "$ui_capability" = "true" ]]; then
     prefix_regex='a^'
   fi
   echo "Client env prefixes: ${prefixes[*]}"
-  client_secrets="$(grep -rEn "${exclude_args[@]}" "${include_args[@]}" \
+  client_secrets="$(grep -rEn "${include_args[@]}" "${exclude_args[@]}" \
     "($prefix_regex).*(KEY|SECRET|TOKEN|PASSWORD|AUTH)" -- "${targets[@]}" 2>&1)"
   client_rc=$?
   case "$client_rc" in
@@ -277,7 +277,7 @@ else
   issues=$((issues + 1))
 fi
 
-log_secrets="$(grep -riEn "${exclude_args[@]}" "${include_args[@]}" \
+log_secrets="$(grep -riEn "${include_args[@]}" "${exclude_args[@]}" \
   "(console\.(log|info|warn|error)|print\(|logging\.).*[^[:alnum:]](token|key|secret|password|auth)([^[:alnum:]]|$)" \
   -- "${targets[@]}" 2>&1)"
 log_rc=$?

@@ -35,11 +35,11 @@ skill-commons 適合這幾種情況：
 
 ### 1. 加入 submodule
 
-Pin `v0.7.0` tag：
+Pin `v0.7.1` tag：
 
 ```bash
 git submodule add git@github.com:Chuliying/skill-commons.git .agent/skills/_shared
-git -C .agent/skills/_shared checkout v0.7.0
+git -C .agent/skills/_shared checkout v0.7.1
 ```
 
 ### 2. 選擇工作模式
@@ -211,7 +211,7 @@ delivery 仍需獨立授權與對應 evidence；work item 完成只記錄 reques
 
 ```bash
 git -C .agent/skills/_shared fetch --tags
-git -C .agent/skills/_shared checkout v0.7.0
+git -C .agent/skills/_shared checkout v0.7.1
 
 bash .agent/skills/_shared/bootstrap/manage.sh update
 bash .agent/skills/_shared/bootstrap/manage.sh doctor

@@ -46,10 +46,11 @@ fi
 
 assert_contains "$readme_text" "delivery_mode: personal" "README shows an explicit delivery mode before onboarding"
 assert_contains "$readme_text" "capability_packs:" "README documents composable capability packs"
-assert_contains "$readme_text" "v0.7.0" "README pins the v0.7.0 contract"
-assert_contains "$readme_en_text" "v0.7.0" "English summary pins the v0.7.0 contract"
-assert_contains "$bridge_text" "v0.7.0" "submodule bridge pins v0.7.0"
+assert_contains "$readme_text" "v0.7.1" "README pins the v0.7.1 contract"
+assert_contains "$readme_en_text" "v0.7.1" "English summary pins the v0.7.1 contract"
+assert_contains "$bridge_text" "v0.7.1" "submodule bridge pins v0.7.1"
 assert_contains "$changelog_text" "## [Unreleased]" "changelog keeps an Unreleased section after the release cut"
+assert_contains "$changelog_text" "## [0.7.1] - 2026-07-11" "changelog records the v0.7.1 release date"
 assert_contains "$changelog_text" "## [0.7.0] - 2026-07-11" "changelog records the v0.7.0 release date"
 assert_not_contains "$changelog_text" "Release candidate: v0.7.0" "changelog removes the release-candidate marker"
 public_release_text="$(printf '%s\n%s\n%s\n%s\n' \
@@ -126,7 +127,7 @@ for name in sys.argv[1:]:
     section = text[start:] if start >= 0 else ""
     positions = [
         section.find("fetch --tags"),
-        section.find("checkout v0.7.0"),
+        section.find("checkout v0.7.1"),
         section.find("bootstrap/manage.sh update"),
     ]
     if not section or any(position < 0 for position in positions) or positions != sorted(positions):

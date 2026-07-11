@@ -283,6 +283,22 @@ for fixture_name in python-cli ts-web; do
 done
 
 # Secret preflight failures must fail closed before emitting any CLEAR result.
+scanner_order_check="$(python3 - "$REPO/security/scripts/scan-secrets.sh" <<'PY'
+from pathlib import Path
+import sys
+
+lines = [
+    line for line in Path(sys.argv[1]).read_text().splitlines()
+    if "grep -r" in line and "include_args" in line and "exclude_args" in line
+]
+if lines and all(line.index("include_args") < line.index("exclude_args") for line in lines):
+    print("portable")
+else:
+    print("non-portable")
+PY
+)"
+assert_eq "portable" "$scanner_order_check" "secret scanner applies includes before excludes for GNU/BSD parity"
+
 make_scanner_fixture() {
   fixture_name="$1"
   ignore_rule="$2"

@@ -24,11 +24,19 @@ tree_digest() {
 }
 
 file_mode() {
-  stat -f '%Lp' "$1" 2>/dev/null || stat -c '%a' "$1"
+  local mode
+  mode="$(stat -f '%Lp' "$1" 2>/dev/null)" || mode=""
+  case "$mode" in ''|*[!0-7]*) ;; *) printf '%s' "$mode"; return 0 ;; esac
+  mode="$(stat -c '%a' "$1" 2>/dev/null)" || mode=""
+  case "$mode" in ''|*[!0-7]*) return 1 ;; *) printf '%s' "$mode" ;; esac
 }
 
 file_inode() {
-  stat -f '%i' "$1" 2>/dev/null || stat -c '%i' "$1"
+  local inode
+  inode="$(stat -f '%i' "$1" 2>/dev/null)" || inode=""
+  case "$inode" in ''|*[!0-9]*) ;; *) printf '%s' "$inode"; return 0 ;; esac
+  inode="$(stat -c '%i' "$1" 2>/dev/null)" || inode=""
+  case "$inode" in ''|*[!0-9]*) return 1 ;; *) printf '%s' "$inode" ;; esac
 }
 
 assert_missing() {

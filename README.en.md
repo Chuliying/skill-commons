@@ -1,7 +1,7 @@
 # skill-commons
 
 skill-commons is a repository-resident, portable feature-delivery protocol and
-skill toolkit for Claude Code, Codex, and Cursor. v0.7.0 stores execution state
+skill toolkit for Claude Code, Codex, and Cursor. v0.7.1 stores execution state
 in versioned project artifacts, keeps machine contracts declarative, and
 provides local conformance tools. Portability covers the artifacts and protocol.
 Host capabilities still vary.
@@ -55,11 +55,11 @@ Python 3.10+ is required for Plan Sync, Repo Map, some optional utilities, and
 full repository verification. Node.js 18+ is limited to the onboarding scan and
 maintainer fixtures. Base fan-out uses the shell tooling above.
 
-Pin the `v0.7.0` tag when adding the submodule:
+Pin the `v0.7.1` tag when adding the submodule:
 
 ```bash
 git submodule add git@github.com:Chuliying/skill-commons.git .agent/skills/_shared
-git -C .agent/skills/_shared checkout v0.7.0
+git -C .agent/skills/_shared checkout v0.7.1
 
 mkdir -p .agent
 cp .agent/skills/_shared/shared-skill-onboarder/templates/project-manifest.md \
@@ -163,7 +163,7 @@ checked out. Fetch and select a reviewed tag first:
 
 ```bash
 git -C .agent/skills/_shared fetch --tags
-git -C .agent/skills/_shared checkout v0.7.0
+git -C .agent/skills/_shared checkout v0.7.1
 bash .agent/skills/_shared/bootstrap/manage.sh update
 bash .agent/skills/_shared/bootstrap/manage.sh doctor
 ```

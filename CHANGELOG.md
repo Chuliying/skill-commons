@@ -4,6 +4,15 @@
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-07-11
+
+### Fixed
+
+- Made secret-scan source-extension filtering consistent across GNU grep and
+  BSD grep by applying include rules before named exclusions.
+- Made bootstrap lifecycle mode and inode assertions validate portable BSD/GNU
+  `stat` output before accepting it.
+
 ## [0.7.0] - 2026-07-11
 
 ### Added
