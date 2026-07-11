@@ -1,0 +1,46 @@
+{
+  "schema_version": "skill-commons/profiles/v1",
+  "non_goals": [
+    "runtime-workflow-engine",
+    "state-machine",
+    "scheduler"
+  ],
+  "base_profile": "core",
+  "contract_source": "protocol-registry.json#/profiles",
+  "delivery_modes": {
+    "personal": {
+      "profile_file": "profiles/personal"
+    },
+    "team-sprint": {
+      "profile_file": "profiles/team-sprint"
+    }
+  },
+  "capability_packs": {
+    "frontend": {
+      "profile_file": "profiles/frontend"
+    },
+    "optional": {
+      "profile_file": "profiles/optional"
+    }
+  },
+  "compatibility": {
+    "legacy_environment_variable": "PROFILE",
+    "implicit_default": null,
+    "maintainer_all_token": "all",
+    "maintainer_base_token": "core"
+  },
+  "platforms": {
+    "claude-code": {
+      "adapter": "skill-fan-out",
+      "skill_fan_out": true
+    },
+    "codex": {
+      "adapter": "skill-fan-out",
+      "skill_fan_out": true
+    },
+    "cursor": {
+      "adapter": "rule-and-agents",
+      "skill_fan_out": false
+    }
+  }
+}

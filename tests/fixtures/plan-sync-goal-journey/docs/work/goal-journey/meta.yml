@@ -1,0 +1,9 @@
+slug: goal-journey
+title: Neutral Goal journey
+created_at: 2026-07-10T00:00:00+08:00
+updated_at: 2026-07-10T00:00:00+08:00
+status: active
+stages:
+  plan: { skill: plan-sync, file: plan/plan.md, status: ready }
+inputs:
+  - deterministic-goal-journey

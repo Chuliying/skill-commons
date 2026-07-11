@@ -1,250 +1,139 @@
 ---
 name: security
 description: |
-  安全檢查專家。確保程式碼不包含敏感資訊、遵循安全最佳實踐。
-  觸發時機: commit 前、安裝新套件前、處理認證邏輯時
-  觸發關鍵字: security 掃描, 安全檢查, secrets, 敏感資訊洩露, api key 外洩, 硬編碼憑證, client env 前綴洩漏（例：Next.js 的 NEXT_PUBLIC）
+  安全預檢與範圍化審查協調。Use when: commit 前需要 secrets 預檢、依賴變更需要 audit、
+  認證/授權邏輯需要人工審查，或高風險操作需要 on-demand guard。
+  觸發關鍵字: security, secrets, 安全檢查, dependency audit, auth review, api key 外洩
 source_kind: original
 stage: infra
 ---
 
-# Security Guardian
+# Security Preflight
 
-**職責**：確保程式碼安全，防止敏感資訊洩露。
+這個 skill 協調數種不同強度的安全工作，不把它們合併成一個總體結論：
 
----
+| Scope | 證據類型 | 何時適用 |
+|---|---|---|
+| Secret preflight | machine-executed heuristic | commit 前或疑似憑證外洩 |
+| Dependency audit | conditional machine command | 依賴或 lockfile 有變更，或 release policy 要求 |
+| Auth review | scoped manual attestation | 認證、授權、session、token 邏輯有變更 |
+| Operation guard | on-demand command result | 明確涉及高風險操作 |
 
-## Available Scripts
+`scan-secrets.sh` 只是 heuristic secret preflight。exit 0 表示規則沒有找到
+blocking candidate，不表示程式、依賴、認證或部署整體安全，也不取代人工審查。
 
-以實際找到的 skill 目錄為基準解析（標準 consuming repo 佈局：`.agent/skills/_shared/security/`）：
+## 1. Secret preflight
 
-```bash
-# 完整的 secrets 掃描（預設從 manifest 讀 source_roots/source_extensions）
-bash .agent/skills/_shared/security/scripts/scan-secrets.sh
-
-# 指定目錄（預設掃 src；非此慣例的專案請帶入原始碼根目錄）
-bash .agent/skills/_shared/security/scripts/scan-secrets.sh <target-dir>
-```
-
-## On-Demand Hook
-
-接觸生產環境或高風險操作時，可啟用危險操作攔截（On-Demand，非全域常駐）：
+先從 manifest 取得 source roots、extensions、UI capability 與 framework；manifest
+缺席時使用 repo 慣例並明確記錄 fallback。從 consuming repo root 執行：
 
 ```bash
-# 手動測試攔截
-echo "rm -rf /data" | bash .agent/skills/_shared/security/hooks/dangerous-op-guard.sh
-# Exit 0 = 放行，Exit 2 = 阻擋
+bash <security-skill-dir>/scripts/scan-secrets.sh
+bash <security-skill-dir>/scripts/scan-secrets.sh <target-dir>
 ```
 
-**攔截範圍**：`rm -rf`、`git push --force`、`DROP TABLE`/`TRUNCATE`、`kubectl delete`、`docker rm -f`
+指令最多接受一個 target directory。執行前必須位於 Git worktree；所有 manifest
+預設或明確指定的 target 都要存在、可讀、可 traverse、不是 symlink，且 canonical
+path 位於目前 Git worktree 內。任一 precondition 失敗時，scanner 會在輸出任何
+`CLEAR` 前停止。
 
-> 這是手動/按需測試。**切勿**把此 hook 直接設成全域 `PreToolUse`——會靜默攔截所有 session 的操作。要常駐請依 `hooks/dangerous-op-guard.md` 的範圍設定，並讓使用者明確知情。
+Scanner 檢查範圍：
 
-**審計 log**：`hooks/dangerous-op-guard.sh` 被觸發時自動寫入 `~/.skill-memory/security/operations.log`（非每次呼叫 security skill 都會寫，只有實際跑這個 On-Demand hook 才會）
+- 常見硬編碼 secret assignment candidate。
+- `has_ui: true` 時的 client-exposed env 敏感名稱；前綴由 manifest/framework 決定
+  （例：Next.js 的 `NEXT_PUBLIC_`）。
+- 可能把 token/key/secret/password 寫入 log 的文字 candidate。
+- `.env` 是否依 `git check-ignore` 的實際 Git 規則被排除；註解、只忽略
+  `.env.example` 或最後生效的 negation 都不算。
+- staged diff 中常見的 secret assignment candidate。
 
-> 詳細說明：`hooks/dangerous-op-guard.md`
+Scanner 不涵蓋：Git history、binary、編碼/混淆 secret、雲端 secret manager 狀態、
+dependency vulnerability、完整 data-flow、auth correctness 或 production policy。
 
----
+Exit code：
 
-## Iron Laws
+- `0`：沒有 blocking heuristic finding；warning 仍需讀取。
+- `>0`：找到一個以上 blocking finding group，manifest/config 無法安全判定，或
+  `grep`、`git diff --cached`、`git check-ignore` 等必要檢查無法完成。
 
-```
-1. NO HARDCODED SECRETS (API keys, tokens, passwords)
-2. NO SENSITIVE DATA IN LOGS OR URLS
-3. NO UNTRUSTED PACKAGES
-4. NO SECRETS IN CLIENT-EXPOSED ENV VARS（前綴依 framework，例：Next.js 的 NEXT_PUBLIC_）
-```
+Findings 必須回報實際 command、scope、exit code 與命中位置；scanner 只輸出位置與
+候選類別，不重印可能是真實 credential 的原始值。不要只留下裸的結果詞。
 
----
+## 2. Dependency audit（獨立條件式 scope）
 
-## 安全檢查清單
+只有依賴/lockfile 改變或 release policy 明確要求時才執行。從 manifest 取得 package
+manager 與 `dependency_audit_cmd`；沒有指令、工具或必要網路權限時記錄 `SKIP` 與原因，
+不自動安裝工具、不自行開啟網路，也不把 secret preflight 當成 dependency audit。
 
-### Phase 1: 敏感資訊檢查
+Evidence 至少包含：command、lockfile/scope、exit code、finding 數與未執行原因（若有）。
 
-掃描範圍與副檔名依專案而定：原始碼根目錄與語言讀 manifest 的 `## Paths` / `## Stack`（沒有就問使用者或用 repo 慣例），下例以 `<src-root>` / `<ext>` 代稱。
+## 3. Auth / authorization review（人工、條件式）
+
+只有本次 change 觸及 auth domain、API authorization、cookie/session 或 token lifecycle
+時才啟用。這裡沒有自動 code-review engine；輸出只能是 scoped manual attestation。
+
+檢查：
+
+- authority 是否由可信任的 server-side boundary 建立並 default-deny。
+- token/cookie 傳遞、過期、撤銷與錯誤處理是否符合既有 contract。
+- log、URL、client-exposed env 與錯誤訊息是否洩漏敏感內容。
+- 新增 endpoint 是否有明確 authentication / authorization policy。
+
+記錄必須綁定 change scope（例如 base SHA＋diff command）與 reviewer；裸的 PASS 不足。
+未修改 auth surface 時記 `N/A`，不要製造審查結果。
+
+## 4. Operation guard（獨立 on-demand scope）
+
+只有實際要執行高風險操作時才手動啟用：
 
 ```bash
-# 1.1 檢查硬編碼敏感資訊
-grep -rEn "(api_key|apikey|secret|password|token)\s*[:=]\s*['\"][^'\"]+['\"]" <manifest-source-roots> <manifest-extension-includes> | grep -iv "type\|interface\|env"
-
-# 1.2 檢查 client-exposed env 敏感變數（前綴依 framework，例：Next.js 的 NEXT_PUBLIC_、Vite 的 VITE_）
-grep -rn "<client-env-prefix>.*KEY\|<client-env-prefix>.*SECRET\|<client-env-prefix>.*TOKEN\|<client-env-prefix>.*PASSWORD" <src-root>
-
-# 1.3 檢查 log 輸出敏感資訊（log 呼叫依語言，例：console.log / print / logger）
-grep -rn "<stack-log-call>.*\(token\|key\|secret\|password\)" <manifest-source-roots> <manifest-extension-includes>
+echo "rm -rf /data" | bash <security-skill-dir>/hooks/dangerous-op-guard.sh
+# exit 0 = 放行；exit 2 = 阻擋
 ```
 
-| 發現 | 風險等級 | 處理方式 |
-|------|:--------:|---------|
-| 硬編碼 API Key | **Critical** | 立即移除，改用環境變數 |
-| client-exposed env 敏感變數 | **High** | 移至 server-side |
-| log 輸出 token | **High** | 移除或遮罩處理 |
+Guard 涵蓋的文字模式與 audit log 見
+[`hooks/dangerous-op-guard.md`](hooks/dangerous-op-guard.md)。不要把 hook 靜默設成全域
+`PreToolUse`；常駐前必須讓使用者知情並確認範圍。只有實際執行 hook 才能記為 evidence。
 
-### Phase 2: 環境變數檢查
+## Pre-commit 接入
 
-```bash
-# 2.1 確認 .env 在 .gitignore
-grep -q "\.env" .gitignore && echo "OK" || echo "WARNING: .env not in .gitignore"
+先以 repo 證據確認是否已有 pre-commit framework/hook：
 
-# 2.2 檢查環境變數使用（讀取語法依語言，例：process.env / os.environ）
-grep -rn "process\.env\.\|os\.environ" <src-root> | head -20
-```
+- 已有：確認是否接入 secret preflight；缺少時提出變更，不暗中改 hook。
+- 沒有：commit 前手動執行 scanner；不要聲稱 repo 已有自動防護。
 
-**環境變數命名規範**：
+## Framework reference
 
-| 類型 | 可見範圍 | 適用內容 |
-|------|---------|---------|
-| client-exposed 前綴（依 framework，例：Next.js 的 `NEXT_PUBLIC_`、Vite 的 `VITE_`） | Client + Server | 非敏感的公開配置 |
-| 無 client 前綴 | Server only | API keys, tokens, secrets |
+只有 manifest `stack.framework` 匹配時才讀對應 reference：
 
-### Phase 3: 依賴安全檢查
+| Framework | Reference |
+|---|---|
+| Next.js | [`references/nextjs-security-patterns.md`](references/nextjs-security-patterns.md) |
 
-指令依 manifest `## Stack` 的 package manager / 生態（沒有就問使用者）：
+## Execution Checklist
 
-```bash
-# 3.1 依賴弱點掃描：用 stack 對應的 audit 指令（例：<pkg-manager> audit --audit-level=high；Python 用 pip-audit）
-<pkg-audit-cmd>
+> 格式慣例見 [CHECKLIST-CONVENTION.md](../CHECKLIST-CONVENTION.md)。各 scope 分開記錄，
+> 不輸出一個包住全部的總體安全結論。
 
-# 3.2 檢查套件來源（安裝前）：查 registry 的 homepage / repository / 下載量
-<pkg-view-cmd> [package-name]
-```
-
-**安裝套件前檢查**：
-
-| 檢查項目 | 建議標準 |
-|---------|---------|
-| 週下載量 | > 10,000 |
-| 最後更新 | < 1 年內 |
-| GitHub Stars | > 100 |
-| 維護者 | 知名組織或個人 |
-
-### Phase 4: 認證/授權檢查
-
-**修改認證邏輯前必須確認**：
-
-```
-□ 是否影響現有的認證流程？
-□ Token 是否正確傳遞（Header vs Cookie）？
-□ 是否有適當的錯誤處理？
-□ 是否有 Token 過期處理？
-```
-
----
-
-## 高風險操作
-
-以下操作需要**特別審查**：
-
-| 操作 | 風險 | 審查重點 |
-|------|------|---------|
-| 修改認證入口模組（讀 manifest `Domain Skill Names` 的 auth 相關 domain skill；沒有就問使用者 auth 入口位置） | 認證流程 | Token 處理是否正確 |
-| 修改認證相關常數/配置 | 認證配置 | 是否洩露敏感資訊 |
-| 新增 API route / endpoint | 授權檢查 | 是否有認證保護 |
-| 修改 `.env.example` | 配置範例 | 是否包含真實值 |
-
----
-
-## 安全最佳實踐
-
-### 1. 環境變數
-
-```typescript
-//  正確：使用環境變數
-const apiKey = process.env.API_KEY
-
-//  錯誤：硬編碼
-const apiKey = "sk-1234567890abcdef"
-```
-
-### 2. 敏感資訊遮罩
-
-```typescript
-//  正確：遮罩處理
-console.log('Token:', token.substring(0, 8) + '...')
-
-//  錯誤：完整輸出
-console.log('Token:', token)
-```
-
-### 3. URL 參數
-
-```typescript
-//  正確：Header 傳遞
-fetch(url, {
-  headers: { Authorization: `Bearer ${token}` }
-})
-
-//  錯誤：URL 參數
-fetch(`${url}?token=${token}`)
-```
-
-### 4. 錯誤訊息
-
-```typescript
-//  正確：通用錯誤訊息
-throw new Error('Authentication failed')
-
-//  錯誤：洩露內部資訊
-throw new Error(`Invalid token: ${token}`)
-```
-
----
-
-## Pre-commit 自動檢查
-
-先確認 consuming repo 是否已設定 pre-commit hook（看 repo 證據：`.git/hooks/`、husky、pre-commit framework 等；**不要假設存在**）：
-
-- **已設定** → 確認包含 secrets pattern 掃描（api_key、secret_key、password 硬編碼檢測；排除型別定義和環境變數引用）；缺少則建議接入 `scripts/scan-secrets.sh`。
-- **未設定** → commit 前手動執行 `scripts/scan-secrets.sh`（見 Available Scripts）。
-
----
-
-## Framework References
-
-依 manifest `stack.framework`（沒有就問使用者）條件式載入對應參考，不套用到其他 framework：
-
-| framework | 參考 |
-|-----------|------|
-| next | `references/nextjs-security-patterns.md` |
-
----
-
-## Related Skills
-
-| Skill / 文件 | 關係 |
-|-------|------|
-| `caveman-review` | Phase 5 安全檢查 |
-| `.agent/guardrails.md`（文件，非 skill） | 操作邊界定義 |
-
----
-
-## Execution Checklist（必填輸出）
-
-> Checklist 格式慣例見 [CHECKLIST-CONVENTION.md](../CHECKLIST-CONVENTION.md)。
-
-```
+```text
 Skill: security
 Executed At: YYYY-MM-DD HH:MM
-Scope: [檔案/目錄]
+Change Scope: [base SHA / diff / files]
 
-Steps:
-Phase 1: 敏感資訊檢查 - [PASS/SKIP]
-   Evidence: [硬編碼: X, client-exposed env: X, log 輸出: X]
-Phase 2: 環境變數檢查 - [PASS/SKIP]
-   Evidence: [.gitignore: OK/FAIL]
-Phase 3: 依賴安全檢查 - [PASS/SKIP]
-   Evidence: [依賴 audit: X vulnerabilities]
-Phase 4: 認證/授權檢查 - [PASS/SKIP/N/A]
-   Evidence: [審查結果]
+Machine evidence:
+- Secret preflight: [CLEAR/FINDINGS/SKIP]
+  Evidence: [command, target, exit code, finding groups]
+- Dependency audit: [CLEAR/FINDINGS/SKIP]
+  Evidence: [command, lockfile/scope, exit code, skip reason]
 
-Security Result:
-   □ 硬編碼 Secrets: [無/有]
-   □ client-exposed env 敏感: [無/有]
-   □ 依賴 audit: [PASS/FAIL]
-   □ 認證邏輯: [OK/需審查/N/A]
+Recorded/manual evidence:
+- Auth review: [RECORDED/N/A]
+  Evidence: [reviewer, diff scope, findings/resolution]
+- Operation guard: [EXECUTED/SKIP]
+  Evidence: [command category, exit code, log reference]
 
-Findings: [無 / 問題清單]
-Suggested Fix: [無 / 修復建議]
+Findings: [具體問題 / none in executed scope]
+Unverified scopes: [未執行或只能人工判定的項目]
 ```
 
-只有本次安全檢查交接 durable report 時，未把 Checklist 寫入 report 才算交接未完成。
+只有本次交接需要 durable security report 時，才把這份 checklist 寫入該 report。

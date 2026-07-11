@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Profile split (core + team-sprint/personal overlays): list integrity,
-# set exclusivity/coverage, and generate.sh PROFILE filtering.
+# Profile model: one delivery mode plus zero-or-more capability packs, with
+# list integrity, dependency/conflict validation, and safe fan-out defaults.
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 TMP="$(mktemp -d)"
@@ -87,12 +87,14 @@ PY
   fi
 }
 
-# --- 1) profile files exist; every entry maps to a real skill folder ---
-for p in core team-sprint personal optional; do
+# --- 1) declarative model and profile files are complete and truthful ---
+assert_file "$REPO/profiles.json" "profiles.json exists"
+assert_file "$REPO/docs/profile-platform-support.md" "profile/platform support matrix exists"
+for p in core team-sprint personal optional frontend; do
   assert_file "$REPO/profiles/$p" "profiles/$p exists"
 done
 missing=""
-for p in core team-sprint personal optional; do
+for p in core team-sprint personal optional frontend; do
   while IFS= read -r name; do
     [ -f "$REPO/$name/SKILL.md" ] || missing="$missing $p:$name"
   done <<EOF
@@ -105,13 +107,114 @@ core="$(resolve core | sort)"
 team_overlay="$(overlay team-sprint | sort)"
 personal_overlay="$(overlay personal | sort)"
 optional_overlay="$(overlay optional | sort)"
+frontend_overlay="$(overlay frontend | sort)"
 assert_contains "$optional_overlay" "humanizer" "optional profile includes humanizer"
 
-# --- 2) consuming profiles are exclusive and cover every workflow skill.
+profile_model_conformance() {
+python3 - "$REPO" "$1" "$2" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+model = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+registry = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
+errors = []
+if model.get("schema_version") != "skill-commons/profiles/v1":
+    errors.append("unexpected profiles schema")
+if model.get("base_profile") != "core":
+    errors.append("base profile must be core")
+
+modes = model.get("delivery_modes", {})
+packs = model.get("capability_packs", {})
+if set(modes) != {"personal", "team-sprint"}:
+    errors.append(f"delivery mode set mismatch: {sorted(modes)}")
+if set(packs) != {"frontend", "optional"}:
+    errors.append(f"capability pack set mismatch: {sorted(packs)}")
+for name, record in {**modes, **packs}.items():
+    profile_file = record.get("profile_file")
+    if profile_file != f"profiles/{name}":
+        errors.append(f"{name} profile_file mismatch")
+    if not (root / str(profile_file)).is_file():
+        errors.append(f"{name} profile file is missing")
+if model.get("contract_source") != "protocol-registry.json#/profiles":
+    errors.append("profile dependency contract source mismatch")
+
+compat = model.get("compatibility", {})
+if compat.get("implicit_default") is not None:
+    errors.append("implicit profile default must be null")
+if compat.get("maintainer_all_token") != "all":
+    errors.append("maintainer all token mismatch")
+
+platforms = model.get("platforms", {})
+expected = {
+    "claude-code": (True, "skill-fan-out"),
+    "codex": (True, "skill-fan-out"),
+    "cursor": (False, "rule-and-agents"),
+}
+if set(platforms) != set(expected):
+    errors.append(f"platform set mismatch: {sorted(platforms)}")
+for name, (fan_out, adapter) in expected.items():
+    record = platforms.get(name, {})
+    if record.get("skill_fan_out") is not fan_out or record.get("adapter") != adapter:
+        errors.append(f"{name} capability mismatch")
+
+contracts = registry.get("profiles", {})
+expected_contracts = {
+    "core": ("base", [], []),
+    "personal": ("delivery-mode", ["core"], ["team-sprint"]),
+    "team-sprint": ("delivery-mode", ["core"], ["personal"]),
+    "frontend": ("capability-pack", ["core"], []),
+    "optional": ("capability-pack", ["core"], []),
+}
+if set(contracts) != set(expected_contracts):
+    errors.append(f"protocol profile set mismatch: {sorted(contracts)}")
+for name, (kind, requires, conflicts) in expected_contracts.items():
+    record = contracts.get(name, {})
+    actual = (record.get("kind"), record.get("requires"), record.get("conflicts"))
+    if actual != (kind, requires, conflicts):
+        errors.append(f"{name} protocol profile contract mismatch")
+
+if errors:
+    print("\n".join(errors))
+    raise SystemExit(1)
+print("profile model conformance ok")
+PY
+}
+
+if profile_model_conformance "$REPO/profiles.json" "$REPO/protocol-registry.json"
+then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: profile model is declarative and host capabilities are explicit"
+else
+  fail "profile model is declarative and host capabilities are explicit"
+fi
+
+python3 - "$REPO/profiles.json" "$TMP/extra-platform.json" <<'PY'
+import copy
+import json
+import sys
+from pathlib import Path
+
+model = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+mutant = copy.deepcopy(model)
+mutant["platforms"]["extra-host"] = {
+    "adapter": "skill-fan-out",
+    "skill_fan_out": True,
+}
+Path(sys.argv[2]).write_text(json.dumps(mutant), encoding="utf-8")
+PY
+if profile_model_conformance "$TMP/extra-platform.json" "$REPO/protocol-registry.json" >/dev/null 2>&1; then
+  fail "profile model rejects undeclared extra platform names"
+else
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: profile model rejects undeclared extra platform names"
+fi
+
+# --- 2) base, delivery overlays, and capability packs are exclusive and cover
+# every workflow skill. Frontend is opt-in for relevance, not bundle size. ---
 # skill-creator intentionally remains a top-level maintainer tool without fan-out. ---
-dups="$(printf '%s\n%s\n%s\n%s\n' "$core" "$team_overlay" "$personal_overlay" "$optional_overlay" | sort | uniq -d)"
-assert_eq "" "$dups" "core / team / personal / optional sets are mutually exclusive"
-union="$(printf '%s\n%s\n%s\n%s\n' "$core" "$team_overlay" "$personal_overlay" "$optional_overlay" | sort)"
+dups="$(printf '%s\n%s\n%s\n%s\n%s\n' "$core" "$team_overlay" "$personal_overlay" "$optional_overlay" "$frontend_overlay" | sort | uniq -d)"
+assert_eq "" "$dups" "base / delivery / capability sets are mutually exclusive"
+union="$(printf '%s\n%s\n%s\n%s\n%s\n' "$core" "$team_overlay" "$personal_overlay" "$optional_overlay" "$frontend_overlay" | sed '/^$/d' | sort)"
 profiled_active="$(active_names | grep -vx 'skill-creator')"
 assert_eq "$profiled_active" "$union" "profiles cover all active workflow skills except maintainer-only skill-creator"
 if printf '%s\n' "$union" | grep -qx 'skill-creator'; then
@@ -119,61 +222,144 @@ if printf '%s\n' "$union" | grep -qx 'skill-creator'; then
 else
   TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: skill-creator is absent from consuming profiles"
 fi
+if printf '%s\n' "$personal_overlay" | grep -qx 'design-taste-frontend'; then
+  fail "generic personal mode excludes design-taste-frontend"
+else
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: generic personal mode excludes design-taste-frontend"
+fi
+assert_eq "design-taste-frontend" "$frontend_overlay" "frontend capability owns design-taste-frontend"
 
-# --- 3) PROFILE fan-out matches the resolved list exactly ---
-for p in team-sprint personal optional; do
+# --- 3) preferred explicit interface is one delivery mode plus capability packs ---
+for p in team-sprint personal; do
   mkdir -p "$TMP/$p"
-  PROFILE="$p" bash "$REPO/bootstrap/generate.sh" "$TMP/$p" >/dev/null
+  DELIVERY_MODE="$p" bash "$REPO/bootstrap/generate.sh" "$TMP/$p" >/dev/null
   generated="$(find "$TMP/$p" -mindepth 2 -maxdepth 2 -type f -name SKILL.md -print |
     sed "s#^$TMP/$p/##;s#/SKILL.md##" | sort)"
-  assert_eq "$(resolve "$p" | sort -u)" "$generated" "PROFILE=$p fans exactly the $p list"
-  check_generated_markdown_links "$TMP/$p" "PROFILE=$p"
+  assert_eq "$(resolve "$p" | sort -u)" "$generated" "DELIVERY_MODE=$p fans exactly the $p list"
+  check_generated_markdown_links "$TMP/$p" "DELIVERY_MODE=$p"
 done
 
-# Optional utilities must compose with a delivery profile instead of replacing it.
+# Zero capability packs is valid; multiple packs compose with exactly one mode.
 mkdir -p "$TMP/personal-optional"
-PROFILE="personal optional" bash "$REPO/bootstrap/generate.sh" "$TMP/personal-optional" >/dev/null
+DELIVERY_MODE=personal CAPABILITY_PACKS="optional frontend" \
+  bash "$REPO/bootstrap/generate.sh" "$TMP/personal-optional" >/dev/null
 generated_combined="$(find "$TMP/personal-optional" -mindepth 2 -maxdepth 2 -type f -name SKILL.md -print |
   sed "s#^$TMP/personal-optional/##;s#/SKILL.md##" | sort)"
-expected_combined="$(printf '%s\n%s\n' "$(resolve personal)" "$(resolve optional)" | sort -u)"
-assert_eq "$expected_combined" "$generated_combined" "PROFILE supports delivery + optional profile composition"
-check_generated_markdown_links "$TMP/personal-optional" "PROFILE=personal optional"
+expected_combined="$(printf '%s\n%s\n%s\n' "$(resolve personal)" "$(resolve optional)" "$(resolve frontend)" | sort -u)"
+assert_eq "$expected_combined" "$generated_combined" "delivery mode composes with zero-or-more capability packs"
+check_generated_markdown_links "$TMP/personal-optional" "personal + optional + frontend"
 
-# --- 4) no PROFILE fans all workflow skills, excluding maintainer-only tools ---
+# --- 4) omitted selection fails; all-skills remains explicit maintainer compatibility ---
+mkdir -p "$TMP/implicit"
+if bash "$REPO/bootstrap/generate.sh" "$TMP/implicit" >"$TMP/implicit.out" 2>"$TMP/implicit.err"; then
+  fail "generate rejects omitted delivery selection"
+else
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: generate rejects omitted delivery selection"
+fi
+assert_eq "" "$(find "$TMP/implicit" -mindepth 1 -print -quit)" "omitted selection fails before target mutation"
+
 mkdir -p "$TMP/all"
-bash "$REPO/bootstrap/generate.sh" "$TMP/all" >/dev/null
+PROFILE=all bash "$REPO/bootstrap/generate.sh" "$TMP/all" >/dev/null
 generated_all="$(find "$TMP/all" -mindepth 2 -maxdepth 2 -type f -name SKILL.md -print |
   sed "s#^$TMP/all/##;s#/SKILL.md##" | sort)"
-assert_eq "$(active_names | grep -vx 'skill-creator')" "$generated_all" "without PROFILE, generate excludes maintainer-only skill-creator"
+assert_eq "$(active_names | grep -vx 'skill-creator')" "$generated_all" "PROFILE=all explicitly fans maintainer compatibility set"
 assert_file "$TMP/all/scripts/manifest-stack.sh" "fan-out includes shared runtime helpers"
-check_generated_markdown_links "$TMP/all" "PROFILE=all"
+check_generated_markdown_links "$TMP/all" "explicit PROFILE=all"
+
+# Legacy non-empty PROFILE remains a migration path, but it must still express
+# one delivery mode; capability-only and conflicting compositions fail closed.
+mkdir -p "$TMP/legacy"
+PROFILE="personal optional" bash "$REPO/bootstrap/generate.sh" "$TMP/legacy" >/dev/null
+legacy_generated="$(find "$TMP/legacy" -mindepth 2 -maxdepth 2 -type f -name SKILL.md -print |
+  sed "s#^$TMP/legacy/##;s#/SKILL.md##" | sort)"
+assert_eq "$(printf '%s\n%s\n' "$(resolve personal)" "$(resolve optional)" | sort -u)" "$legacy_generated" "legacy PROFILE composition remains compatible"
+if PROFILE=optional bash "$REPO/bootstrap/generate.sh" "$TMP/invalid-capability-only" >/dev/null 2>&1; then
+  fail "legacy capability-only PROFILE is rejected"
+else
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: legacy capability-only PROFILE is rejected"
+fi
+if PROFILE="personal team-sprint" bash "$REPO/bootstrap/generate.sh" "$TMP/invalid-conflict" >/dev/null 2>&1; then
+  fail "conflicting delivery modes are rejected"
+else
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: conflicting delivery modes are rejected"
+fi
+if PROFILE=personal DELIVERY_MODE=personal bash "$REPO/bootstrap/generate.sh" "$TMP/invalid-mixed-interface" >/dev/null 2>&1; then
+  fail "legacy and explicit profile interfaces cannot be mixed"
+else
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: legacy and explicit profile interfaces cannot be mixed"
+fi
+if CAPABILITY_PACKS=optional bash "$REPO/bootstrap/generate.sh" "$TMP/invalid-pack-only" >/dev/null 2>&1; then
+  fail "capability packs require a delivery mode"
+else
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: capability packs require a delivery mode"
+fi
+if DELIVERY_MODE=personal CAPABILITY_PACKS="optional optional" \
+  bash "$REPO/bootstrap/generate.sh" "$TMP/invalid-duplicate-pack" >/dev/null 2>&1; then
+  fail "duplicate capability packs are rejected"
+else
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: duplicate capability packs are rejected"
+fi
+if DELIVERY_MODE=personal CAPABILITY_PACKS=team-sprint \
+  bash "$REPO/bootstrap/generate.sh" "$TMP/invalid-pack-kind" >/dev/null 2>&1; then
+  fail "delivery modes cannot be selected as capability packs"
+else
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: delivery modes cannot be selected as capability packs"
+fi
 
 # --- 5) stale/typo entry fails hard (tmp source tree; the repo stays untouched) ---
 FAKE="$TMP/fake-src"
 mkdir -p "$FAKE/real-skill" "$FAKE/profiles" "$TMP/broken-out"
 printf -- '---\nname: real-skill\n---\n' > "$FAKE/real-skill/SKILL.md"
 printf 'real-skill\nno-such-skill\n' > "$FAKE/profiles/broken"
-if SKILLS_SRC="$FAKE" PROFILE=broken bash "$REPO/bootstrap/generate.sh" "$TMP/broken-out" >/dev/null 2>&1; then
+if SKILLS_SRC="$FAKE" PROFILE="core broken" bash "$REPO/bootstrap/generate.sh" "$TMP/broken-out" >/dev/null 2>&1; then
   fail "generate.sh fails on a profile entry without a skill folder"
 else
   TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: generate.sh fails on a profile entry without a skill folder"
 fi
-if SKILLS_SRC="$FAKE" PROFILE=no-such-profile bash "$REPO/bootstrap/generate.sh" "$TMP/broken-out" >/dev/null 2>&1; then
+if SKILLS_SRC="$FAKE" DELIVERY_MODE=no-such-profile bash "$REPO/bootstrap/generate.sh" "$TMP/broken-out" >/dev/null 2>&1; then
   fail "generate.sh fails on an unknown profile name"
 else
   TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: generate.sh fails on an unknown profile name"
 fi
 
-# --- 6) manifest get_profile reads the bootstrap key (empty when absent) ---
+# --- 6) manifest reads the explicit model and retains legacy PROFILE parsing ---
 . "$REPO/bootstrap/lib/manifest.sh"
 cat > "$TMP/manifest.md" <<'EOF'
 ## skill-commons bootstrap
 - platforms: claude-code
-- profile: team-sprint
+- delivery_mode: team-sprint
+- capability_packs: optional, frontend
 EOF
-assert_eq "team-sprint" "$(get_profile "$TMP/manifest.md")" "get_profile reads manifest profile key"
+assert_eq "team-sprint" "$(get_delivery_mode "$TMP/manifest.md")" "manifest reads delivery mode"
+assert_eq "optional frontend" "$(get_capability_packs "$TMP/manifest.md")" "manifest reads capability packs"
 printf -- '- platforms: claude-code\n' > "$TMP/manifest-noprofile.md"
 assert_eq "" "$(get_profile "$TMP/manifest-noprofile.md")" "get_profile is empty when key absent"
+assert_eq "" "$(get_delivery_mode "$TMP/manifest-noprofile.md")" "delivery mode is empty when omitted"
+printf '%s\n' '## skill-commons bootstrap' '- profile: personal optional' > "$TMP/manifest-legacy.md"
+assert_eq "personal optional" "$(get_profile "$TMP/manifest-legacy.md")" "legacy profile remains readable"
+template="$(cat "$REPO/shared-skill-onboarder/templates/project-manifest.md")"
+assert_contains "$template" "delivery_mode: personal" "fresh manifest has an explicit safe delivery mode"
+
+NO_SELECTION="$TMP/no-selection-project"
+mkdir -p "$NO_SELECTION/.agent"
+printf '%s\n' '## skill-commons bootstrap' '- platforms: codex' > "$NO_SELECTION/.agent/project-manifest.md"
+if bash "$REPO/bootstrap/onboard.sh" "$NO_SELECTION" >/dev/null 2>&1; then
+  fail "onboard rejects a manifest without delivery selection"
+else
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: onboard rejects a manifest without delivery selection"
+fi
+if [ -e "$NO_SELECTION/AGENTS.md" ] || [ -e "$NO_SELECTION/.codex/skills" ]; then
+  fail "missing delivery selection fails before platform fan-out"
+else
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: missing delivery selection fails before platform fan-out"
+fi
+
+support="$(cat "$REPO/docs/profile-platform-support.md" 2>/dev/null || true)"
+assert_contains "$support" "personal = 16" "support matrix preserves audited personal baseline"
+assert_contains "$support" "team-sprint = 19" "support matrix preserves audited team baseline"
+assert_contains "$support" "relevance" "frontend move is justified by relevance"
+assert_contains "$support" "Cursor" "support matrix documents Cursor"
+assert_contains "$support" "rule + AGENTS adapter" "Cursor support is not called skill fan-out"
 
 # --- 6b) Stack capabilities are strict booleans and default false ---
 cat >> "$TMP/manifest.md" <<'EOF'

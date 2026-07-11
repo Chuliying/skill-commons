@@ -4,7 +4,8 @@
 
 - submodule_path: .agent/skills/_shared
 - platforms: claude-code, cursor, codex
-- profile:
+- delivery_mode: personal
+- capability_packs:
 
 ## Paths
 

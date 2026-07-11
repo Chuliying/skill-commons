@@ -68,4 +68,4 @@ bash .agent/skills/_shared/qa/scripts/run-qa.sh "$WORK_ROOT/$SLUG/qa-plan.md"
 
 ## 與 pipeline 的關係
 
-`spec` → **qa (plan)** → `implement` → **qa (validate)** → `caveman-review`
+`spec` → **qa (plan)** → `implement` → **qa (validate)** → `verification-before-completion` → `caveman-review`

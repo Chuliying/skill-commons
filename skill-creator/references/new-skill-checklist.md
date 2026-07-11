@@ -4,9 +4,9 @@
 
 ## Product fit
 
-- [ ] 指出服務 README 六條 ground truth 中的哪一條。
+- [ ] 指出對應的 README 公開 contract 或已觀察使用情境。
 - [ ] 說明與既有技能的能力差異。
-- [ ] 說明操作者角色與 Gate 密度依據。
+- [ ] 說明操作者角色、人工判斷與 machine gate 邊界。
 
 ## Metadata and provenance
 
@@ -24,6 +24,6 @@
 ## Verification
 
 - [ ] 新行為先有 failing test 或可重複的 eval baseline。
-- [ ] `bash bootstrap/generate.sh` 成功。
+- [ ] `PROFILE=all bash bootstrap/generate.sh` 成功。
 - [ ] `AGENTS.md` 列出的完整 Verify chain 全部通過。
 - [ ] Stable 技能有對應 journey eval PASS 證據。

@@ -2,6 +2,11 @@
 
 > Produced via `grill-with-docs` grilling session. One ADR per locked decision.
 > Status legend: 🔒 locked · 🟡 proposed · ⬜ open
+>
+> Historical note (2026-07-10): this log preserves decisions at the time they
+> were made. Current machine contracts live in `protocol-registry.json`,
+> `ARTIFACTS.md`, `profiles.json`, and `SOURCES.md`; those sources supersede
+> counts, lifecycle values, and profile details below when they differ.
 
 ---
 
@@ -22,7 +27,8 @@
 
 ## ADR-002 — 外部技能 vendoring 與更新策略 🔒
 
-**Decision:** 外部技能以 top-level 資料夾 vendor；目前共 11 個 provenance entries（含 2 個依賴與後續加入的 ponytail）。
+**Decision:** 外部技能以 top-level 資料夾 vendor。當時盤點為 11 個
+provenance entries；現行清單與選用 adapter 以根目錄 `SOURCES.md` 為準。
 
 - SKILL.md frontmatter 加 `source: owner/repo@<commit>`。
 - 根目錄建 `SOURCES.md` 索引（技能 → 來源 repo@commit → 安裝指令）。
@@ -82,7 +88,8 @@ api-doc-parser, architect, auditor, change-tracker, project-onboarding, rd-sync-
 `work_root`（預設 `docs/work`）的 `<work_root>/<slug>/`；slug 不含日期且跨 stage
 沿用。每個工作項只有一份 `meta.yml`，各 stage 更新自己的 entry。獨立格式轉換
 落在 `<docs_root>/reference/`。legacy `.agent/artifacts/` 留在原地，不搬移；新工作
-一律遵循根目錄 `ARTIFACTS.md` v2。
+一律遵循根目錄 `ARTIFACTS.md`。原 v2 形狀已由 2026-07-10 的
+work-item/v3 生命週期契約取代。
 
 ---
 
@@ -102,6 +109,10 @@ api-doc-parser, architect, auditor, change-tracker, project-onboarding, rd-sync-
 ---
 
 ## ADR-009 — Work-item Closeout 🔒
+
+> Superseded 2026-07-10: `work-item/v3` 以 `work_status` 與
+> evidence-backed `delivery_status` 分離工作完成與交付事件。下列為原始
+> closeout 歷史，不是現行 `meta.yml` 寫法。
 
 工作項在 merge／PR 前 closeout，不把 spec/QA 內容複製回 PRD：
 

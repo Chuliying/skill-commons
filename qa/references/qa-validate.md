@@ -151,9 +151,11 @@ bash .agent/skills/_shared/qa/scripts/run-qa.sh "$WORK_ROOT/$SLUG/qa-plan.md"
  驗收失敗，請修正上述問題。
 ```
 
-若結論為 PASS，提示使用者可執行 work-item closeout：在 `prd.md` 追加
-`## Delivery`、將 `meta.yml` 標記 `shipped`，並升級仍長期有效的 ADR／術語；
-不要在未授權 branch 收尾時自行 merge 或 push。
+若結論為 PASS，提示使用者可準備 work-item closeout：在 `prd.md` 追加
+`## Delivery`、將 `meta.yml` 的 `work_status` 設為 `completed` 且
+`delivery_status` 設為 `awaiting_approval`，並升級仍長期有效的 ADR／術語。
+此時不得填寫 PR URL、merge SHA 或 deployment ID；只有相應事件成功後才能用
+實際 evidence 推進 delivery state。不要在未授權 branch 收尾時自行 merge 或 push。
 
 ---
 

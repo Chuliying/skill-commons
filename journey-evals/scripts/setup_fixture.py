@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -23,16 +24,18 @@ def write(path: Path, content: str) -> None:
     path.write_text(content.rstrip() + "\n", encoding="utf-8")
 
 
-def run(*args: str, cwd: Path | None = None) -> None:
-    subprocess.run(args, cwd=cwd, check=True, stdout=subprocess.DEVNULL)
+def run(*args: str, cwd: Path | None = None, env: dict[str, str] | None = None) -> None:
+    subprocess.run(args, cwd=cwd, env=env, check=True, stdout=subprocess.DEVNULL)
 
 
-def manifest(profile: str) -> str:
+def manifest(delivery_mode: str) -> str:
     return f"""
 # Project Manifest
 
 ## skill-commons bootstrap
-- profile: {profile}
+- platforms: claude-code, codex
+- delivery_mode: {delivery_mode}
+- capability_packs:
 
 ## Core Documents
 - guardrails: .agent/guardrails.md
@@ -117,20 +120,30 @@ if __name__ == "__main__":
     elif scenario == "commit-pr":
         work = dest / "docs/work/ship-ready"
         write(work / "prd.md", "# Ship-ready PRD\n\nAC-001: greet returns the documented message.")
+        write(work / "spec.md", "# Spec\n\nImplement the documented greeting contract.")
+        write(work / "qa-plan.md", "# QA Plan\n\nVerify AC-001 with the fixture test suite.")
+        write(work / "plan/plan.md", "# Plan\n\nExecute verification and prepare release closeout.")
         write(work / "qa-report.md", "# QA Report\n\nAC-001: PASS")
         write(work / "implement-report.md", "# Implement Report\n\nTests: PASS")
         write(
             work / "meta.yml",
             """
+schema_version: work-item/v3
 slug: ship-ready
 title: Ship-ready greeting
 created_at: 2026-07-04T00:00:00+08:00
 updated_at: 2026-07-04T00:00:00+08:00
-status: active
+execution_mode: team-feature
+work_status: active
+delivery_status: not_requested
 stages:
-  prd: { skill: prd-interview, file: prd.md, status: ready }
+  prd: { skill: prd-interview, file: prd.md, status: approved }
+  spec: { skill: spec, file: spec.md, status: approved }
+  qa-plan: { skill: qa, file: qa-plan.md, status: done }
+  plan: { skill: plan-sync, file: plan/plan.md, status: done }
   implement: { skill: implement, file: implement-report.md, status: done }
   qa-report: { skill: qa, file: qa-report.md, status: validated }
+  release: { skill: finishing-a-development-branch, file: qa-report.md, status: pending }
 inputs:
   - release-request
 """,
@@ -177,7 +190,13 @@ def main() -> int:
         handle.write("\n.claude/skills/\n.codex/\n")
 
     configure_scenario(args.scenario, dest)
-    run("bash", str(skills_root / "bootstrap/generate.sh"), str(dest / ".claude/skills"), str(dest / ".codex/skills"))
+    run(
+        "bash",
+        str(skills_root / "bootstrap/generate.sh"),
+        str(dest / ".claude/skills"),
+        str(dest / ".codex/skills"),
+        env={**os.environ, "DELIVERY_MODE": SCENARIOS[args.scenario]},
+    )
     run("git", "init", "-q", cwd=dest)
     run("git", "checkout", "-q", "-b", "main", cwd=dest)
     run("git", "add", "-A", cwd=dest)

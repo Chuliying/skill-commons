@@ -12,8 +12,8 @@
 
 ## Commands
 
-- Generate: `bash bootstrap/generate.sh`
-- Verify: `bash tests/test_skills_reorg.sh && bash tests/test_profiles.sh && bash tests/test_artifact_contract.sh && bash tests/test_work_items.sh && bash tests/test_plan_sync.sh && bash tests/test_journey_evals.sh && bash tests/test_gate_automation.sh && bash tests/test_release_convergence.sh && bash tests/bootstrap/run-all.sh`
+- Generate (maintainer full fan-out): `PROFILE=all bash bootstrap/generate.sh`
+- Verify: `bash tests/run-all.sh`
 
 ## Navigation
 

@@ -1,36 +1,52 @@
 # Skill Index
 
-Top-level skill folders are the source of truth. `(ext)` marks vendored skills tracked in [SOURCES.md](SOURCES.md); profile membership is defined only by [`profiles/`](profiles/).
+Top-level skill folders are the source of truth. `(ext)` marks external or
+adapted skills tracked in [SOURCES.md](SOURCES.md). Consuming bundle membership
+is defined only by [`profiles/`](profiles/) and [`profiles.json`](profiles.json).
 
-## Profiles
+## Delivery selection
 
-| Layer | Count | Skills |
-|---|:---:|---|
-| core | 14 | router、探索/規劃、implement、review、驗證、安全、Git 與 onboarding 基礎 |
-| team overlay | 5 | `prd-interview` · `spec` · `qa` · `prototype` · `domain-modeling` |
-| personal overlay | 2 | `design-taste-frontend` · `ponytail` |
-| optional utilities | 4 | `markdown` · `codebase-understanding` · `subagent-driven-development` · `humanizer` |
+Every consuming repository selects one `delivery_mode` and zero or more
+`capability_packs`. Both delivery modes include `core`.
 
-`team-sprint` = 19、`personal` = 16。未指定 PROFILE 時 fan-out 25 個 workflow skills；`skill-creator` 保留 top-level 給維護者，不 fan-out 到 consuming repo。
+| Kind | Name | Added surface |
+|---|---|---|
+| Base | `core` | router, planning, implementation, debugging, review, verification, security, Git and onboarding |
+| Delivery mode | `personal` | core without team ceremony |
+| Delivery mode | `team-sprint` | `prd-interview`, `spec`, `qa`, `prototype`, `domain-modeling` (ext) |
+| Capability pack | `frontend` | `design-taste-frontend` (ext) |
+| Capability pack | `optional` | `markdown`, `codebase-understanding`, `subagent-driven-development` (ext), `humanizer` (ext), `reducing-entropy` (ext) |
 
-## Pipeline
+`delivery_mode` is required. `capability_packs` is optional and composable.
+`PROFILE=all` is a maintainer-only full fan-out; it is not a consuming default.
+`skill-creator` remains a top-level maintainer tool and is not part of consuming
+profiles. Do not infer cost or quality from a hand-maintained skill count.
+
+## Workflow skills
 
 | Stage | Skills | Purpose |
 |---|---|---|
-| skill | `skill-router` · `skill-creator`（maintainer-only） | 任務分發、技能維護 |
-| plan | `grilling` (ext) · `plan-sync` · `domain-modeling` (ext, team) | 壓測決策、外部記憶、domain 語言 |
-| docs | `brainstorming` · `to-prd` (ext) · `prd-interview` (team) · `spec` (team) · `markdown` (optional) · `humanizer` (optional) | 意圖到技術契約、文件轉換、文字風格修訂 |
-| design | `prototype` (team) · `design-taste-frontend` (ext, personal) | lo-fi 原型與前端設計 |
-| implement | `implement` · `ponytail` (ext, personal) · `reducing-entropy` (ext) | RED-GREEN-REFACTOR 與範圍控制 |
-| qa | `qa` (team) | 測試方案、traceability、驗收 |
-| review | `caveman-review` (ext) | 精簡 review 與 fresh-context 派發 |
+| Route | `skill-router`; `skill-creator` (ext, maintainer) | Choose the minimum flow; maintain skill contracts |
+| Explore | `brainstorming` (ext), `grilling` (ext), `domain-modeling` (ext, team) | Qualify material ambiguity, stress-test a design, maintain domain language |
+| Requirements | `to-prd` (ext), `prd-interview` (team) | Create the requirement artifact appropriate to the execution mode |
+| Design | `spec` (team/optional by mode), `prototype` (team), `design-taste-frontend` (ext, frontend) | Define technical or interaction contracts |
+| Plan | `plan-sync` | Keep canonical-v2 execution state and evidence across sessions |
+| Implement | `implement`, `systematic-debugging`; `reducing-entropy` (ext, optional) | RED→GREEN→REFACTOR, root-cause work, explicit entropy reduction |
+| Verify | `verification-before-completion`, `qa` (team), `security` | Execute scoped machine gates and record evidence |
+| Review/release | `caveman-review` (ext), `sync-work`, `finishing-a-development-branch` (ext) | Review the change and perform authorized Git/release handoffs |
+| Onboard | `shared-skill-onboarder` | Establish manifest, guardrails, and project-specific evidence |
 
-## Infrastructure
+## Optional utilities
 
-- Core: `systematic-debugging` · `verification-before-completion` · `sync-work` · `finishing-a-development-branch` · `security` · `shared-skill-onboarder`
-- Optional: `codebase-understanding` · `subagent-driven-development`
+| Skill | Boundary |
+|---|---|
+| `codebase-understanding` | Deterministic Repo Map plus search/direct reading; not a semantic graph |
+| `subagent-driven-development` (ext) | Execute a validated plan through isolated subagents and reviews |
+| `markdown` | Convert and organize documentation artifacts |
+| `humanizer` (ext) | Revise prose while preserving meaning and disclosure requirements |
+| `reducing-entropy` (ext) | Manual-only deletion/consolidation pass measured by final code surface |
 
-## Five flows
+## Router flows
 
 ```text
 探索 → 建造 → 發布
@@ -39,15 +55,14 @@ Top-level skill folders are the source of truth. `(ext)` marks vendored skills t
 理解（read-only / optional utility）
 ```
 
-實際派發、Execution Mode 與三個人工判斷點見 [`skill-router/SKILL.md`](skill-router/SKILL.md)。
+Execution modes, conditional artifacts, and the three workflow human decisions
+live in [`protocol-registry.json`](protocol-registry.json) and are presented by
+[`skill-router/SKILL.md`](skill-router/SKILL.md). The registry is declarative
+data plus conformance checks, not a runtime workflow engine.
 
-## Archived
+## Historical consolidation
 
-`_archive/` 保留可回復歷史（private development repository only；public export 會排除）。本輪收斂：
-
-- `tdd` → 併入 `implement`
-- `grill-me`、`grill-with-docs` → 併入 `grilling` durable docs mode
-- `requesting-code-review` → 併入 `caveman-review`
-- `rollback` → 併入 `finishing-a-development-branch` Recovery Mode
-
-更早期的合併與裁減決策見 [decisions.md](docs/skills-reorg/decisions.md)。
+Private `_archive/` content and Git history retain earlier entry points. The
+active surface keeps one owner for each capability; generated discovery roots
+must not be edited directly. Earlier consolidation decisions are recorded in
+[`docs/skills-reorg/decisions.md`](docs/skills-reorg/decisions.md).

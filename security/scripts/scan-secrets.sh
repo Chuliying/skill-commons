@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
-# Manifest-aware secret scanner. Execute from the consuming repo root.
+# Manifest-aware heuristic secret preflight. Execute from the consuming repo root.
 
 set -u -o pipefail
+
+if [[ $# -gt 1 ]]; then
+  echo "usage: bash scan-secrets.sh [target-dir]" >&2
+  echo "FAIL: expected at most one target directory" >&2
+  exit 2
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 STACK_HELPER="$SCRIPT_DIR/../../scripts/manifest-stack.sh"
 if [[ ! -r "$STACK_HELPER" ]]; then
-  echo "manifest stack helper not found: $STACK_HELPER" >&2
+  echo "FAIL: manifest stack helper not found: $STACK_HELPER" >&2
   exit 1
 fi
 # shellcheck source=../../scripts/manifest-stack.sh
@@ -19,7 +25,7 @@ manifest_list() {
   printf '%s' "$value" | tr ',' ' '
 }
 
-if [[ $# -gt 0 ]]; then
+if [[ $# -eq 1 ]]; then
   targets=("$1")
 else
   read -r -a targets <<< "$(manifest_list source_roots src)"
@@ -29,6 +35,66 @@ package_manager="$(manifest_stack_value package_manager)"
 [[ -z "$package_manager" ]] && package_manager="not-declared"
 framework="$(manifest_stack_value framework)"
 [[ -z "$framework" ]] && framework="not-declared"
+
+git_workspace="$(git rev-parse --is-inside-work-tree 2>/dev/null)"
+git_workspace_rc=$?
+if [[ "$git_workspace_rc" -ne 0 || "$git_workspace" != "true" ]]; then
+  echo "FAIL: secret preflight requires a Git worktree" >&2
+  exit 1
+fi
+git_root_raw="$(git rev-parse --show-toplevel 2>/dev/null)"
+git_root_rc=$?
+if [[ "$git_root_rc" -ne 0 || -z "$git_root_raw" ]]; then
+  echo "FAIL: cannot resolve the Git worktree root" >&2
+  exit 1
+fi
+git_root="$(cd "$git_root_raw" 2>/dev/null && pwd -P)"
+if [[ -z "$git_root" ]]; then
+  echo "FAIL: cannot canonicalize the Git worktree root" >&2
+  exit 1
+fi
+
+target_errors=0
+if [[ "${#targets[@]}" -eq 0 ]]; then
+  echo "FAIL: no scan target was configured" >&2
+  target_errors=$((target_errors + 1))
+fi
+for target_index in "${!targets[@]}"; do
+  target="${targets[$target_index]}"
+  while [[ "$target" != "/" && "$target" == */ ]]; do
+    target="${target%/}"
+  done
+  targets[$target_index]="$target"
+  target_canonical=""
+  if [[ -z "$target" ]]; then
+    echo "FAIL: scan target does not exist: ${target:-<empty>}" >&2
+    target_errors=$((target_errors + 1))
+  elif [[ -L "$target" ]]; then
+    echo "FAIL: scan target must not be a symlink: $target" >&2
+    target_errors=$((target_errors + 1))
+  elif [[ ! -e "$target" ]]; then
+    echo "FAIL: scan target does not exist: $target" >&2
+    target_errors=$((target_errors + 1))
+  elif [[ ! -d "$target" ]]; then
+    echo "FAIL: scan target is not a directory: $target" >&2
+    target_errors=$((target_errors + 1))
+  elif [[ ! -r "$target" || ! -x "$target" ]]; then
+    echo "FAIL: scan target is not readable and traversable: $target" >&2
+    target_errors=$((target_errors + 1))
+  else
+    target_canonical="$(cd "$target" 2>/dev/null && pwd -P)"
+    if [[ -z "$target_canonical" ]]; then
+      echo "FAIL: cannot canonicalize scan target: $target" >&2
+      target_errors=$((target_errors + 1))
+    elif [[ "$git_root" != "/" && "$target_canonical" != "$git_root" && "$target_canonical" != "$git_root/"* ]]; then
+      echo "FAIL: scan target resolves outside the Git worktree: $target" >&2
+      target_errors=$((target_errors + 1))
+    fi
+  fi
+done
+if [[ "$target_errors" -gt 0 ]]; then
+  exit "$target_errors"
+fi
 
 client_env_prefixes() {
   local configured framework_lc
@@ -56,10 +122,55 @@ filter_hardcoded_secret_candidates() {
       content = $0
       sub(/^[^:]*:[0-9]+:/, "", content)
       lowered = tolower(content)
-      if (lowered ~ /process\.env|os\.environ|your-/) next
-      if (lowered ~ /(^|[^[:alnum:]_])(type|interface|placeholder|example|test|mock|fake)([^[:alnum:]_]|$)/) next
-      if (lowered ~ /fixture_project/) next
+      value = lowered
+      sub(/^.*(api_key|apikey|api-key|secret_key|secret-key|private_key|password|passwd|bearer|access_token|refresh_token|secret|token)[[:space:]]*[:=][[:space:]]*["\047]/, "", value)
+      sub(/["\047].*$/, "", value)
+      if (value ~ /process\.env|os\.environ/) next
+      if (value ~ /^(your-|placeholder([._-]|$)|example([._-]|$)|test([._-]|$)|mock([._-]|$)|fake([._-]|$)|changeme([._-]|$))/) next
       print
+    }
+  '
+}
+
+filter_staged_secret_candidates() {
+  filter_hardcoded_secret_candidates
+}
+
+redact_file_matches() {
+  local category="$1"
+  awk -v category="$category" '
+    {
+      if (match($0, /:[0-9]+:/)) {
+        print substr($0, 1, RSTART + RLENGTH - 1) "[" category " candidate redacted]"
+      } else {
+        print "[" category " candidate redacted]"
+      }
+    }
+  '
+}
+
+annotate_staged_additions() {
+  awk '
+    /^diff --git / {
+      in_hunk = 0
+      next
+    }
+    /^\+\+\+ b\// && !in_hunk {
+      path = substr($0, 7)
+      next
+    }
+    /^@@ / {
+      in_hunk = 1
+      split($0, header, " ")
+      new_range = header[3]
+      sub(/^\+/, "", new_range)
+      split(new_range, range_parts, ",")
+      new_line = range_parts[1] + 0
+      next
+    }
+    /^\+/ && in_hunk {
+      print path ":" new_line ":" substr($0, 2)
+      new_line++
     }
   '
 }
@@ -84,22 +195,34 @@ exclude_args=(
 )
 
 issues=0
-echo "Secret scan targets: ${targets[*]}"
+echo "Secret preflight targets: ${targets[*]}"
 echo "Secret scan extensions: ${extensions[*]}"
 echo "Manifest package manager: $package_manager"
 echo "Manifest framework: $framework"
 
-secrets=$(grep -rEn "${exclude_args[@]}" "${include_args[@]}" \
+secrets="$(grep -riEn "${exclude_args[@]}" "${include_args[@]}" \
   "(api_key|apikey|api-key|secret_key|secret-key|private_key|password|passwd|bearer|access_token|refresh_token)[[:space:]]*[:=][[:space:]]*['\"][^'\"]{6,}['\"]" \
-  "${targets[@]}" 2>/dev/null \
-  | filter_hardcoded_secret_candidates || true)
-if [[ -n "$secrets" ]]; then
-  echo "FAIL: hard-coded secrets found"
-  echo "$secrets"
-  issues=$((issues + 1))
-else
-  echo "PASS: no hard-coded secrets"
-fi
+  -- "${targets[@]}" 2>&1 \
+  | filter_hardcoded_secret_candidates)"
+secrets_rc=$?
+case "$secrets_rc" in
+  0)
+    if [[ -n "$secrets" ]]; then
+      echo "FAIL: hard-coded secrets found"
+      printf '%s\n' "$secrets" | redact_file_matches "hard-coded secret"
+      issues=$((issues + 1))
+    else
+      echo "CLEAR: no hard-coded secret candidates"
+    fi
+    ;;
+  1)
+    echo "CLEAR: no hard-coded secret candidates"
+    ;;
+  *)
+    echo "FAIL: hard-coded secret grep failed (exit $secrets_rc)"
+    issues=$((issues + 1))
+    ;;
+esac
 
 ui_capability="$(manifest_stack_capability has_ui 2>/dev/null || printf invalid)"
 if [[ "$ui_capability" = "true" ]]; then
@@ -130,15 +253,23 @@ if [[ "$ui_capability" = "true" ]]; then
     prefix_regex='a^'
   fi
   echo "Client env prefixes: ${prefixes[*]}"
-  client_secrets=$(grep -rEn "${exclude_args[@]}" "${include_args[@]}" \
-    "($prefix_regex).*(KEY|SECRET|TOKEN|PASSWORD|AUTH)" "${targets[@]}" 2>/dev/null || true)
-  if [[ -n "$client_secrets" ]]; then
-    echo "FAIL: sensitive client-exposed variables found"
-    echo "$client_secrets"
-    issues=$((issues + 1))
-  else
-    echo "PASS: no sensitive client-exposed variables"
-  fi
+  client_secrets="$(grep -rEn "${exclude_args[@]}" "${include_args[@]}" \
+    "($prefix_regex).*(KEY|SECRET|TOKEN|PASSWORD|AUTH)" -- "${targets[@]}" 2>&1)"
+  client_rc=$?
+  case "$client_rc" in
+    0)
+      echo "FAIL: sensitive client-exposed variables found"
+      printf '%s\n' "$client_secrets" | redact_file_matches "client-exposed env"
+      issues=$((issues + 1))
+      ;;
+    1)
+      echo "CLEAR: no sensitive client-exposed variable candidates"
+      ;;
+    *)
+      echo "FAIL: client-exposed variable grep failed (exit $client_rc)"
+      issues=$((issues + 1))
+      ;;
+  esac
 elif [[ "$ui_capability" = "false" ]]; then
   echo "N/A: client-prefix scan N/A (has_ui=false)"
 else
@@ -146,38 +277,87 @@ else
   issues=$((issues + 1))
 fi
 
-log_secrets=$(grep -rEn "${exclude_args[@]}" "${include_args[@]}" \
-  "(console\.(log|info|warn|error)|print\(|logging\.).*(token|key|secret|password|auth)" \
-  "${targets[@]}" 2>/dev/null || true)
-if [[ -n "$log_secrets" ]]; then
-  echo "WARN: review possible secrets in logs"
-  echo "$log_secrets"
-else
-  echo "PASS: no obvious secrets in logs"
-fi
+log_secrets="$(grep -riEn "${exclude_args[@]}" "${include_args[@]}" \
+  "(console\.(log|info|warn|error)|print\(|logging\.).*[^[:alnum:]](token|key|secret|password|auth)([^[:alnum:]]|$)" \
+  -- "${targets[@]}" 2>&1)"
+log_rc=$?
+case "$log_rc" in
+  0)
+    echo "WARN: review possible secrets in logs"
+    printf '%s\n' "$log_secrets" | redact_file_matches "secret-log"
+    ;;
+  1)
+    echo "CLEAR: no obvious secret-log candidates"
+    ;;
+  *)
+    echo "FAIL: secret-log grep failed (exit $log_rc)"
+    issues=$((issues + 1))
+    ;;
+esac
 
-if grep -q "\.env" .gitignore 2>/dev/null; then
-  echo "PASS: .env is excluded from git"
-else
-  echo "FAIL: .env is not excluded from git"
-  issues=$((issues + 1))
-fi
+env_ignore_output="$(git check-ignore -v -- .env 2>&1)"
+env_ignore_rc=$?
+case "$env_ignore_rc" in
+  0)
+    env_ignore_pattern="$(printf '%s\n' "$env_ignore_output" | awk -F '\t' '
+      NR == 1 {
+        metadata = $1
+        sub(/^.*:[0-9]+:/, "", metadata)
+        print metadata
+      }
+    ')"
+    if [[ -n "$env_ignore_pattern" && "$env_ignore_pattern" != !* ]]; then
+      echo "CLEAR: .env is excluded from git"
+    else
+      echo "FAIL: .env is not excluded from git"
+      issues=$((issues + 1))
+    fi
+    ;;
+  1)
+    echo "FAIL: .env is not excluded from git"
+    issues=$((issues + 1))
+    ;;
+  *)
+    echo "FAIL: git check-ignore failed for .env (exit $env_ignore_rc)"
+    [[ -n "$env_ignore_output" ]] && echo "$env_ignore_output"
+    issues=$((issues + 1))
+    ;;
+esac
 
-staged_secrets=$(git diff --cached 2>/dev/null \
-  | grep "^+" \
-  | grep -iE "(api_key|secret|password|token)[[:space:]]*=[[:space:]]*['\"][^'\"]{6,}['\"]" \
-  | grep -iv "process\.env\|os\.environ\|placeholder\|your-\|example" || true)
-if [[ -n "$staged_secrets" ]]; then
-  echo "FAIL: secret found in staged changes"
-  echo "$staged_secrets"
+staged_diff="$(git diff --cached --no-ext-diff --unified=0 --no-color -- 2>&1)"
+staged_diff_rc=$?
+if [[ "$staged_diff_rc" -ne 0 ]]; then
+  echo "FAIL: staged diff failed (exit $staged_diff_rc)"
   issues=$((issues + 1))
 else
-  echo "PASS: no secrets in staged changes"
+  staged_secrets="$(printf '%s\n' "$staged_diff" \
+    | annotate_staged_additions \
+    | grep -iE ":[0-9]+:.*(api_key|secret|password|token)[[:space:]]*=[[:space:]]*['\"][^'\"]{6,}['\"]" 2>&1 \
+    | filter_staged_secret_candidates)"
+  staged_grep_rc=$?
+  case "$staged_grep_rc" in
+    0)
+      if [[ -n "$staged_secrets" ]]; then
+        echo "FAIL: secret found in staged changes"
+        printf '%s\n' "$staged_secrets" | redact_file_matches "staged secret"
+        issues=$((issues + 1))
+      else
+        echo "CLEAR: no staged secret candidates"
+      fi
+      ;;
+    1)
+      echo "CLEAR: no staged secret candidates"
+      ;;
+    *)
+      echo "FAIL: staged secret grep failed (exit $staged_grep_rc)"
+      issues=$((issues + 1))
+      ;;
+  esac
 fi
 
 if [[ "$issues" -eq 0 ]]; then
-  echo "PASS: secret scan passed"
+  echo "Secret preflight result: no blocking heuristic findings"
 else
-  echo "FAIL: secret scan found $issues issue(s)"
+  echo "Secret preflight result: $issues blocking finding group(s)"
 fi
 exit "$issues"

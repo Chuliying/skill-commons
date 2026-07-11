@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -u
+set -eu
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCENARIOS="personal-feature team-feature brownfield-bug refactor commit-pr"
@@ -38,8 +38,21 @@ fi
 
 if [ -z "$OUTPUT" ]; then
   stamp="$(date '+%Y%m%d-%H%M%S')"
-  OUTPUT="$ROOT/journey-evals/runs/$stamp-$HARNESS-$MODEL"
+  run_root="${SKILL_COMMONS_JOURNEY_ROOT:-$(dirname "$ROOT")/skill-commons-journey-runs}"
+  OUTPUT="$run_root/$stamp-$HARNESS-$MODEL"
 fi
+OUTPUT="$(python3 - "$ROOT" "$OUTPUT" <<'PY'
+from pathlib import Path
+import sys
+
+source = Path(sys.argv[1]).resolve()
+output = Path(sys.argv[2]).expanduser().resolve()
+if output == source or source in output.parents:
+    print("ERROR: journey output must stay outside the source repository", file=sys.stderr)
+    raise SystemExit(2)
+print(output)
+PY
+)"
 mkdir -p "$OUTPUT"
 OUTPUT="$(cd "$OUTPUT" && pwd)"
 
@@ -51,6 +64,7 @@ for scenario in $selected; do
   cp "$ROOT/journey-evals/scenarios/$scenario/prompt.md" "$run_dir/prompt.md"
   python3 "$ROOT/journey-evals/scripts/setup_fixture.py" \
     --scenario "$scenario" --dest "$workspace" --skills-root "$ROOT"
+  baseline_oid="$(git -C "$workspace" rev-parse HEAD)"
 
   if [ "$DRY_RUN" -eq 1 ]; then
     continue
@@ -70,7 +84,9 @@ for scenario in $selected; do
 
   grade_rc=0
   python3 "$ROOT/journey-evals/scripts/grade_journey.py" \
-    --scenario "$scenario" --workspace "$workspace" > "$run_dir/grade.json" || grade_rc=$?
+    --scenario "$scenario" --workspace "$workspace" --skills-root "$ROOT" \
+    --baseline-oid "$baseline_oid" \
+    > "$run_dir/grade.json" || grade_rc=$?
   if [ "$agent_rc" -ne 0 ] || [ "$grade_rc" -ne 0 ]; then
     failed=1
     echo "FAIL $scenario (agent=$agent_rc grade=$grade_rc)"

@@ -1,172 +1,83 @@
 ---
 name: brainstorming
 description: |
-  需求探索與設計精煉。在開始寫 code 之前使用：透過對話問問題、探索替代方案，最終提出設計方案並取得使用者確認。
-  觸發關鍵字: 需求討論, 設計探索, 我想要, 感覺要做, 不確定從哪裡開始, brainstorm, explore requirements
+  釐清會實質改變 scope、architecture、public contract 或 acceptance criteria 的 material ambiguity。
+  只在 repo evidence 無法回答且答案會改變實作時使用；清楚的 micro-task、bug、review 與說明題直接跳過。
 source: obra/superpowers@d884ae04edebef577e82ff7c4e143debd0bbec99
 source_kind: adapted
 stage: docs
 output: <work_root>/<slug>/brainstorm.md
 ---
 
-# Brainstorming — 需求探索與設計精煉
+# Brainstorming — Bounded Discovery
 
-> 改編自 [obra/superpowers](https://github.com/obra/superpowers)，融入本框架工作流程
+> 改編自 [obra/superpowers](https://github.com/obra/superpowers)，本版以 skill-commons 的最小路由與成本邊界為準。
 
-## Overview
+將尚未決定、而且會改變實作的需求收斂成足夠執行的 decision brief。它不是所有
+任務的前置 Gate，也不替代 repo inspection、PRD、Spec、Plan 或 review。
 
-**在動任何程式碼之前**，透過自然對話將模糊想法轉化為清晰的設計方案。
+使用時先告知：「我正在使用 brainstorming 釐清會改變實作的未決事項。」
 
-> **Announce at start:** 「我正在使用 brainstorming skill 來探索這個需求。」
+## Qualification
 
-<HARD-GATE>
-在取得使用者確認設計方案之前，**禁止**：
-- 寫任何程式碼
-- 調用任何實作相關 skill（prd-interview 除外，它是下一步）
-- scaffold 任何專案結構
-</HARD-GATE>
+依序判斷：
 
-## 分流與 Handoff
+1. 是否存在會改變 scope、架構、公開行為或驗收方式的 material ambiguity？
+2. 現有 spec、程式碼、測試或其他 repo evidence 能否直接回答？
+3. 使用者的答案是否真的會改變接下來的工作？
 
-- 還沒有方案、想法仍模糊 → 用本 skill（brainstorming）發散探索。
-- 已有計劃/設計、要壓測找漏洞 → 用 `grilling`，不要重跑 brainstorming。
-- 本 skill 止於「設計方案確認」；確認後 handoff → `prd-interview`（訪談式 PRD）或 `to-prd`（快照式 PRD），同一場對話不重複訪談。
+任一答案為「否」就用 Skip，不載入更多探索流程。下列任務預設 Skip：
 
----
+- 邊界與驗收已明確的 micro-task 或既有 spec 實作。
+- bug 重現、根因調查、測試失敗與修復。
+- code review、release evidence 更新與 read-only 說明。
+- 可由 repository 或權威來源查證的事實問題。
 
-## ⚠️ Anti-Pattern：「這個需求太簡單，不需要設計」
+未決事項仍會造成兩種以上實質不同的實作時，才使用本 skill。
 
-**所有需求都要經歷此流程**，無論大小。
-簡單的功能恰好是隱藏假設最容易造成返工的地方。
-設計文件可以很短（幾句話），但**必須呈現並取得確認**。
+## Cost modes
 
----
+| Mode | Budget | Artifact |
+|---|---|---|
+| Skip | 0 問；直接走對應 flow | 無 |
+| Quick | 最多 1 個問題；最多 2 個選項 | 無 |
+| Standard | 最多 3 個問題；每個決策最多 2 個選項；一次最終確認 | 依交接需要 |
+| Deep | 先記錄原因、範圍與預算；使用者明確同意後才擴張 | 必要時建立 |
 
-## 📋 流程
+預設使用 Standard，但能用 Quick 解決就立即停止。只有高風險、跨 domain 或使用者
+明確要求廣泛探索時才提議 Deep；未獲同意不得自行升級。問題預算用完仍有 material
+ambiguity 時，回報剩餘決策與影響，請使用者決定是否 Deep、縮小範圍或暫停。
 
-### Step 1: 了解專案背景
+## Process
 
-1. 查看相關檔案、既有功能、最近的 commits
-2. 確認這個需求屬於**新功能**還是**擴充既有功能**
-3. 確認影響範圍（哪些頁面、哪些元件）
+1. **先查證**：讀相關檔案、既有決策、測試與最近變更；不要詢問 repo 已能回答的事。
+2. **只問決策題**：一次一問，先給推薦與理由；沒有合理替代方案時不用硬湊選項。
+3. **足夠即停**：當問題、範圍、成功標準與關鍵限制已足以選實作路徑，就停止探索。
+4. **收斂一次**：用短 decision brief 列出問題、in/out、決定、理由、風險與未決事項，做一次最終確認。
 
-### Step 2: 一次問一個問題
+不得每段要求確認、重問已回答事項，或因 skill 被載入就製造額外文件。
 
-- **一次只問一個問題**，不要一次丟多個問題
-- 優先用**選擇題**（比開放式問題更容易回答）
-- 聚焦在：目的、限制、成功標準
-- 範例問題：
-  - 「這個功能主要解決什麼痛點？」
-  - 「使用者看到這個功能時，期望的互動是 A 還是 B？」
-  - 「是否有效能或瀏覽器相容性的限制？」
+## Artifact and handoff
 
-### Step 3: 提出 2-3 個方案
+預設把 decision brief 留在當前對話。只有跨 session、跨 agent handoff、正式 team
+交接或使用者要求 durable record 時，才寫：
 
-- 列出各方案的優缺點（Trade-offs）
-- 給出你的推薦選項與理由
-- 範例格式：
-
-```
-方案 A（推薦）：[描述]
-優點：簡單、符合現有架構
-缺點：缺少 X 彈性
-
-方案 B：[描述]
-優點：更靈活
-缺點：實作複雜度高
-```
-
-### Step 4: 分段呈現設計，取得確認
-
-- 按複雜度調整說明長度
-- **每個段落後問確認**，不要一次塞完
-- 涵蓋：架構、元件、資料流、錯誤處理、測試
-- 如有不清楚的地方，回頭補充釐清
-
-### Gate B1: 設計收斂檢查（移交 prd-interview 前必須通過）
-
-> 使用者說「好像可以」不算通過。每一項都要有明確的肯定回應。
-
-| 檢核項目 | 通過標準 |
-|---------|----------|
-| **問題定義** | 能用一句話描述要解決的問題，且使用者確認描述正確 |
-| **範圍邊界** | 「做什麼」和「不做什麼」都有明確說明，使用者確認範圍 |
-| **技術可行** | 無未解決的架構疑慮或技術阻礙（已在 Step 4 討論並有結論） |
-| **使用者確認** | 設計方案已取得使用者明確 OK（不是「應該可以」） |
-
-Gate B1 未通過 → 回到 Step 2 繼續釐清，禁止進入 Step 5
-
----
-
-### Step 5: 儲存設計文件
-
-```
+```text
 <work_root>/<slug>/brainstorm.md
 <work_root>/<slug>/meta.yml
 ```
 
-輸出格式遵循 [`../ARTIFACTS.md`](../ARTIFACTS.md)。是否 commit 由使用者或專案 Git workflow 決定。
+落檔時遵循 [`../ARTIFACTS.md`](../ARTIFACTS.md)。這個 `output` 是條件式能力，
+不是每次執行的完成條件。
 
-### Step 6: 移交 prd-interview
+- 清楚的 micro-task → `implement`。
+- 個人工作需要持久共識 → `to-prd`。
+- team 正式需求交接 → `prd-interview`。
+- 已有方案、只需壓測漏洞 → `grilling`，不要重跑 brainstorming。
+- 多步、跨 session 或需追蹤 drift → `plan-sync`。
 
-設計確認後，呼叫 prd-interview 產出正式 PRD：
+## Evidence boundary
 
-```
-/prd-interview [根據設計文件的需求描述]
-```
-
----
-
-## 🔑 核心原則
-
-| 原則 | 說明 |
-|------|------|
-| 一次一問 | 避免讓使用者迷失 |
-| 選擇題優先 | 降低回答門檻 |
-| YAGNI 嚴格執行 | 從所有設計中移除不必要的功能 |
-| 探索替代方案 | 先提 2-3 個選項，再定案 |
-| 漸進確認 | 分段呈現設計，逐步取得 OK |
-
----
-
-## 🔖 Execution Checklist（必填輸出）
-
-> Checklist 格式慣例見 [CHECKLIST-CONVENTION.md](../CHECKLIST-CONVENTION.md)。
-
-```
-📋 Skill: brainstorming
-📅 執行時間: YYYY-MM-DD HH:MM
-📁 產出檔案: <work_root>/<slug>/brainstorm.md
-
-Steps:
-✅ Step 1: 了解專案背景 - [PASS/SKIP]
-   └─ 發現: [現有相關功能/元件]
-✅ Step 2: 釐清問題 (問了幾輪) - [X 輪]
-   └─ 關鍵發現: [最重要的需求釐清]
-✅ Step 3: 提出 2-3 方案 - [完成]
-   └─ 推薦: [方案名稱] 原因: [...]
-✅ Step 4: 設計確認 - [完成]
-   └─ 使用者確認: [YES]
-🚦 Gate B1: 設計收斂檢查 - [PASS/FAIL]
-   □ 問題定義: [PASS/FAIL]
-   □ 範圍邊界: [PASS/FAIL]
-   □ 技術可行: [PASS/FAIL]
-   □ 使用者確認: [PASS/FAIL]
-✅ Step 5: 設計文件儲存 - [PASS/SKIP]
-   └─ 路徑: [<work_root>/<slug>/brainstorm.md]
-✅ Step 6: 移交 prd-interview - [完成]
-
-📝 備註: [任何特殊情況]
-```
-
-**未輸出 Checklist = 未完成 Skill**
-
----
-
-## Related Skills
-
-| 觸發 | Skill |
-|------|-------|
-| 設計完成後 → 產出正式 PRD | `prd-interview` |
-| PRD 完成後 → 技術規格 | `spec` |
-| 有技術規格後 → 建立 Plan | `plan-sync` |
+結構測試與 routing fixtures 只能證明文字契約、案例覆蓋與載入體積，不能證明模型
+一定正確觸發，也不能證明 token、時間或產出品質改善。這些主張需要同 prompt、同
+模型／host 的 with-skill／without-skill 重複執行與人工 adjudication。

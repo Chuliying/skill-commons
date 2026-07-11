@@ -6,10 +6,10 @@
 
 每個新技能提案必須回答：
 
-- 服務 README 六條 ground truth 中的哪一條。
+- 服務 README 的哪一個公開 contract 或已觀察使用情境。
 - 與現有技能的能力差異，避免同一能力出現多個包裝入口。
 - 主要操作者是工程角色或非工程角色。
-- Gate 密度如何由 `min(重做成本, 操作者的錯誤定位能力)` 推導。
+- 哪些風險需要人工判斷，哪些可由現有 machine gate 驗證。
 - 為何新增技能比擴充既有技能更合適。
 
 ## 成熟度標記
@@ -45,7 +45,7 @@ Experimental 技能不進 `profiles/core`，不承諾輸入輸出契約穩定，
 ## 開發與驗證
 
 1. 先改 top-level source。
-2. 執行 `bash bootstrap/generate.sh`。
+2. 執行 `PROFILE=all bash bootstrap/generate.sh`。
 3. 執行 `AGENTS.md` 列出的完整 Verify chain，包含 profiles、artifact、work-item、plan、journey harness、machine gate、release convergence 與 bootstrap。
 4. 新增根目錄文件時同步加入 README 文件連結。
 5. Commit、tag、push 與 PR 依 repository guardrails 執行；未經明確授權不 push。

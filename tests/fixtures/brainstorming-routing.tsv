@@ -1,0 +1,18 @@
+# Contract fixture only; does not prove model trigger accuracy, token savings, duration, or output quality.
+id	expected_route	prompt
+1	skip	把 README 的 teh 改成 the。
+2	skip	這個測試已穩定重現 IndexError，請找根因並修好。
+3	skip	Review 這個 diff，列出 Critical 和 Important findings。
+4	skip	解釋 repo 裡 delivery_status 的現行定義，附檔案證據。
+5	skip	把 shell script 的錯誤訊息補上檔名，其他行為不變。
+6	skip	執行完整測試並告訴我哪一項失敗，不要修改。
+7	skip	依照 spec 把已定義名稱與型別的 missing field 加進 schema。
+8	skip	把 release handoff 更新成最新 commit 與測試數字。
+9	quick	新增匯出按鈕；格式要 CSV 還是 JSON 我還沒決定。
+10	quick	舊 API 回傳 404，新版想改空陣列，但相容策略不確定。
+11	quick	讓 onboarding 可選 profile；預設 personal 或 team-sprint 請幫我判斷。
+12	standard	我想加離線模式，但還沒定義離線範圍與同步衝突處理。
+13	standard	建立團隊審批功能；角色、核准規則與 audit log 都還沒定。
+14	standard	把 CLI 變成服務，但部署邊界、consumer、成功標準都不清楚。
+15	standard	需要通知系統，目前不知道 channel、重試語意和使用者控制範圍。
+16	deep	高風險資料平台遷移；我明確要 Deep 比較 build/buy/hybrid，並接受額外成本。

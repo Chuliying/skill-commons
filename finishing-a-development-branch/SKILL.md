@@ -15,9 +15,9 @@ stage: infra
 
 ## Overview
 
-功能開發完成後，驗證測試 → 呈現選項 → 必要時 closeout 工作項 → 執行選擇 → 清理工作區。
+功能開發完成後，驗證測試 → 準備 closeout → 呈現選項 → 執行選擇 → 以實際事件證據更新交付狀態 → 清理工作區。
 
-**核心原則：** Verify tests → Present options → Close out before merge/PR → Execute choice → Clean up。
+**核心原則：** Verify tests → Complete work → Request approval → Execute choice → Record actual delivery evidence → Clean up。
 
 > **Announce at start:** 「我正在使用 finishing-a-development-branch skill 來完成這個 branch。」
 
@@ -68,9 +68,34 @@ git merge-base HEAD "$BASE" 2>/dev/null
 
 或詢問：「這個 branch 是從哪個分支切出來的？」（不假設分支名稱）
 
-### Step 3: 呈現選項
+### Step 3: Work-item Closeout Preparation
 
-這一步是發布核可。先依 [`../GATE-PACKAGE.md`](../GATE-PACKAGE.md) 提供自上個 Gate 的變更、fresh verification/review/security evidence、風險與下列四個決策選項。若存在 work item，使用 `qa-report.md`（無 QA 時用 `implement-report.md`）作為 release stage file，將 release stage 設為 `awaiting-approval`。
+從 manifest 讀取 `paths.work_root`（預設 `docs/work`），定位本 branch 對應的
+`<work_root>/<slug>/meta.yml`。若本次工作不屬於 work item，明確記錄 N/A 後繼續；
+若存在 work item，在 Step 4 提出發布選項前必須：
+
+1. 在 `prd.md` 尾端追加 `## Delivery`：發布日、與 PRD 的顯式偏差（無則寫
+   `無`）、`qa-report.md` PASS 連結、已升級的長期資產。
+2. 將 `meta.yml` 改為 `schema_version: work-item/v3`、
+   `work_status: completed`、`delivery_status: awaiting_approval`，更新
+   `updated_at`，並把已完成 stages 標為 `done` / `validated`。此時不得填寫
+   `approval_ref`、PR URL、merge SHA 或 deployment ID。
+3. 檢查 `adr.md` / `glossary.md`；仍長期有效的內容升級到專案層 ADR 或
+   manifest 指向的 domain model，原件留在 work item 內。
+
+依 [`../ARTIFACTS.md`](../ARTIFACTS.md) 執行。有 `qa-report.md` 時必須為 PASS；
+允許只有 `meta.yml` + `implement-report.md` 的 hotfix 時，以其中的新鮮驗證 evidence
+取代 QA report，並略過 PRD Delivery 段。驗證未通過或偏差仍未記錄時，停止，
+不執行 merge／push；成功只代表 work 已完成並可送交發布核可。
+
+### Step 4: 呈現選項
+
+這一步是發布核可。依 [`../GATE-PACKAGE.md`](../GATE-PACKAGE.md) 提供自上個
+Gate 的變更、fresh verification/review/security evidence、風險與下列四個決策
+選項。若存在 work item，使用 `qa-report.md`（無 QA 時用
+`implement-report.md`）作為 release stage file，將 release stage 設為
+`awaiting-approval`，並保持 `delivery_status: awaiting_approval`，不填 delivery
+evidence。
 
 **精確呈現以下 4 個選項：**
 
@@ -87,28 +112,14 @@ git merge-base HEAD "$BASE" 2>/dev/null
 
 **不要加多餘解釋** — 保持選項簡潔。
 
-選項 1／2 是發布核可：先將 release stage 改為 `approved`，再進 Step 4。選項 3 將 release stage 設為 `blocked` 並維持 work item active；選項 4 只有在後續 `discard` 明確確認後才把 work item 標為 `abandoned`。
-
-### Step 4: Work-item Closeout（只適用選項 1／2）
-
-從 manifest 讀取 `paths.work_root`（預設 `docs/work`），定位本 branch 對應的
-`<work_root>/<slug>/meta.yml`。若本次工作不屬於 work item，明確記錄 N/A 後繼續；
-若存在 work item，merge／PR 前必須：
-
-1. 在 `prd.md` 尾端追加 `## Delivery`：發布日、與 PRD 的顯式偏差（無則寫
-   `無`）、`qa-report.md` PASS 連結、已升級的長期資產。
-2. 將 `meta.yml` 的 `status` 改為 `shipped`，`updated_at` 更新為目前時間，
-   並把已完成 stages 標為 `done` / `validated`。
-3. 檢查 `adr.md` / `glossary.md`；仍長期有效的內容升級到專案層 ADR 或
-   manifest 指向的 domain model，原件留在 work item 內。
-
-依 [`../ARTIFACTS.md`](../ARTIFACTS.md) 執行。有 `qa-report.md` 時必須為 PASS；
-允許只有 `meta.yml` + `implement-report.md` 的 hotfix 時，以其中的新鮮驗證 evidence
-取代 QA report，並略過 PRD Delivery 段。驗證未通過或偏差仍未記錄時，停止，
-不執行 merge／push；成功時仍須將 `meta.yml` 標記 `shipped`。
-
-選項 3／4 不得標記 `shipped`：保留 branch 時維持 `active`；放棄流程依使用者
-確認執行，不先做 closeout。
+選項 1／2 是發布核可：將 release stage 改為 `approved`，把
+`delivery_status` 改為 `approved`，並在 `delivery_evidence.approval_ref` 記錄
+本次使用者決定的 durable reference，再進 Step 5。這只代表授權，還不代表 PR
+或 merge 已發生。選項 3 將 release stage 設為 `done`，把
+`delivery_status` 還原為 `not_requested`，並維持 `work_status: completed`；這只
+表示本次 finishing handoff 已結束，不表示 branch 已交付。選項 4 只有在後續
+`discard` 明確確認後才設為 `work_status: abandoned` 與
+`delivery_status: not_requested`。選項 3／4 都不得記錄 PR、merge 或 deployment。
 
 ### Step 5: 執行選擇
 
@@ -137,6 +148,11 @@ git merge <feature-branch>
 # 驗證 merge 後的測試（指令讀 manifest stack.test_cmd）
 <test_cmd>
 
+# 只有 merge 與驗證成功後，才記錄：
+# delivery_status: merged
+# delivery_evidence.approval_ref: <Step 4 decision reference>
+# delivery_evidence.merge_sha: <git rev-parse HEAD 的完整 40-character SHA>
+
 # 若測試通過，刪除 feature branch
 git branch -d <feature-branch>
 ```
@@ -163,6 +179,11 @@ gh pr create \
 " \
   --base <base-branch>
 ```
+
+只有 PR 實際建立成功且取得 URL 後，才把 `delivery_status` 設為
+`pr_created`，保留 `approval_ref` 並新增 `delivery_evidence.pr_url`。如果 push
+或 PR 建立被阻擋，維持 `delivery_status: approved`；不得用預期 URL 或文字
+「PR blocked」冒充交付證據。
 
 #### 選項 3：保留 Branch
 
@@ -224,6 +245,7 @@ Recovery is an alternative branch outcome, not permission to bypass the four clo
 | 問開放式問題 | 精確呈現 4 個選項 |
 | 無確認就放棄 | 放棄前要求打 'discard' |
 | 強制 push | **絕對禁止** `git push --force`（Guardrails 禁止） |
+| 核可後立刻標記 PR／merge 完成 | 等事件成功後記錄 URL 或完整 merge SHA |
 
 ---
 
@@ -247,11 +269,13 @@ Steps:
 ✅ Step 1: 測試驗證 - [PASS/FAIL]
    └─ type-check: [X errors] | lint: [X errors] | test: [X/Y passed]
 ✅ Step 2: Base Branch 確認 - [manifest / repo 證據解析值]
-✅ Step 3: 呈現選項 - [完成]
-✅ Step 4: Work-item Closeout - [完成/N/A（選項 3/4）]
+✅ Step 3: Work-item Closeout Preparation - [完成/N/A]
    └─ artifact: [<work_root>/<slug> / N/A]
+✅ Step 4: 呈現選項 - [完成]
 ✅ Step 5: 執行選擇 - [選項: 1/2/3/4]
    └─ 執行結果: [成功/失敗]
+   └─ delivery: [not_requested/approved/pr_created/merged]
+   └─ evidence: [approval_ref + PR URL / merge SHA / N/A]
 
 📝 備註: [任何特殊狀況]
 ```

@@ -8,8 +8,6 @@ __pycache__/
 # A maintainer's global excludes file may ignore .gitignore files; re-include
 # them so repo and fixture ignore rules stay tracked in fresh checkouts.
 !.gitignore
-.understand-anything/intermediate/
-.understand-anything/diff-overlay.json
 
 # Local environment files
 .env

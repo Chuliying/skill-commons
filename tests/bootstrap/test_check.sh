@@ -8,7 +8,7 @@ CHECK="$REPO/bootstrap/check.sh"
 
 # Healthy setup: onboard a temp project first
 mkdir -p "$TMP/.agent"
-printf '## skill-commons bootstrap\n- platforms: claude-code, cursor, codex\n' > "$TMP/.agent/project-manifest.md"
+printf '## skill-commons bootstrap\n- platforms: claude-code, cursor, codex\n- delivery_mode: personal\n' > "$TMP/.agent/project-manifest.md"
 bash "$REPO/bootstrap/onboard.sh" "$TMP" >/dev/null
 
 # claude-code: emits hook JSON, no warning, exit 0

@@ -22,18 +22,16 @@ output: <work_root>/<slug>/implement-report.md
 
 ## Execution Mode 與條件式輸入
 
-Router 派發時必須指定 Execution Mode。PRD、Spec、qa-plan 的狀態只有：
+Router 派發時必須指定 Execution Mode。Artifact requirement、producer 與 handoff
+由 [`../protocol-registry.json`](../protocol-registry.json) 的對應 mode record
+定義；本 skill 不複製 execution matrix。開始前只查表與驗證輸入，不把 registry
+當成 executable workflow、state machine 或 scheduler。
+
+Artifact requirement 的語意只有：
 
 - `required`：缺件就停止回報，不猜測或補造。
 - `optional`：存在就讀，不存在仍可繼續。
 - `absent`：此路徑不產該 artifact。
-
-| Execution Mode | PRD | Spec | qa-plan | Handoff |
-|---|---|---|---|---|
-| `team-feature` | required | required | required | qa validate |
-| `personal-feature` | optional | absent | absent | verification-before-completion |
-| `bug-fix` | absent | absent | absent | verification-before-completion |
-| `refactor` | required | optional | absent | verification-before-completion |
 
 替代證據：
 

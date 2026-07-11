@@ -71,13 +71,17 @@ Domain skills 的內容必須從當前專案的程式碼中歸納，不可從其
 避免對只要基本工程技能的專案硬套一整套 team-onboarding 流程。
 
 **Light track** 條件（符合任一即可）：
-- `.agent/project-manifest.md` 已宣告 `profile: personal`
+- `.agent/project-manifest.md` 已宣告 `delivery_mode: personal`
 - 使用者說「輕量」「minimal」「個人專案」「先接基本的就好」
 - 專案只需要 core 技能（`implement`/`sync-work`/`finishing-a-development-branch`/`security`），不涉及 `spec`/`qa`/`prototype`/`prd-interview` 等 team overlay 技能
 
-**Full track**（預設，向下相容）：`profile: team-sprint`、使用者明確要接 spec/qa/prototype/domain-modeling，或不確定時。
+**Full track**：`delivery_mode: team-sprint`，或使用者明確要接
+spec/qa/prototype/domain-modeling。舊 `profile:` 只當遷移輸入解讀，不用它建立
+新 manifest。
 
-不確定就問一句：「這個專案要接 team 完整流程（spec/qa/prototype），還是只要 implement 這類基本工程技能？」
+缺少或不確定時就問一句：「這個專案要接 team 完整流程
+（spec/qa/prototype），還是只要 implement 這類基本工程技能？」
+先寫入明確 `delivery_mode`，不預設成 Full，也不展開全部 skills。
 
 Light track 省略核心文件檢查與 Pattern Discovery；manifest 只填 Light track 需要的欄位。其餘流程不變。
 
@@ -345,7 +349,7 @@ Step 2: 核心文件 Readiness 檢查 [Full 完整檢查 / Light 只確認 manif
 Step 3: Pattern Discovery [Full 執行 / Light 跳過]
    3.1 粗篩: [scan-project.js 結果摘要，或 "跳過（Light track）"]
    3.2 細篩: [辨識到的模式數量，或 "跳過（Light track）"]
-   Graph Context: [used / understand-diff used / missing -> rg fallback / stale -> rg fallback / skipped]
+   Graph Context: [依 `graph-context-check.md` 的 canonical status line]
    3.3 建立 Domain Skills: [建立的 skill 清單，或 "跳過（Light track）"]
 Step 4: Manifest [Light 精簡版 / Full 完整版]
 Step 5: 驗證

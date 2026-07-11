@@ -11,6 +11,11 @@ stage: skill
 
 把使用者意圖路由到最小 workflow。Skill 自己的 `description` 是 utility 觸發條件 source of truth；本檔只維護跨階段 flow。
 
+Execution Mode 的 artifact requirement、producer、handoff 與 human gate 以
+[`../protocol-registry.json`](../protocol-registry.json) 為唯一 machine source。
+本檔保留可讀流程與 mode key，不另維護一份矩陣。Registry 只是 declarative
+contract，由 conformance tests 驗證；它不執行 workflow、不管理 state 或 scheduling。
+
 ## Global Iron Laws
 
 1. 持久狀態與交接結果落檔，不能只存在對話 context。
@@ -34,7 +39,7 @@ stage: skill
 
 | 意圖 | 判斷 | Flow |
 |---|---|---|
-| 探索 | 想法模糊、需求訪談、計畫壓測 | [探索](#flow-探索) |
+| 探索 | 有會改變實作的 material ambiguity、需求訪談、計畫壓測 | [探索](#flow-探索) |
 | 建造 | 新功能、需求變更、重構、開始實作 | [建造](#flow-建造) |
 | 修錯 | bug、測試失敗、行為異常 | [修錯](#flow-修錯) |
 | 發布 | review、commit、PR、merge、恢復 branch | [發布](#flow-發布) |
@@ -42,15 +47,18 @@ stage: skill
 
 ## Flow: 探索
 
-用於仍需要釐清「做什麼」或壓測決策。
+用於仍需要釐清「做什麼」或壓測決策。`brainstorming` 只處理 repo evidence
+無法回答、且答案會改變 scope、架構、公開行為或驗收方式的 material ambiguity。
 
 ```text
-brainstorming（共同探索；產 brainstorm artifact）
+brainstorming（qualified discovery；artifact 只在 durable handoff 時建立）
   → to-prd（已有共識時快照）或 prd-interview（team 正式訪談）
   → grilling（高風險時逐題壓測；需要交接才開 durable docs mode）
 ```
 
-- personal 預設 `brainstorming → to-prd`。
+- 依成本選 Skip / Quick / Standard / Deep；Standard 最多三問，Deep 需使用者同意。
+- 清楚的 micro-task、bug、review、既有 spec 實作與 repo 可回答的問題 Skip。
+- personal 需要持久共識時才 handoff `to-prd`；不因 profile 製造 discovery artifact。
 - team 可用 `prd-interview`，PRD 核可後才進建造。
 - `grilling` 不替代 PRD 核可，也不為低風險工作增加 ceremony。
 
@@ -58,12 +66,12 @@ brainstorming（共同探索；產 brainstorm artifact）
 
 ### Team feature
 
-Execution Mode: `team-feature`。PRD / Spec / qa-plan 都是 `required`。
+Execution Mode: `team-feature`。條件式 artifacts 與 handoff 依 registry。
 
 ```text
 prd-interview 或 to-prd → 人工：PRD 核可
   → spec → 人工：team 設計核可
-  → qa plan → plan-sync → implement
+  → qa plan → plan-sync canonical plan → implement
   → qa validate → verification-before-completion
 ```
 
@@ -71,16 +79,16 @@ QA 的 AC traceability 是 machine gate。`plan-sync` 的一致性檢查也是 m
 
 ### Personal feature
 
-Execution Mode: `personal-feature`。PRD `optional`；Spec / qa-plan `absent`。
+Execution Mode: `personal-feature`。條件式 artifacts 與 handoff 依 registry。
 
 ```text
-to-prd（需要持久共識時）→ plan-sync lite（多步或跨 session 時）
+to-prd（需要持久共識時）→ plan-sync canonical（多步或跨 session 時）
   → implement → verification-before-completion
 ```
 
 ### Refactor
 
-Execution Mode: `refactor`。PRD `required`、Spec `optional`、qa-plan `absent`。
+Execution Mode: `refactor`。條件式 artifacts 與 handoff 依 registry。
 
 ```text
 to-prd → spec（team 或設計風險高時）→ implement → verification-before-completion
@@ -98,9 +106,13 @@ to-prd → spec（team 或設計風險高時）→ implement → verification-be
 
 任一條件不成立或不確定，就走一般 personal feature。直達路徑為 `implement（帶 failing test）→ verification-before-completion`；`implement` 自己完成 RED → GREEN → REFACTOR，不另派同能力包裝。
 
+Plan selection：micro-task 不建立 plan；其他需要多步、handoff、resume 或
+drift tracking 的工作使用 canonical `plan/plan.md`。v0.7 不載入舊三件式
+plan；消費端需先遷移到 canonical-v2，或在遷移前 pin v0.6。
+
 ## Flow: 修錯
 
-Execution Mode: `bug-fix`。PRD / Spec / qa-plan 都是 `absent`。
+Execution Mode: `bug-fix`。條件式 artifacts 與 handoff 依 registry。
 
 ```text
 systematic-debugging（重現與 root cause）

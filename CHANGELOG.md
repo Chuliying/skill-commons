@@ -4,6 +4,88 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-11
+
+### Added
+
+- Declarative `protocol-registry.json` and conformance gate for execution modes,
+  conditional artifacts, lifecycle evidence, profiles, and human decisions.
+- Deterministic Repo Map `scan`/`status` with Git-private cache, Python AST
+  imports, line-oriented JS/TS module-reference candidates, content freshness,
+  linked-worktree/submodule fixtures, and explicit coverage states.
+- Explicit `delivery_mode` plus composable `frontend`/`optional` capability
+  packs, with platform-specific Claude Code/Codex/Cursor adapter boundaries.
+- Strict local bootstrap management: read-only `doctor`, ownership-safe
+  `update`, and all-target-preflighted `uninstall`.
+- Journey grade evidence categories (`structural`, `behavioral`, `recorded`) and
+  an executed harness-owned canonical secret preflight for the commit/release
+  journey.
+
+### Changed
+
+- Replaced the always-on adapted `brainstorming` gate with project-specific
+  bounded discovery: material-ambiguity qualification, Skip/Quick/Standard/Deep
+  budgets, conditional artifacts, and an explicit true-agent evidence boundary.
+- Breaking: Plan Sync accepts canonical-v2 `plan/plan.md` only. lite-v1 and the
+  retired `implementation.md`/`tasks.md`/`notes.md` format must migrate, or the
+  consuming repository must remain pinned to v0.6 until it can migrate.
+- Breaking: `planctl.py check` and `planctl.py status` replace the removed
+  `init_plan.py`, `sync_tasks.py`, `append_note.py`, and `refresh_snapshot.py`
+  command surfaces. No compatibility wrappers are shipped; pin v0.6 until
+  callers migrate.
+- Breaking: consuming bootstrap selection is explicit. One `delivery_mode` is
+  required; omitted selection no longer installs every workflow skill.
+- Work-item lifecycle is now `work-item/v3`: `work_status` is separate from
+  evidence-backed `delivery_status`; approval, PR, merge, and deployment states
+  require their corresponding durable identifiers.
+- Fan-out now records managed skill directories, shared fragments, and runtime
+  helpers in a deterministic target-local ownership ledger. Existing
+  pre-ledger roots with changed or retired generated content require one explicit
+  `SKILL_COMMONS_ADOPT_LEGACY=1` migration run.
+- `codebase-understanding` uses local Repo Map evidence by default.
+  Understand-Anything is a pinned, explicit visualization-only reference and is
+  not a freshness authority or release gate.
+- Security language now distinguishes heuristic secret preflight, dependency
+  audit, scoped auth review, and operation guards instead of one overall PASS.
+- Plan Sync now states that it validates recorded evidence shape and references,
+  but does not execute Verification or turn an authored PASS into behavioral
+  proof.
+- `design-taste-frontend` moved to the frontend pack for relevance;
+  `reducing-entropy` moved to the optional pack, and the overlapping `ponytail`
+  skill was removed from the active surface.
+- README and platform documentation now position the project as a portable
+  feature-delivery protocol/toolkit rather than a complete SDLC or equivalent
+  host runtime.
+
+### Fixed
+
+- Bootstrap keeps project paths with spaces as one target, validates every
+  target before mutation, rejects source/symlink/conflicting paths, and no
+  longer clears entire Claude/Codex/generic skill roots or deletes foreign
+  skills and helper files.
+- Bootstrap now rejects selected adapter/submodule symlink escapes, ambiguous
+  duplicate manifest keys, unowned Cursor rule collisions, and implicit
+  platform shrink. Claude hook updates preserve foreign sibling hooks and use
+  an explicit ownership marker.
+- Bootstrap serializes project-wide mutation with a stable lock, keeps a losing
+  contender from removing the winner's lock, compares doctor output to the
+  exact desired ledger, and preflights every selected adapter before publication.
+- Canonical Plan Sync local Sources, stable anchors, sibling metadata,
+  dependencies, blockers, concurrency, and exact verification evidence now fail
+  closed instead of allowing prose-only or unresolved completion.
+- Completed work-item/v3 metadata now enforces required/absent mode artifacts
+  and rejects stages left in active states; complex bug fixes may use an
+  optional Plan.
+- Journey grading no longer accepts bare review/security PASS prose, rewritten
+  baseline history, malformed metadata, symlinked closeout artifacts, or a
+  blocked PR attempt as delivery evidence.
+- Journey secret grading pins the regular fixture manifest to the trusted
+  baseline and ignores inherited manifest overrides that could narrow scope.
+- Repo Map serializes full cache-generation publication and status reads with a
+  no-follow Git-private lock, preventing mixed concurrent generations.
+- Secret preflight constrains targets to the Git worktree, distinguishes tool
+  errors from no findings, and redacts candidate values from output.
+
 ## [0.6.0] - 2026-07-09
 
 ### Added

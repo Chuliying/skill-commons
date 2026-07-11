@@ -6,7 +6,7 @@ TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 
 # Fresh consuming project, default manifest (all platforms)
 mkdir -p "$TMP/.agent"
-printf '## skill-commons bootstrap\n- platforms: claude-code, cursor, codex\n' > "$TMP/.agent/project-manifest.md"
+printf '## skill-commons bootstrap\n- platforms: claude-code, cursor, codex\n- delivery_mode: personal\n' > "$TMP/.agent/project-manifest.md"
 
 # onboard then check across all three platforms: healthy, no warnings
 bash "$REPO/bootstrap/onboard.sh" "$TMP" >/dev/null

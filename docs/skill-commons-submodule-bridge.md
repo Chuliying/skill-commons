@@ -1,103 +1,153 @@
 # Skill Commons Submodule Bridge
 
-This document describes the expected way to mount `skill-commons` into a
-consuming repository as a Git submodule.
+This guide mounts `skill-commons` in a consuming repository while keeping
+project-specific state and rules in that repository.
 
-## Goal
-
-Use `skill-commons` as the shared workflow source while keeping project-specific
-rules in the consuming repository.
-
-The intended layout is:
+## Layout
 
 ```text
 .agent/
 ├── project-manifest.md
 ├── guardrails.md
 └── skills/
-    ├── _shared/   # skill-commons submodule
+    ├── _shared/   # pinned skill-commons submodule
     └── project/   # optional project-specific domain skills
 ```
 
-## Install
+The adapters are intentionally different:
+
+| Platform | Managed adapter |
+|---|---|
+| Claude Code | `.claude/skills/`, `CLAUDE.md`, SessionStart hook |
+| Codex | `.codex/skills/`, `AGENTS.md` |
+| Cursor | `.cursor/rules/skill-commons.mdc`, `AGENTS.md`; no skill fan-out |
+
+## Install v0.7.0
+
+Pin the published tag:
 
 ```bash
 git submodule add git@github.com:Chuliying/skill-commons.git .agent/skills/_shared
-git -C .agent/skills/_shared checkout v0.5.0
+git -C .agent/skills/_shared checkout v0.7.0
+
+mkdir -p .agent
+cp .agent/skills/_shared/shared-skill-onboarder/templates/project-manifest.md \
+  .agent/project-manifest.md
+${EDITOR:-vi} .agent/project-manifest.md
+```
+
+Before onboarding, select at least one platform and exactly one delivery mode:
+
+```yaml
+## skill-commons bootstrap
+
+- submodule_path: .agent/skills/_shared
+- platforms: claude-code, cursor, codex
+- delivery_mode: personal
+- capability_packs:
+```
+
+`delivery_mode` is `personal` or `team-sprint`. `capability_packs` may contain
+`frontend` and/or `optional`. An omitted delivery mode fails closed. The
+legacy `profile` field exists only for migration and cannot be combined with
+the new fields. `submodule_path` must be project-relative and cannot traverse an
+existing symlink component.
+
+Then run:
+
+```bash
 bash .agent/skills/_shared/bootstrap/onboard.sh
+bash .agent/skills/_shared/bootstrap/manage.sh doctor
 ```
 
-The tag pin keeps the consuming repository on a reviewed workflow version.
-Update the tag intentionally; do not follow `main` automatically.
+## Ownership behavior
 
-## What onboarding creates
+Onboarding creates missing manifest/guardrails skeletons, updates only the
+skill-commons fenced blocks and platform adapter files, and fans selected skills
+to Claude Code/Codex discovery roots. Existing manifest and guardrails files
+are not overwritten.
 
-`bootstrap/onboard.sh` is idempotent. It creates or updates only the
-skill-commons managed blocks and generated skill roots for the requested
-platforms.
+Each generated skill root has a target-local ownership ledger. Later generation
+may replace or remove only validated ledger-owned units. Unrelated skills,
+runtime helpers, hooks, rules, and text outside managed fences remain foreign
+content and are preserved.
 
-On a fresh repository it creates conservative defaults:
+For a pre-ledger installation, byte-identical current output is adopted
+automatically. Changed or historical output fails closed. Inspect the target,
+then opt into one migration run only if those recognized paths should become
+managed:
 
-- `.agent/project-manifest.md`
-- `.agent/guardrails.md`
-- agent shims such as `AGENTS.md`, `CLAUDE.md`, Cursor rules, or Codex skill
-  roots depending on the detected or configured platforms
-
-Existing manifest and guardrail files are not overwritten.
-
-## After onboarding
-
-Ask the agent to inspect the consuming repository before starting feature work:
-
-```text
-Read `.agent/skills/_shared/shared-skill-onboarder/SKILL.md`.
-Run Scan mode. Use repository evidence only. Report fields that cannot be
-confirmed from the repo instead of guessing.
+```bash
+SKILL_COMMONS_ADOPT_LEGACY=1 \
+  bash .agent/skills/_shared/bootstrap/onboard.sh
 ```
 
-The scan should refine:
+## Refine the project manifest
 
-- paths for source, tests, docs, and work items;
-- stack commands for test, lint, typecheck, and E2E where available;
-- capability flags such as `has_ui`, `has_api`, `typed_contracts`, and `has_e2e`;
-- Git workflow defaults;
+After onboarding, ask the agent to read
+`shared-skill-onboarder/SKILL.md` and run Scan mode. It should use repository
+evidence to refine:
+
+- source, test, docs, and work-item paths;
+- test, lint, typecheck, and E2E commands;
+- `has_ui`, `has_api`, `typed_contracts`, and `has_e2e` capabilities;
+- Git workflow boundaries;
 - candidate project-specific domain skills.
 
-## Validate
+Unknown fields stay unknown until evidence exists.
 
-Use the generated check script when present:
+## Check, diagnose, update, and uninstall
+
+`bootstrap/check.sh` is a session advisory and intentionally exits zero so it
+does not abort the host. Use strict `doctor` for installation health:
 
 ```bash
 bash .agent/skills/_shared/bootstrap/check.sh
+bash .agent/skills/_shared/bootstrap/manage.sh doctor
 ```
 
-For a stronger local check, run the consuming repository's own test, lint, and
-typecheck commands from `.agent/project-manifest.md`.
+When upgrading a v0.6 installation, first replace the old blank `- profile:` in
+`.agent/project-manifest.md` with explicit `platforms`, one
+`delivery_mode: personal|team-sprint`, and optional `capability_packs`. Do not
+leave the legacy field beside the new fields; v0.7 rejects that ambiguous shape.
 
-Do not assume every consuming repository has an npm-based manifest validator.
-
-## Update
+Then move the submodule to a reviewed revision. `manage.sh update` does not
+fetch, select, or checkout refs:
 
 ```bash
 git -C .agent/skills/_shared fetch --tags
-git -C .agent/skills/_shared checkout <reviewed-tag>
-bash .agent/skills/_shared/bootstrap/onboard.sh
-bash .agent/skills/_shared/bootstrap/check.sh
+git -C .agent/skills/_shared checkout v0.7.0
+bash .agent/skills/_shared/bootstrap/manage.sh update
+bash .agent/skills/_shared/bootstrap/manage.sh doctor
 ```
 
-Commit the submodule pointer change together with any intentional updates to the
-consuming repository's manifest or guardrails.
+To remove generated adapters and skills:
+
+```bash
+bash .agent/skills/_shared/bootstrap/manage.sh uninstall
+```
+
+Uninstall preflights every selected target before the first deletion. It removes
+only validated ledger units, managed blocks/rule, and the exact manifest-derived
+Claude hook. It preserves foreign content, `.agent/project-manifest.md`,
+`.agent/guardrails.md`, project domain skills, and the submodule itself.
+
+To remove a platform, do not edit it out and leave its adapter hidden. Restore
+the previous selection, run `manage.sh uninstall`, then set the smaller platform
+list and run `onboard.sh`. Management commands fail before mutation when they
+detect managed artifacts for a deselected platform.
+
+All management commands accept an optional consuming `project-root` as their
+last argument.
 
 ## Troubleshooting
 
-- If the submodule is missing after clone, run:
-
-  ```bash
-  git submodule update --init --recursive
-  ```
-
-- If skills cannot be resolved, confirm that
-  `.agent/skills/_shared/skill-router/SKILL.md` exists.
-- If onboarding reports drift, rerun `bootstrap/onboard.sh` from the pinned tag.
-- If repository-specific behavior is still unknown, rerun
-  `shared-skill-onboarder` Scan mode and update the manifest from evidence.
+- Missing submodule: `git submodule update --init --recursive`.
+- Missing `jq`: install it before onboarding a Claude Code adapter.
+- Doctor reports drift: inspect the path and confirm the checked-out submodule
+  revision and manifest selection before running `manage.sh update`.
+- Adoption is refused: do not remove the entire discovery root. Review the
+  recognized pre-ledger paths, then decide whether the one-time adoption flag is
+  appropriate.
+- Retired Plan Sync files: migrate current state to canonical-v2
+  `docs/work/<slug>/plan/plan.md`, or remain pinned to v0.6 until migration.

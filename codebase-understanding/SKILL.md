@@ -1,311 +1,169 @@
 ---
 name: codebase-understanding
 description: |
-  程式碼庫全局理解專家。Use when: (1) 進入大型 / 陌生 codebase, (2) 需要產出 architecture map, (3) 需要發現 domain skill 候選, (4) 重構前需要依賴關係視覺化, (5) Code Review 需要影響範圍分析。
-  觸發關鍵字: 理解程式碼, codebase 分析, 架構圖, knowledge graph, 探索專案, 了解系統, 看看架構, understand
+  程式碼庫全局理解專家。Use when: (1) 進入大型 / 陌生 codebase, (2) 需要產出 architecture map, (3) 需要發現 domain skill 候選, (4) 重構前需要整理模組引用證據, (5) Code Review 需要確認影響範圍。互動式 knowledge graph 或 dashboard 僅在使用者明確要求時走 optional visualization。
+  觸發關鍵字: 理解程式碼, codebase 分析, 架構圖, repo map, knowledge graph, 探索專案, 了解系統, 看看架構, understand
 source_kind: original
 stage: infra
 ---
 
 # Codebase Understanding
 
-**可以把它想像成讓 AI「看懂」整個 codebase 的 X 光機**。
-利用 [Understand-Anything](https://github.com/Lum1104/Understand-Anything)（以下簡稱 UA）的 multi-agent pipeline，自動掃描程式碼庫、建立 knowledge graph、產出互動式架構 Dashboard。
-
-## When to Use
-
-- 進入大型或陌生的 codebase（需要完整 knowledge graph，而非單檔閱讀）
-- 需要產出或更新 `architecture_map`
-- 準備重構前，想看到模組依賴全貌
-- `shared-skill-onboarder` 的 Pattern Discovery 階段，想要更精確的模式發現
-- Code Review 時需要影響範圍分析
-
-## When NOT to Use
-
-- 專案很小（< 50 檔案），直接閱讀程式碼或用 `rg` 探索就夠了
-- 純文件、文字、設定描述變更，沒有追蹤模組依賴的需求
-- 只需要單一檔案/函式的解釋（直接閱讀程式碼）
-- 已有完善的 `architecture_map` 且近期無大型變更
-- `.understand-anything/knowledge-graph.json` 已超過 7 天未更新時，不要直接信任；先提醒使用者重新生成或改用既有文件與 `rg`
-
-## Prerequisites
-
-- [Understand-Anything](https://github.com/Lum1104/Understand-Anything) 已安裝
-  - Claude Code:
-    - `/plugin marketplace add Lum1104/Understand-Anything`
-    - `/plugin install understand-anything`
-  - Codex:
-    - `curl -fsSL https://raw.githubusercontent.com/Lum1104/Understand-Anything/main/install.sh | bash -s codex`
-  - 其他支援平台：依 UA README 將最後的 platform 參數改為 `opencode`、`gemini` 等對應名稱
-- Node.js ≥ 22, pnpm ≥ 10（UA 的依賴要求）
+以可重建的 Repo Map、repository search 與直接讀檔建立架構理解。Repo Map
+是 deterministic repository evidence extractor，不是 knowledge graph，也不會
+自動產生架構結論。
 
 > **Announce at start:** 「我正在使用 codebase-understanding 來分析整體程式碼架構。」
 
----
+## 適用邊界
 
-## Trigger
+適用：
 
-自然語言觸發詞：
+- 陌生或大型 codebase 的 inventory 與 module-reference 初探。
+- 產出或更新人工審核的 `.agent/knowledge/architecture-map.md`。
+- Spec、debug、review 或 refactor 前確認相關檔案與引用候選。
+- 找出可供 `shared-skill-onboarder` 深入驗證的重複模式候選。
 
+不適用：
+
+- 單一檔案或小型改動；直接讀檔與 `rg` 較快。
+- 需要 symbol resolution、caller/callee、data flow 或精確 impact graph。
+- 把 candidate edge 當成已解析 dependency。
+- 自動建立 domain skill 或修改 architecture map。
+
+## Requirements
+
+預設路徑只需要：
+
+- Git worktree。
+- Python 3.10+ standard library。
+- `rg`；缺少時使用 repo 可用的文字搜尋工具。
+
+Repo Map 不使用 Node、network、LLM、daemon 或外部 parser。
+
+## Repo Map CLI
+
+以實際 skill 目錄解析 `scripts/repo_map.py`：
+
+```bash
+python3 <codebase-understanding-dir>/scripts/repo_map.py status --root .
+python3 <codebase-understanding-dir>/scripts/repo_map.py scan --root .
 ```
-理解這個專案
-看看架構
+
+`--root` 預設 `.`，只接受 Git worktree 內的 repo-relative directory。stdout
+是一行 compact JSON；stderr 只放錯誤。Status JSON 會包含實際
+`cache_path`，consumer 必須解析 JSON 的 `state`，不能只看 exit code：
+
+- `0`：`fresh`。
+- `1`：`missing` 或 `stale`。
+- `2`：`corrupt`、`incompatible` 或 runtime failure。
+
+`scan` 成功為 `0`，operational/contract failure 為 `2`。Coverage 與
+freshness 分開：`fresh + partial` 是合法狀態。
+
+Cache 位於：
+
+```text
+$(git rev-parse --git-path skill-commons/repo-map/v1)/
+├── meta.json
+├── inventory.jsonl
+└── edges.jsonl
 ```
 
-UA slash commands（需先安裝 UA，非本 skill 觸發詞）：
+它是 Git-private、可重建 cache，不是 work-item artifact，也不應提交。
 
-```
-/understand
-/understand-dashboard
-/understand-diff
-```
+## Evidence semantics
 
----
+Repo Map inventory 包含 Git tracked 與未 ignored 的 untracked paths。Symlink
+不 follow，submodule 不遞迴；supported source 超過 2 MB 只 hash、不 parse。
+
+- Python `.py` / `.pyi` import 使用 AST，precision 為 `syntax_exact`。
+- JS/TS 使用 line-oriented literal specifier candidates，precision 永遠是
+  `textual_candidate`。包含 `} from "x"` 這類 multiline tail；specifier
+  自己拆到下一行時不保證命中。
+- Edge kind 是 `module_reference`，不提供 resolved target，也不代表
+  `depends_on`。
+- Unsupported、syntax error、decode error、too-large 都會反映在 coverage，
+  不得偽裝 complete。
+
+Freshness 以 scoped inventory shape、supported source content 與 extractor
+fingerprint 為準，不以 commit 狀態代替內容：
+
+- bytes 不變的 `git add` 或 commit 不會使 cache stale。
+- supported source content、path add/delete/rename 會 stale。
+- unsupported file 內容改變不 stale；它的 add/delete/rename 會改 inventory，
+  因此 stale。
+
+`status` 每次仍需重 hash supported inputs，成本為 O(repo)。v1 保持 full
+rebuild；若 pilot 證明需要加速，只允許 stat shortcut 加 content-hash fallback，
+不引入 incremental parser/database。
 
 ## Process
 
-### Step 1: 前置確認
+### Step 1: 確認範圍與現有 evidence
 
-1. **確認 UA 已安裝**：
-   - 在支援 slash command 的 agent CLI 中確認 `/understand`、`/understand-dashboard` 可用，或檢查 `~/.understand-anything/repo`
-   - 若未安裝 → 提示使用者安裝，給出對應平台的安裝指令，不要假裝已完成分析
+1. 讀 manifest 的 source roots、`architecture_map` 與相關 domain skill。
+2. 執行 [Graph Context Check](../graph-context-check.md)。
+3. 若任務只需少量檔案，直接使用 `rg` 與讀檔，不必建立 cache。
 
-2. **確認分析範圍**：
-   - 預設：整個專案根目錄
-   - 使用者可指定子目錄（如 `src/` 或特定 package）
+### Step 2: 取得可信 Repo Map
 
-3. **檢查是否已有 knowledge graph**：
-   - 路徑：`.understand-anything/knowledge-graph.json`
-   - 若已存在且 7 天內更新 → 詢問是否重新掃描或使用既有結果
-   - 若已存在但超過 7 天未更新 → 先警告使用者 graph 可能過時，建議重新掃描
+1. 執行 `status --root <scope>` 並解析 JSON。
+2. `missing` / `stale` 且任務值得完整掃描時，執行 `scan`；否則用搜尋
+   fallback。
+3. `corrupt` / `incompatible` 時可完整重建一次；仍失敗就回報並 fallback。
+4. `partial` / `inventory_only` 時，只把 cache 用於其實際覆蓋面，缺口用
+   repository search 與直接讀檔補足。
 
-### Step 2: 執行 UA 分析 Pipeline
+### Step 3: 建立架構理解
 
-```
-/understand --language zh-TW
-```
+1. 從 inventory 找到 entry points、source roots、tests 與 configuration。
+2. 用 module-reference edges 形成待驗證假設。
+3. 對重要 edge 讀取實際 source；JS/TS candidate 一律用 `rg` 或 parser
+   evidence 複核。
+4. 不從 import count 推導 business importance，不聲稱 caller/callee 或 ripple
+   impact。
+5. 把已驗證的 ownership、boundary、data path 與 open questions整理成報告。
 
-UA 會自動執行 5-agent pipeline：
+### Step 4: 更新 durable human artifacts
 
-| # | Agent | 做什麼 |
-|---|-------|--------|
-| 1 | Project Scanner | 發現檔案、識別語言/框架 |
-| 2 | File Analyzer | 用 tree-sitter 解析程式碼、產出 nodes/edges |
-| 3 | Architecture Analyzer | 分類為 API / Service / Data / UI / Utility 層 |
-| 4 | Tour Builder | 按依賴順序產出 guided walkthroughs |
-| 5 | Graph Reviewer | 驗證圖譜完整性 |
+需要持久交接時，更新：
 
-產出：`.understand-anything/knowledge-graph.json`
+- `.agent/knowledge/codebase-understanding-report.md`：本次範圍、證據、限制與
+  open questions。
+- `.agent/knowledge/architecture-map.md`：只有人工/agent 複核過、仍長期有效
+  的架構摘要。
 
-> 此步驟可能消耗大量 LLM tokens。大型 codebase 建議先確認 token 預算。
+Manifest 的既有 `architecture_map` 欄位保持指向
+`.agent/knowledge/architecture-map.md`。Repo Map cache 不可填進該欄位。
 
-### Step 3: 啟動 Dashboard（可選）
+## Optional visualization: Understand-Anything
 
-```
-/understand-dashboard
-```
+只有使用者明確需要 interactive dashboard、guided tour 或 semantic exploration
+時，才建議 optional
+[Egonex-AI/Understand-Anything](https://github.com/Egonex-AI/Understand-Anything/tree/9d6f025dca0253ec85e115aa2d4cc87f7b642eca)
+flow。來源、pin、license 與用途記在 [SOURCES.md](../SOURCES.md) 的 Optional
+runtime adapters。
 
-在瀏覽器中啟動互動式 Dashboard，可以：
-- Pan / Zoom 瀏覽架構全貌
-- 點擊 node 查看函式/模組的白話描述
-- 依 layer（API / Service / Data / UI）篩選
-- 使用 Guided Tour 依序理解架構
+啟用前先取得使用者對 runtime、network、model/token cost 與資料政策的核可，
+再依 pinned upstream 文件安裝。UA output 不參與 Repo Map freshness、不作
+release gate；UA 無法使用時，只損失 visualization，預設理解流程仍使用 Repo
+Map、`rg` 與直接讀檔。v1 不提供 UA adapter code 或 compatibility reader。
 
-### Step 4: 提取架構資訊
+## Required output
 
-從 `knowledge-graph.json` 中提取關鍵資訊：
-
-#### 4.1 Architecture Map 產出
-
-讀取 nodes 的 `layer` 分類，彙整為架構層級摘要：
-
-```markdown
-## Architecture Map（由 UA 自動產出）
-
-### API Layer
-- [node summaries]
-
-### Service Layer
-- [node summaries]
-
-### Data Layer
-- [node summaries]
-
-### UI Layer
-- [node summaries]
-
-### Utility Layer
-- [node summaries]
-```
-
-將此摘要寫入 `.agent/knowledge/architecture-map.md`，再把該檔案路徑填入 `project-manifest.md` 的 `architecture_map`。
-
-#### 4.2 Domain Skill 候選發現
-
-分析 nodes 中的重複模式：
-
-1. 找出相同 `type` + 相似 `metadata` 的 node 群組
-2. 找出 edges 中反覆出現的依賴模式（如 component → hook → api-call）
-3. 標記出現 2 次以上的結構模式 → 建議建立 domain skill
-
-#### 4.3 關鍵依賴路徑
-
-從 edges 中提取：
-- 最高 in-degree 的 nodes（被最多模組依賴 → 修改風險最高）
-- 最長依賴路徑（理解核心業務流程）
-
-### Step 5: 產出報告並更新 manifest
-
-將分析結果寫入 `.agent/knowledge/codebase-understanding-report.md`。
-
-確認 `.agent/project-manifest.md` 的 `architecture_map` 指向 `.agent/knowledge/architecture-map.md`。若 manifest 不存在或格式不明，停止並回報需要人工建立或更新，不要把 raw `knowledge-graph.json` 寫成 `architecture_map`。
-
-若需要讓團隊共用 UA 圖譜，可提交 `.understand-anything/` 中的 graph 產物；但不要提交 `.understand-anything/intermediate/` 與 `.understand-anything/diff-overlay.json` 這類本機暫存。
-
----
-
-## Output
-
-### 核心產出
-
-| 產出 | 路徑 | 說明 |
-|------|------|------|
-| Knowledge Graph | `.understand-anything/knowledge-graph.json` | UA 產出的完整圖譜 |
-| 架構理解報告 | `.agent/knowledge/codebase-understanding-report.md` | 人類可讀的架構摘要 |
-| Architecture Map | `.agent/knowledge/architecture-map.md` | `project-manifest.md` 的 `architecture_map` 應指向此檔案路徑 |
-| Domain Skill 候選 | 報告內的建議清單 | 供 `shared-skill-onboarder` 使用 |
-
-### Report Template
-
-```markdown
-# Codebase Understanding Report
-
-> 此報告由 Understand-Anything 自動產生，建議人工審核。
-
-## 分析基本資訊
-
-- **分析日期**：[YYYY-MM-DD]
-- **分析範圍**：[專案路徑]
-- **技術棧**：[Framework / Language / Styling / State]
-- **檔案數量**：[N] 個（nodes 數量）
-- **依賴關係**：[N] 條（edges 數量）
-
-## Architecture Map
-
-### API Layer
-- [node summaries with key files]
-
-### Service Layer
-- [node summaries with key files]
-
-### Data Layer
-- [node summaries with key files]
-
-### UI Layer
-- [node summaries with key files]
-
-### Utility Layer
-- [node summaries with key files]
-
-## 關鍵模組（High-Impact Nodes）
-
-| 模組 | 被依賴次數 | 說明 | 修改風險 |
-|------|-----------|------|---------|
-| [module] | [N] | [summary] | // |
-
-## 發現的重複模式（Domain Skill 候選）
-
-| 模式名稱 | 出現次數 | 代表性檔案 | 建議 Skill |
-|---------|---------|-----------|-----------|
-| [pattern] | [N] | [file path] | `project/[name]/` |
-
-## Guided Tour 摘要
-
-1. [Tour step 1 - 入口模組]
-2. [Tour step 2 - 核心邏輯]
-3. ...
-
-## 建議 Next Steps
-
-1. [ ] 審核 Architecture Map，更新 `project-manifest.md`
-2. [ ] 對候選模式執行 Pattern Discovery（`shared-skill-onboarder` Step 3）
-3. [ ] 若需要更新 `system-context.md`（技術棧），依本報告「技術棧」欄位補寫至 manifest
-```
-
----
-
-## 子指令：影響分析
-
-當需要分析特定變更的影響範圍時：
-
-```
-/understand-diff
-```
-
-產出：在 knowledge graph 上標記受影響的 nodes 和 edges，視覺化 ripple effects。
-
-適用場景：
-- Flow B（需求變更）的 `plan-sync` 補強
-- Flow F（Code Review）的影響範圍判斷
-
----
-
-## 與其他 Skills 的關係
-
-| Skill | 關係 |
-|-------|------|
-| `shared-skill-onboarder` | 雙向：本 skill 的 Domain Skill 候選清單可作為其 Pattern Discovery 輸入；其在 `system-context.md` 過時時也會回呼本 skill 重新產出 |
-| `to-prd` | 上游：重構前先用本 skill 理解依賴全貌，再用 to-prd 逆向產出 PRD |
-| `plan-sync` | 補強：`/understand-diff` 提供視覺化影響分析 |
-| `caveman-review` | 補強：提供模組依賴 context |
-
----
-
-## Execution Checklist（必填輸出）
-
-> Checklist 格式慣例見 [CHECKLIST-CONVENTION.md](../CHECKLIST-CONVENTION.md)。
+在 calling report 保留 shared fragment 規定的 Graph Context line，不在此複製
+值域。需要 durable report 時另記：
 
 ```text
 Skill: codebase-understanding
-Executed At: YYYY-MM-DD HH:MM
-Artifact: [knowledge-graph.json 路徑]
-
-Steps:
-Step 1: 前置確認
-   └─ UA 安裝狀態: [已安裝/已安裝指引]
-   └─ 既有 graph: [無/已存在→重新掃描/已存在→沿用]
-Step 2: UA 分析 Pipeline
-   └─ Nodes 數量: [N]
-   └─ Edges 數量: [N]
-   └─ 辨識 Layers: [API: N, Service: N, Data: N, UI: N, Utility: N]
-Step 3: Dashboard
-   └─ [已啟動/跳過]
-Step 4: 提取架構資訊
-   └─ Architecture Map: [已產出/跳過]
-   └─ Domain Skill 候選: [N 個模式]
-   └─ High-Impact Nodes: [N 個]
-Step 5: 產出報告並更新 manifest
-   └─ 報告路徑: [path]
-   └─ Architecture Map 路徑: `.agent/knowledge/architecture-map.md`
-   └─ Manifest architecture_map: [已更新/需人工更新]
-
-Result:
-- knowledge graph: [已產出 / 沿用既有]
-- architecture map: [ready / 需人工審核]
-- manifest: [architecture_map 已指向 architecture-map.md / 需人工更新]
-- domain skill 候選: [N 個模式待確認]
-- 建議 next step: [最短可執行下一步]
-
-Notes: [token 消耗估計、分析覆蓋率、需注意事項]
+Scope: <repo-relative root>
+Repo Map: <state/coverage/cache path>
+Evidence checked: <files and module-reference candidates>
+Fallback: <rg/direct reading/N/A>
+Architecture map: <updated/review-needed/N/A>
+Limitations: <partial/unsupported/unresolved candidates>
 ```
 
-只有本次分析交接 durable architecture artifact 時，未把 Checklist 寫入 artifact 才算交接未完成。
-
----
-
-## 注意事項
-
-1. **Token 消耗**：UA 跑完整 pipeline 會消耗大量 tokens，大型 codebase（> 500 檔案）建議分批分析
-2. **一次性快照**：`knowledge-graph.json` 不會自動更新，程式碼大幅變更後需重跑 `/understand`
-3. **Graph 品質**：UA 的分析品質取決於程式碼的可讀性和結構化程度。混亂的 codebase 可能產出品質較低的圖譜
-4. **不取代人工判斷**：Architecture Map 和 Domain Skill 候選都是建議，需人工審核確認
+只有本次工作真的建立或更新 durable architecture artifact 時，才要求把這段
+寫入 report。分析結論必須區分 machine extraction、直接驗證與人工判斷。

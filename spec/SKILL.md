@@ -45,7 +45,7 @@ output: <work_root>/<slug>/spec.md
 4. 檢查 `architecture_map`：
    - 存在且檔案可讀 → 讀取後繼續
    - 不存在、路徑失效、或明顯過時 → 詢問使用者選擇：
-     a. 執行 `codebase-understanding` Flow N 自動生成（需 UA），產出 `.agent/knowledge/architecture-map.md` 並更新 manifest
+     a. 執行 `codebase-understanding`，以 Repo Map、repository search 與直接驗證產出 `.agent/knowledge/architecture-map.md` 並更新 manifest
      b. 手寫 `.agent/knowledge/architecture-map.md`，再更新 manifest
      c. 暫時略過，並在 Spec 標記 `Architecture Map Missing` risk
 5. `system_context` 缺失時停止；capability 為 true 但對應路徑或命令缺失時才要求補齊
@@ -265,7 +265,7 @@ web_search("[feature] performance optimization [manifest stack.framework]")
 | **UI Mockup 對齊** | **視覺規格一致** | `has_ui: true` 且有 mockup 時對齊；false 為 N/A |
 | **版控** | **版本歷史表** | 已填寫第一筆（含修改時間、修改內容、對應 PRD 版本、作者） |
 
-Gate 2 自檢通過後，team feature 依 [`../GATE-PACKAGE.md`](../GATE-PACKAGE.md) 呈現設計取捨：先把 spec stage 設為 `awaiting-approval`；收到 team 設計核可後改為 `approved`，才交給 QA plan。Personal/refactor optional spec 不新增人工 Gate，只保留 self-check evidence。
+Gate 2 自檢通過後，team feature 依 [`../GATE-PACKAGE.md`](../GATE-PACKAGE.md) 呈現設計取捨：先把 spec stage 設為 `awaiting-approval`；收到 team 設計核可後改為 `approved`，才交給 QA plan。Refactor optional spec 不新增人工 Gate，只保留 self-check evidence；personal-feature 依 registry 不產生 Spec。
 
 ---
 
@@ -289,7 +289,7 @@ Step 2: 讀取 PRD - [PASS/SKIP]
    Evidence: [PRD 路徑, FR/AC/ERR 數量]
 Step 3: 分析環境與既有程式碼 - [PASS/SKIP]
    Evidence: [參考的類似實作]
-   └─ Graph Context: [used / understand-diff used / missing -> rg fallback / stale -> rg fallback / skipped]
+   └─ Graph Context: [依 `graph-context-check.md` 的 canonical status line]
 技術方案研究 - [PASS/SKIP]
    Evidence: [repo evidence / 外部來源摘要 / skip 理由]
 Step 4: 查詢 API Reference - [PASS/SKIP]

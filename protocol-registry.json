@@ -1,0 +1,297 @@
+{
+  "schema_version": "skill-commons/protocol-registry/v1",
+  "non_goals": [
+    "runtime-engine",
+    "state-machine",
+    "scheduler"
+  ],
+  "artifact_requirements": [
+    "required",
+    "optional",
+    "absent"
+  ],
+  "execution_modes": {
+    "team-feature": {
+      "flow": "build",
+      "artifacts": {
+        "prd": {
+          "requirement": "required",
+          "producers": [
+            "prd-interview",
+            "to-prd"
+          ]
+        },
+        "spec": {
+          "requirement": "required",
+          "producers": [
+            "spec"
+          ]
+        },
+        "qa-plan": {
+          "requirement": "required",
+          "producers": [
+            "qa"
+          ]
+        },
+        "plan": {
+          "requirement": "required",
+          "producers": [
+            "plan-sync"
+          ]
+        },
+        "implement-report": {
+          "requirement": "required",
+          "producers": [
+            "implement"
+          ]
+        },
+        "qa-report": {
+          "requirement": "required",
+          "producers": [
+            "qa"
+          ]
+        }
+      },
+      "handoff": "qa-validate",
+      "human_gates": [
+        "prd",
+        "team-design",
+        "release"
+      ]
+    },
+    "personal-feature": {
+      "flow": "build",
+      "artifacts": {
+        "prd": {
+          "requirement": "optional",
+          "producers": [
+            "to-prd"
+          ]
+        },
+        "spec": {
+          "requirement": "absent",
+          "producers": []
+        },
+        "qa-plan": {
+          "requirement": "absent",
+          "producers": []
+        },
+        "plan": {
+          "requirement": "optional",
+          "producers": [
+            "plan-sync"
+          ]
+        },
+        "implement-report": {
+          "requirement": "required",
+          "producers": [
+            "implement"
+          ]
+        },
+        "qa-report": {
+          "requirement": "absent",
+          "producers": []
+        }
+      },
+      "handoff": "verification-before-completion",
+      "human_gates": [
+        "release"
+      ]
+    },
+    "bug-fix": {
+      "flow": "fix",
+      "artifacts": {
+        "prd": {
+          "requirement": "absent",
+          "producers": []
+        },
+        "spec": {
+          "requirement": "absent",
+          "producers": []
+        },
+        "qa-plan": {
+          "requirement": "absent",
+          "producers": []
+        },
+        "plan": {
+          "requirement": "optional",
+          "producers": [
+            "plan-sync"
+          ]
+        },
+        "implement-report": {
+          "requirement": "required",
+          "producers": [
+            "implement"
+          ]
+        },
+        "qa-report": {
+          "requirement": "absent",
+          "producers": []
+        }
+      },
+      "handoff": "verification-before-completion",
+      "human_gates": [
+        "release"
+      ]
+    },
+    "refactor": {
+      "flow": "build",
+      "artifacts": {
+        "prd": {
+          "requirement": "required",
+          "producers": [
+            "to-prd"
+          ]
+        },
+        "spec": {
+          "requirement": "optional",
+          "producers": [
+            "spec"
+          ]
+        },
+        "qa-plan": {
+          "requirement": "absent",
+          "producers": []
+        },
+        "plan": {
+          "requirement": "optional",
+          "producers": [
+            "plan-sync"
+          ]
+        },
+        "implement-report": {
+          "requirement": "required",
+          "producers": [
+            "implement"
+          ]
+        },
+        "qa-report": {
+          "requirement": "absent",
+          "producers": []
+        }
+      },
+      "handoff": "verification-before-completion",
+      "human_gates": [
+        "release"
+      ]
+    }
+  },
+  "work_item": {
+    "schema_version": "work-item/v3",
+    "work_statuses": [
+      "active",
+      "completed",
+      "abandoned"
+    ],
+    "delivery_statuses": {
+      "not_requested": {
+        "allowed_work_statuses": [
+          "active",
+          "completed",
+          "abandoned"
+        ],
+        "allowed_evidence": [],
+        "required_evidence": []
+      },
+      "awaiting_approval": {
+        "allowed_work_statuses": [
+          "completed"
+        ],
+        "allowed_evidence": [],
+        "required_evidence": []
+      },
+      "approved": {
+        "allowed_work_statuses": [
+          "completed"
+        ],
+        "allowed_evidence": [
+          "approval_ref"
+        ],
+        "required_evidence": [
+          "approval_ref"
+        ]
+      },
+      "pr_created": {
+        "allowed_work_statuses": [
+          "completed"
+        ],
+        "allowed_evidence": [
+          "approval_ref",
+          "pr_url"
+        ],
+        "required_evidence": [
+          "approval_ref",
+          "pr_url"
+        ]
+      },
+      "merged": {
+        "allowed_work_statuses": [
+          "completed"
+        ],
+        "allowed_evidence": [
+          "approval_ref",
+          "merge_sha"
+        ],
+        "required_evidence": [
+          "approval_ref",
+          "merge_sha"
+        ]
+      },
+      "deployed": {
+        "allowed_work_statuses": [
+          "completed"
+        ],
+        "allowed_evidence": [
+          "approval_ref",
+          "merge_sha",
+          "deployment_id"
+        ],
+        "required_evidence": [
+          "approval_ref",
+          "merge_sha",
+          "deployment_id"
+        ]
+      }
+    }
+  },
+  "profiles": {
+    "core": {
+      "kind": "base",
+      "requires": [],
+      "conflicts": []
+    },
+    "team-sprint": {
+      "kind": "delivery-mode",
+      "requires": [
+        "core"
+      ],
+      "conflicts": [
+        "personal"
+      ]
+    },
+    "personal": {
+      "kind": "delivery-mode",
+      "requires": [
+        "core"
+      ],
+      "conflicts": [
+        "team-sprint"
+      ]
+    },
+    "optional": {
+      "kind": "capability-pack",
+      "requires": [
+        "core"
+      ],
+      "conflicts": []
+    },
+    "frontend": {
+      "kind": "capability-pack",
+      "requires": [
+        "core"
+      ],
+      "conflicts": []
+    }
+  }
+}

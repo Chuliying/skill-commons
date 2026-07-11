@@ -32,7 +32,7 @@ stage: infra
       → YES：→ subagent-driven-development（本 skill）
       → NO：→ 序列模式（單一 subagent + 人工 checkpoint，見下）
     → NO（耦合度高）：→ 手動逐步執行
-  → NO：→ 先用 brainstorming + plan-sync 產出 plan
+  → NO：→ 有 material ambiguity 才先用 brainstorming；否則直接用 plan-sync 產出 plan
 ```
 
 **序列 / checkpoint 模式：**

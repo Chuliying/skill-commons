@@ -35,7 +35,7 @@ else
 fi
 
 mkdir -p "$TMP/claude" "$TMP/codex" "$TMP/agents"
-bash "$REPO/bootstrap/generate.sh" "$TMP/claude" "$TMP/codex" "$TMP/agents" >/dev/null
+PROFILE=all bash "$REPO/bootstrap/generate.sh" "$TMP/claude" "$TMP/codex" "$TMP/agents" >/dev/null
 
 active="$(active_names | grep -vx 'skill-creator')"
 for target in claude codex agents; do
@@ -45,16 +45,37 @@ for target in claude codex agents; do
 done
 
 find "$TMP" -type f -print0 | sort -z | xargs -0 shasum -a 256 > "$HASH1"
+PROFILE=all bash "$REPO/bootstrap/generate.sh" "$TMP/claude" "$TMP/codex" "$TMP/agents" >/dev/null
+find "$TMP" -type f -print0 | sort -z | xargs -0 shasum -a 256 > "$HASH2"
+if diff -u "$HASH1" "$HASH2" >/dev/null; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: generate is content-idempotent"
+else
+  fail "generate is content-idempotent"
+fi
+
+# Unknown entries have no skill-commons ownership evidence and must survive.
 mkdir -p "$TMP/claude/qa-validator" "$TMP/codex/_archive/stale"
 printf stale > "$TMP/claude/qa-validator/SKILL.md"
 printf stale > "$TMP/codex/_archive/stale/SKILL.md"
-bash "$REPO/bootstrap/generate.sh" "$TMP/claude" "$TMP/codex" "$TMP/agents" >/dev/null
-find "$TMP" -type f -print0 | sort -z | xargs -0 shasum -a 256 > "$HASH2"
-if diff -u "$HASH1" "$HASH2" >/dev/null; then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: generate is idempotent and removes stale entries"
+PROFILE=all bash "$REPO/bootstrap/generate.sh" "$TMP/claude" "$TMP/codex" "$TMP/agents" >/dev/null
+assert_file "$TMP/claude/qa-validator/SKILL.md" "generate preserves an unowned skill directory"
+assert_file "$TMP/codex/_archive/stale/SKILL.md" "generate preserves an unowned support directory"
+
+# A profile shrink removes entries recorded in the ownership ledger, while an
+# unrelated foreign skill remains untouched.
+PROFILE_TARGET="$TMP/profile-shrink"
+PROFILE="core optional" bash "$REPO/bootstrap/generate.sh" "$PROFILE_TARGET" >/dev/null
+assert_file "$PROFILE_TARGET/codebase-understanding/SKILL.md" "optional skill exists before profile shrink"
+mkdir -p "$PROFILE_TARGET/foreign-skill"
+printf foreign > "$PROFILE_TARGET/foreign-skill/KEEP"
+PROFILE=core bash "$REPO/bootstrap/generate.sh" "$PROFILE_TARGET" >/dev/null
+if [ ! -e "$PROFILE_TARGET/codebase-understanding" ]; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: profile shrink removes a previously managed skill"
 else
-  fail "generate is idempotent and removes stale entries"
+  fail "profile shrink left a previously managed skill"
 fi
+assert_file "$PROFILE_TARGET/foreign-skill/KEEP" "profile shrink preserves a foreign skill"
+assert_file "$PROFILE_TARGET/.skill-commons-ownership-v1" "generate records managed ownership"
 
 for path in .claude/skills .codex .agents; do
   if git -C "$REPO" check-ignore -q "$path"; then
@@ -126,7 +147,7 @@ expected_outputs = {
     "grilling": "<work_root>/<slug>/{adr.md,glossary.md}",
     "implement": "<work_root>/<slug>/implement-report.md",
     "markdown": "<docs_root>/reference/<name>.md",
-    "plan-sync": "<work_root>/<slug>/plan/{implementation,tasks,notes}.md",
+    "plan-sync": "<work_root>/<slug>/plan/plan.md",
     "prototype": "<work_root>/<slug>/prototype/index.html",
     "qa": "<work_root>/<slug>/{qa-plan,qa-report}.md",
     "spec": "<work_root>/<slug>/spec.md",
@@ -138,7 +159,7 @@ required_body_tokens = {
     "grilling": ["<work_root>/<slug>/", "adr.md", "glossary.md"],
     "implement": ["<work_root>/<slug>/implement-report.md"],
     "markdown": ["<docs_root>/reference/<name>.md"],
-    "plan-sync": ["<work_root>/<slug>/plan/", "implementation.md", "tasks.md", "notes.md"],
+    "plan-sync": ["<work_root>/<slug>/plan/plan.md", "journal.md", "canonical-v2"],
     "prototype": ["<work_root>/<slug>/prototype/index.html"],
     "qa": ["<work_root>/<slug>/qa-plan.md", "<work_root>/<slug>/qa-report.md"],
     "spec": ["<work_root>/<slug>/spec.md"],
@@ -265,10 +286,12 @@ fi
 if ! grep -rn '\.agent/artifacts' --include='SKILL.md' \
   "$REPO"/*/SKILL.md >/dev/null &&
    grep -q '<work_root>/<slug>/' "$REPO/ARTIFACTS.md" &&
-   grep -q 'status: active | shipped | abandoned' "$REPO/ARTIFACTS.md"; then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: v2 work-item artifact contract has no active legacy paths"
+   grep -q 'schema_version: work-item/v3' "$REPO/ARTIFACTS.md" &&
+   grep -q 'work_status: active | completed | abandoned' "$REPO/ARTIFACTS.md" &&
+   grep -q 'delivery_status: not_requested | awaiting_approval | approved | pr_created | merged | deployed' "$REPO/ARTIFACTS.md"; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: v3 work-item artifact contract has no active legacy paths"
 else
-  fail "v2 work-item artifact contract has no active legacy paths"
+  fail "v3 work-item artifact contract has no active legacy paths"
 fi
 
 # `_archive/` only exists in the private development repo; a public export
@@ -631,7 +654,7 @@ EOF
   fi
   PAYLOAD_LOG="$TMP/payload-suite.log"
   if (cd "$EXPORT_TMP" &&
-      bash bootstrap/generate.sh &&
+      PROFILE=all bash bootstrap/generate.sh &&
       SKILL_COMMONS_PAYLOAD_CHECK=1 bash tests/test_skills_reorg.sh &&
       SKILL_COMMONS_PAYLOAD_CHECK=1 bash tests/test_release_convergence.sh) >"$PAYLOAD_LOG" 2>&1; then
     TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: payload passes its own test suites without private files"
@@ -766,15 +789,18 @@ else
   fail "router exposes only the three workflow human decisions"
 fi
 
-# Public beta entry surface: a fresh user must see prerequisites before the
-# Quick Start, and the README badge must point at a CI workflow that runs every
-# repository verification suite on pushes and pull requests.
+# Public entry surface: Quick Start must present tools before install steps, and
+# the README badge must point at a CI workflow that runs every repository
+# verification suite on pushes and pull requests.
 if python3 - "$REPO" <<'PY'
 from pathlib import Path
+import re
 import sys
 
 repo = Path(sys.argv[1])
 readme = (repo / "README.md").read_text(errors="replace")
+readme_en = (repo / "README.en.md").read_text(errors="replace")
+codebase_skill = (repo / "codebase-understanding" / "SKILL.md").read_text(errors="replace")
 bridge_path = repo / "docs/skill-commons-submodule-bridge.md"
 bridge = bridge_path.read_text(errors="replace") if bridge_path.is_file() else ""
 workflow_path = repo / ".github/workflows/ci.yml"
@@ -783,16 +809,45 @@ errors = []
 if not bridge:
     errors.append("missing docs/skill-commons-submodule-bridge.md")
 
-prereq = readme.find("## 前置需求")
 quick_start = readme.find("## Quick Start")
-if prereq < 0 or quick_start < 0 or prereq > quick_start:
-    errors.append("README must place '## 前置需求' before '## Quick Start'")
+prereq = readme.find("### 需要的工具", quick_start)
+install = readme.find("### 1. 加入 submodule", quick_start)
+if quick_start < 0 or prereq < quick_start or install < prereq:
+    errors.append("README Quick Start must place tools before installation")
 else:
-    prereq_end = readme.find("\n## ", prereq + 1)
+    prereq_end = readme.find("\n### ", prereq + 1)
     prereq_body = readme[prereq:prereq_end if prereq_end >= 0 else len(readme)]
-    for token in ("git", "submodule", "bash 4+", "jq", "Python 3.10+", "選用", "Verify", "必需"):
+    for token in (
+        "Git",
+        "submodule",
+        "Bash 3.2+",
+        "jq",
+        "Python 3.10+",
+        "Node.js 18+",
+        "只使用 Markdown skills 時不需要 Python",
+        "完整驗證",
+    ):
         if token not in prereq_body:
             errors.append(f"README prerequisites missing {token!r}")
+
+for label, text in (("README.md", readme), ("README.en.md", readme_en)):
+    if "Bash 3.2+" not in text:
+        errors.append(f"{label} must state the exercised Bash 3.2+ baseline")
+    if "Bash 4+" in text:
+        errors.append(f"{label} must not require unnecessary Bash 4+")
+
+if "不是" in readme or "並非" in readme:
+    errors.append("README.md must state boundaries directly instead of using X-is-not-Y framing")
+for pattern in (r"\b(?:is|are) not\b", r",\s+not\b"):
+    if re.search(pattern, readme_en, flags=re.IGNORECASE):
+        errors.append("README.en.md must state boundaries directly instead of using X-is-not-Y framing")
+
+repo_map_command = "<codebase-understanding-dir>/scripts/repo_map.py"
+for label, text in (("README.md", readme), ("codebase-understanding/SKILL.md", codebase_skill)):
+    if f"python3 {repo_map_command}" not in text:
+        errors.append(f"{label} Repo Map examples must select python3 explicitly")
+    if f"\npython {repo_map_command}" in text:
+        errors.append(f"{label} must not use ambiguous python for Repo Map")
 
 new_url = "git@github.com:Chuliying/skill-commons.git"
 if new_url not in readme or new_url not in bridge:
@@ -824,26 +879,78 @@ else:
         "push:",
         "branches: [main]",
         "pull_request:",
-        "run: bash tests/test_skills_reorg.sh",
-        "run: bash tests/test_profiles.sh",
-        "run: bash tests/test_artifact_contract.sh",
-        "run: bash tests/test_gate_automation.sh",
-        "run: bash tests/bootstrap/run-all.sh",
+        "runs-on: ubuntu-latest",
+        "runs-on: macos-latest",
+        "run: bash tests/run-all.sh",
+        "run: /bin/bash --version",
+        "run: PATH=/usr/bin:/bin /bin/bash tests/bootstrap/test_generate_safety.sh",
+        "run: PATH=/usr/bin:/bin /bin/bash tests/bootstrap/test_manage.sh",
+        "run: PATH=/usr/bin:/bin /bin/bash tests/bootstrap/test_onboard.sh",
     )
     for line in required_lines:
         if line not in active_tokens:
             errors.append(f"ci.yml missing active line {line!r}")
-    if sum(token.startswith("uses: actions/checkout@") for token in active_tokens) != 1:
-        errors.append("ci.yml must contain exactly one active checkout action")
+    import re
+    def verify_commands(name):
+        text = (repo / name).read_text(errors="replace")
+        match = re.search(r"^- Verify: `([^`]+)`$", text, re.MULTILINE)
+        if not match:
+            errors.append(f"{name} missing canonical Verify command")
+            return []
+        return match.group(1).split(" && ")
+
+    agents_verify = verify_commands("AGENTS.md")
+    claude_verify = verify_commands("CLAUDE.md")
+    if agents_verify != claude_verify:
+        errors.append("AGENTS.md and CLAUDE.md Verify chains diverge")
+    if agents_verify != ["bash tests/run-all.sh"]:
+        errors.append("AGENTS.md and CLAUDE.md must expose one canonical root Verify command")
+    for command in agents_verify:
+        if f"run: {command}" not in active_tokens:
+            errors.append(f"ci.yml missing canonical Verify command {command!r}")
+    if sum(token.startswith("uses: actions/checkout@") for token in active_tokens) != 2:
+        errors.append("ci.yml must check out the repository once in each Verify job")
+
+root_runner_path = repo / "tests" / "run-all.sh"
+if not root_runner_path.is_file():
+    errors.append("missing canonical tests/run-all.sh")
+else:
+    root_runner = root_runner_path.read_text(errors="replace")
+    expected_suites = (
+        "tests/test_skills_reorg.sh",
+        "tests/test_profiles.sh",
+        "tests/test_artifact_contract.sh",
+        "tests/test_work_items.sh",
+        "tests/test_protocol_registry.sh",
+        "tests/test_plan_sync.sh",
+        "tests/test_repo_map.sh",
+        "tests/test_journey_evals.sh",
+        "tests/test_gate_automation.sh",
+        "tests/test_brainstorming.sh",
+        "tests/test_release_convergence.sh",
+        "tests/bootstrap/run-all.sh",
+    )
+    for suite in expected_suites:
+        if root_runner.count(suite) != 1:
+            errors.append(f"canonical root runner must invoke {suite} exactly once")
+    if "ALL TESTS PASSED" not in root_runner:
+        errors.append("canonical root runner must emit the final success marker")
+
+bootstrap_runner = (repo / "tests" / "bootstrap" / "run-all.sh").read_text(errors="replace")
+if "../test_" in bootstrap_runner:
+    errors.append("bootstrap run-all must stay inside the bootstrap suite boundary")
+
+if "bash tests/run-all.sh" not in readme:
+    errors.append("README maintainer verification must use the canonical root runner")
 
 if errors:
     print("\n".join(errors))
     raise SystemExit(1)
 PY
 then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: public beta README and CI entry surface"
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: public release README and CI entry surface"
 else
-  fail "public beta README and CI entry surface"
+  fail "public release README and CI entry surface"
 fi
 
 # Router flows and implement must share one execution-mode contract. Personal,
@@ -851,33 +958,19 @@ fi
 # must not silently make those omitted files mandatory or forbid brownfield edits.
 if python3 - "$REPO" <<'PY'
 from pathlib import Path
+import json
+import re
 import sys
 
 repo = Path(sys.argv[1])
 router = (repo / "skill-router/SKILL.md").read_text(errors="replace")
 implement = (repo / "implement/SKILL.md").read_text(errors="replace")
+registry = json.loads((repo / "protocol-registry.json").read_text())
 errors = []
 
-modes = ("team-feature", "personal-feature", "bug-fix", "refactor")
-expected_inputs = {
-    "team-feature": ("required", "required", "required", "qa validate"),
-    "personal-feature": ("optional", "absent", "absent", "verification-before-completion"),
-    "bug-fix": ("absent", "absent", "absent", "verification-before-completion"),
-    "refactor": ("required", "optional", "absent", "verification-before-completion"),
-}
-
-matrix_rows = {}
-for line in implement.splitlines():
-    if not line.lstrip().startswith("|"):
-        continue
-    cells = [cell.strip().strip("`") for cell in line.strip().strip("|").split("|")]
-    if cells and cells[0] in modes and len(cells) >= 5:
-        matrix_rows[cells[0]] = tuple(cells[1:5])
-for mode, expected in expected_inputs.items():
-    if matrix_rows.get(mode) != expected:
-        errors.append(
-            f"implement execution matrix {mode}={matrix_rows.get(mode)!r}, expected {expected!r}"
-        )
+modes = tuple(registry.get("execution_modes", {}))
+if set(modes) != {"team-feature", "personal-feature", "bug-fix", "refactor"}:
+    errors.append(f"protocol registry execution modes are incomplete: {modes!r}")
 
 flow_modes = {
     "### Team feature\n": "team-feature",
@@ -899,6 +992,12 @@ for heading, mode in flow_modes.items():
     if f"Execution Mode: `{mode}`" not in section:
         errors.append(f"{heading.strip()} missing explicit Execution Mode: `{mode}`")
 
+for name, text in (("skill-router", router), ("implement", implement)):
+    if "../protocol-registry.json" not in text:
+        errors.append(f"{name} does not reference the protocol registry")
+if re.search(r"(?m)^\| `(?:team-feature|personal-feature|bug-fix|refactor)` \|", implement):
+    errors.append("implement duplicates the registry execution-mode matrix")
+
 for forbidden in (
     "不修改既有核心入口",
     "新功能透過「新增檔案」實作",
@@ -910,7 +1009,7 @@ for forbidden in (
 required_contract_tokens = (
     "Execution Mode",
     "條件式輸入",
-    "qa-plan",
+    "protocol-registry.json",
     "verification-before-completion",
 )
 for token in required_contract_tokens:
@@ -967,7 +1066,7 @@ else
   fail "personal micro-task direct path has objective bounds"
 fi
 
-# Public beta documentation is a product surface and a governance contract.
+# Public release documentation is a product surface and a governance contract.
 if python3 - "$REPO" <<'PY'
 from pathlib import Path
 import sys
@@ -987,43 +1086,38 @@ for relative in required_files:
         errors.append(f"missing public release artifact: {relative}")
 
 readme = (repo / "README.md").read_text(errors="replace")
-head = "\n".join(readme.splitlines()[:30])
-for token in ("Claude Code", "Codex", "Cursor", "工程工作流程技能集", "TypeScript/Web", "v0.6.0 是公開 beta"):
+head = "\n".join(readme.splitlines()[:35])
+for token in ("Claude Code", "Codex", "Cursor", "可攜式 feature-delivery protocol"):
     if token not in head:
-        errors.append(f"README first 30 lines missing positioning token {token!r}")
+        errors.append(f"README first 35 lines missing positioning token {token!r}")
 
 ordered_sections = (
-    "## 設計意圖",
-    "## Architecture overview",
-    "## Profiles",
-    "## 前置需求",
+    "## 什麼時候值得用",
     "## Quick Start",
-    "## Gate 是什麼",
-    "## 常用觸發速查",
-    "## 維護與貢獻",
-    "## 文件連結",
+    "## Execution Mode 與工作流程",
+    "## 核心能力與邊界",
+    "## 平台與 fan-out",
+    "## 驗證、安全與授權",
+    "## 升級、檢查與移除",
+    "## 常用入口",
+    "## Maintainer verification",
 )
 positions = [readme.find(section) for section in ordered_sections]
 if any(position < 0 for position in positions) or positions != sorted(positions):
     errors.append(f"README public-audience section order invalid: {list(zip(ordered_sections, positions))}")
 
 for token in (
-    "LLM context 是揮發性的",
-    "沒有證據時宣稱成功",
-    "不可逆操作",
-    "人工審查應集中",
-    "交接才需要契約",
-    "min(重做成本, 操作者的錯誤定位能力)",
-    "人工 Gate",
-    "機器 Gate",
-    "Troubleshooting",
+    "execution_mode",
+    "delivery_mode",
+    "capability_packs",
+    "canonical-v2",
+    "host_goal=unmanaged",
+    "textual_candidate",
     "submodule",
     "jq",
-    "router",
     "CONTRIBUTING.md",
     "CHANGELOG.md",
-    "tag pin",
-    "humanizer",
+    "CLEAR/FINDINGS/SKIP",
 ):
     if token not in readme:
         errors.append(f"README missing public release content {token!r}")
@@ -1049,8 +1143,12 @@ if "references/new-skill-checklist.md" not in skill_creator:
     errors.append("skill-creator must link its local lifecycle checklist reference")
 
 ci_path = repo / ".github/workflows/ci.yml"
-if ci_path.is_file() and "bash scripts/lint-docs.sh" not in ci_path.read_text(errors="replace"):
-    errors.append("CI missing full documentation lint")
+root_runner_path = repo / "tests/run-all.sh"
+if ci_path.is_file() and root_runner_path.is_file():
+    ci = ci_path.read_text(errors="replace")
+    root_runner = root_runner_path.read_text(errors="replace")
+    if "bash tests/run-all.sh" not in ci or "tests/test_skills_reorg.sh" not in root_runner:
+        errors.append("CI must reach full documentation lint through the canonical root runner")
 
 valid_maturity = {"experimental", "stable"}
 core = set((repo / "profiles/core").read_text().split())
@@ -1075,9 +1173,9 @@ if errors:
     raise SystemExit(1)
 PY
 then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: public beta documentation and skill lifecycle contract"
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: public release documentation and skill lifecycle contract"
 else
-  fail "public beta documentation and skill lifecycle contract"
+  fail "public release documentation and skill lifecycle contract"
 fi
 
 humanizer_text="$(cat "$REPO/humanizer/SKILL.md")"
