@@ -30,3 +30,6 @@ __pycache__/
 
 # Real-agent eval workspaces and model logs
 journey-evals/runs/
+
+# Separately managed explainer-site repository; never stage it as a gitlink.
+/website/

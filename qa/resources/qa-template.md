@@ -6,6 +6,15 @@
 
 ---
 
+## Selected Seam
+
+| Field | Decision |
+|---|---|
+| Spec seam ID | [SEAM-001] |
+| Spec reference | [spec.md#selected-seam] |
+
+---
+
 ## 1. Traceability
 
 | Source | Behavior / Risk | Test ID | Level | Evidence |
@@ -63,7 +72,7 @@ Then [expected behavior and recovery path are observable]
 | `has_ui` | L3 component or L5 UI flow, UI states, mockup/token checks | [N/A or command/path] |
 | `has_api` | L4 integration contract with controlled service or fixture | [N/A or command/path] |
 | `typed_contracts` | typecheck or contract validator | [N/A or command/path] |
-| `has_e2e` | one complete journey after lower-level checks pass | [N/A or command/path] |
+| `has_e2e` | complete journey when selected or required for a distinct residual risk | [N/A or command/path] |
 
 ---
 

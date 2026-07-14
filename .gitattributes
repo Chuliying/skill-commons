@@ -11,3 +11,11 @@
 /docs/STATUS.md export-ignore
 /docs/shared-skill-onboarding-checklist.md export-ignore
 /docs/skill-eval-sop.md export-ignore
+/website/** export-ignore
+**/.env export-ignore
+**/.env.* export-ignore
+**/.env.example -export-ignore
+
+# Benchmark result payloads are immutable verbatim host/model evidence. Preserve
+# Markdown hard-break spaces and other source formatting without normalizing it.
+/docs/work/skill-bundle-effect-benchmark/benchmark/results/** -whitespace

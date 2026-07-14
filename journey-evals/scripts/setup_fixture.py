@@ -18,6 +18,11 @@ SCENARIOS = {
     "commit-pr": "team-sprint",
 }
 
+SCENARIO_CAPABILITY_PACKS = {
+    "commit-pr": "optional",
+    "refactor": "optional",
+}
+
 
 def write(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -28,14 +33,14 @@ def run(*args: str, cwd: Path | None = None, env: dict[str, str] | None = None) 
     subprocess.run(args, cwd=cwd, env=env, check=True, stdout=subprocess.DEVNULL)
 
 
-def manifest(delivery_mode: str) -> str:
+def manifest(delivery_mode: str, capability_packs: str = "") -> str:
     return f"""
 # Project Manifest
 
 ## skill-commons bootstrap
 - platforms: claude-code, codex
 - delivery_mode: {delivery_mode}
-- capability_packs:
+- capability_packs: {capability_packs}
 
 ## Core Documents
 - guardrails: .agent/guardrails.md
@@ -143,7 +148,7 @@ stages:
   plan: { skill: plan-sync, file: plan/plan.md, status: done }
   implement: { skill: implement, file: implement-report.md, status: done }
   qa-report: { skill: qa, file: qa-report.md, status: validated }
-  release: { skill: finishing-a-development-branch, file: qa-report.md, status: pending }
+  release: { skill: sync-work, file: qa-report.md, status: pending }
 inputs:
   - release-request
 """,
@@ -163,7 +168,11 @@ def main() -> int:
         shutil.rmtree(dest)
     shutil.copytree(skills_root / "tests/fixtures/python-cli", dest)
 
-    write(dest / ".agent/project-manifest.md", manifest(SCENARIOS[args.scenario]))
+    capability_packs = SCENARIO_CAPABILITY_PACKS.get(args.scenario, "")
+    write(
+        dest / ".agent/project-manifest.md",
+        manifest(SCENARIOS[args.scenario], capability_packs),
+    )
     write(
         dest / ".agent/guardrails.md",
         """
@@ -195,7 +204,11 @@ def main() -> int:
         str(skills_root / "bootstrap/generate.sh"),
         str(dest / ".claude/skills"),
         str(dest / ".codex/skills"),
-        env={**os.environ, "DELIVERY_MODE": SCENARIOS[args.scenario]},
+        env={
+            **os.environ,
+            "DELIVERY_MODE": SCENARIOS[args.scenario],
+            "CAPABILITY_PACKS": capability_packs,
+        },
     )
     run("git", "init", "-q", cwd=dest)
     run("git", "checkout", "-q", "-b", "main", cwd=dest)

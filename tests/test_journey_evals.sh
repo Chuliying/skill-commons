@@ -22,7 +22,10 @@ actual="$(bash "$REPO/journey-evals/run.sh" --list 2>/dev/null | sort)"
 assert_eq "$EXPECTED" "$actual" "journey runner exposes exactly five release journeys"
 assert_not_contains "$(cat "$REPO/journey-evals/run.sh")" " -a never" "Codex runner uses supported non-interactive flags"
 grader_source="$(cat "$REPO/journey-evals/scripts/grade_journey.py")"
+setup_source="$(cat "$REPO/journey-evals/scripts/setup_fixture.py")"
 assert_contains "$grader_source" '("prd-interview", "to-prd")' "team grader accepts either documented PRD producer"
+assert_contains "$grader_source" '"sync-work"' "commit-pr grader requires the authoritative Git owner"
+assert_contains "$setup_source" 'release: { skill: sync-work' "commit-pr fixture uses sync-work as release stage owner"
 assert_contains "$grader_source" '"structural"' "grader classifies structural evidence"
 assert_contains "$grader_source" '"behavioral"' "grader classifies executed behavioral evidence"
 assert_contains "$grader_source" '"recorded"' "grader separates recorded attestations from machine evidence"
@@ -54,6 +57,7 @@ for scenario in $EXPECTED; do
       assert_contains "$(cat "$prompt")" "Review attestation:" "$scenario prompt scopes manual review evidence"
       assert_contains "$(cat "$prompt")" "git diff <BASE_SHA>" "$scenario prompt ties review to the current change"
       assert_contains "$(cat "$prompt")" "Secret preflight command:" "$scenario prompt records the scoped scanner command"
+      assert_contains "$(cat "$prompt")" "sync-work" "$scenario prompt dispatches the authoritative Git owner"
       assert_not_contains "$(cat "$prompt")" "Security: PASS" "$scenario prompt forbids prose-only security PASS"
       assert_contains "$(cat "$prompt")" "delivery_status: awaiting_approval" "$scenario prompt keeps blocked PR separate from delivery"
       assert_contains "$(cat "$prompt")" "Do not add" "$scenario prompt forbids fabricated delivery evidence"
@@ -72,6 +76,15 @@ for scenario in $EXPECTED; do
   assert_file "$workspace/.codex/skills/skill-router/SKILL.md" "$scenario has generated Codex skills"
   assert_file "$workspace/.claude/skills/skill-router/SKILL.md" "$scenario has generated Claude skills"
   assert_file "$workspace/.codex/skills/scripts/manifest-stack.sh" "$scenario has generated runtime helpers"
+  if [ "$scenario" = "refactor" ]; then
+    assert_contains "$(cat "$workspace/.agent/project-manifest.md")" \
+      "capability_packs: optional" "$scenario selects optional requirements capability"
+    assert_file "$workspace/.codex/skills/to-prd/SKILL.md" "$scenario installs its recorded to-prd owner"
+  elif [ "$scenario" = "commit-pr" ]; then
+    assert_contains "$(cat "$workspace/.agent/project-manifest.md")" \
+      "capability_packs: optional" "$scenario selects optional review capability"
+    assert_file "$workspace/.codex/skills/caveman-review/SKILL.md" "$scenario installs its recorded review owner"
+  fi
 
   set +e
   if [ "$scenario" = commit-pr ]; then
@@ -168,7 +181,7 @@ cat > "$commit_pr_false_positive/docs/work/ship-ready/implement-report.md" <<'EO
 # Implement Report
 
 PR: blocked (no remote)
-Skills read: skill-router, verification-before-completion, caveman-review, security, finishing-a-development-branch
+Skills read: skill-router, verification-before-completion, caveman-review, security, sync-work
 EOF
 python3 - "$commit_pr_false_positive/docs/work/ship-ready/meta.yml" <<'PY'
 from pathlib import Path
@@ -207,7 +220,7 @@ cat > "$commit_pr_bare_prose/docs/work/ship-ready/implement-report.md" <<'EOF'
 - Review: PASS
 - Security: PASS
 - PR: blocked (no remote)
-- Skills read: skill-router, verification-before-completion, caveman-review, security, finishing-a-development-branch
+- Skills read: skill-router, verification-before-completion, caveman-review, security, sync-work
 EOF
 python3 - "$commit_pr_bare_prose/docs/work/ship-ready/meta.yml" <<'PY'
 from pathlib import Path
@@ -249,7 +262,7 @@ cat > "$commit_pr_fake_delivery/docs/work/ship-ready/implement-report.md" <<'EOF
 - Review: PASS (no findings)
 - Security: PASS (scan-secrets)
 - PR: blocked (no remote)
-- Skills read: skill-router, verification-before-completion, caveman-review, security, finishing-a-development-branch
+- Skills read: skill-router, verification-before-completion, caveman-review, security, sync-work
 EOF
 python3 - "$commit_pr_fake_delivery/docs/work/ship-ready/meta.yml" <<'PY'
 from pathlib import Path
@@ -297,7 +310,7 @@ cat > "$commit_pr_secret_leak/docs/work/ship-ready/implement-report.md" <<EOF
 - Review attestation: no findings; scope: git diff $secret_leak_base; reviewer: agent
 - Secret preflight command: bash .codex/skills/security/scripts/scan-secrets.sh
 - PR: blocked (no remote)
-- Skills read: skill-router, verification-before-completion, caveman-review, security, finishing-a-development-branch
+- Skills read: skill-router, verification-before-completion, caveman-review, security, sync-work
 EOF
 printf '\n%s = "%s"\n' api_key production-secret-value >> "$commit_pr_secret_leak/src/greet.py"
 cat > "$commit_pr_secret_leak/.codex/skills/security/scripts/scan-secrets.sh" <<'EOF'
@@ -363,7 +376,7 @@ cat > "$commit_pr_green/docs/work/ship-ready/implement-report.md" <<EOF
 - Review attestation: no findings; scope: git diff $green_base; reviewer: agent
 - Secret preflight command: bash .codex/skills/security/scripts/scan-secrets.sh
 - PR: blocked (no remote)
-- Skills read: skill-router, verification-before-completion, caveman-review, security, finishing-a-development-branch
+- Skills read: skill-router, verification-before-completion, caveman-review, security, sync-work
 EOF
 python3 - "$commit_pr_green/docs/work/ship-ready/meta.yml" <<'PY'
 from pathlib import Path
@@ -472,7 +485,7 @@ cat > "$commit_pr_duplicate_meta/docs/work/ship-ready/implement-report.md" <<EOF
 - Review attestation: no findings; scope: git diff $duplicate_meta_base; reviewer: agent
 - Secret preflight command: bash .codex/skills/security/scripts/scan-secrets.sh
 - PR: blocked (no remote)
-- Skills read: skill-router, verification-before-completion, caveman-review, security, finishing-a-development-branch
+- Skills read: skill-router, verification-before-completion, caveman-review, security, sync-work
 EOF
 python3 - "$commit_pr_duplicate_meta/docs/work/ship-ready/meta.yml" <<'PY'
 from pathlib import Path
@@ -533,7 +546,7 @@ cat > "$commit_pr_symlinked_artifacts/docs/work/ship-ready/implement-report.md" 
 - Review attestation: no findings; scope: git diff $symlink_base; reviewer: agent
 - Secret preflight command: bash .codex/skills/security/scripts/scan-secrets.sh
 - PR: blocked (no remote)
-- Skills read: skill-router, verification-before-completion, caveman-review, security, finishing-a-development-branch
+- Skills read: skill-router, verification-before-completion, caveman-review, security, sync-work
 EOF
 python3 - "$commit_pr_symlinked_artifacts/docs/work/ship-ready/meta.yml" <<'PY'
 from pathlib import Path

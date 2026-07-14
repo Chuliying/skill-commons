@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 rc=0
-for suite in \
+PUBLIC_SUITES="
   tests/test_skills_reorg.sh \
   tests/test_profiles.sh \
   tests/test_artifact_contract.sh \
@@ -18,7 +18,21 @@ for suite in \
   tests/test_brainstorming.sh \
   tests/test_release_convergence.sh \
   tests/bootstrap/run-all.sh
-do
+"
+PRIVATE_SUITES="
+  tests/test_skill_inventory.sh
+  tests/test_skill_surface.sh
+  tests/test_skill_bundle_benchmark.sh
+"
+
+SUITES="$PUBLIC_SUITES"
+if [ -d "$ROOT/docs/work" ] && [ -f "$ROOT/docs/STATUS.md" ]; then
+  SUITES="$SUITES$PRIVATE_SUITES"
+else
+  echo "=== private development suites skipped (public payload) ==="
+fi
+
+for suite in $SUITES; do
   echo "=== $suite ==="
   bash "$suite" || rc=1
 done

@@ -62,7 +62,9 @@ if mode == "changed":
         *git_paths("ls-files", "--others", "--exclude-standard", "-z", "--", "*.md"),
     }
 else:
-    candidates = set(root.rglob("*.md"))
+    candidates = set(git_paths(
+        "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", "*.md"
+    ))
 
 files = sorted(path for path in candidates if is_in_scope(path))
 

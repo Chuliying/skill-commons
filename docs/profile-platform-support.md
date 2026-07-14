@@ -27,3 +27,16 @@ justified by a size inversion.
 
 The current generated membership is derived from `profiles/`; do not preserve
 the baseline counts as a hand-maintained product claim after membership changes.
+
+## v0.8.0 membership and compatibility boundary
+
+The checked profile files resolve to `current personal = 7`,
+`current team-sprint = 12`, and `current optional = 10`. This 7-owner core is the
+released `v0.8.0` core. `sync-work` is the sole Git-delivery owner.
+Consuming repositories that still require the legacy 13-owner core stay pinned
+to `v0.7.1`.
+
+`v0.8.0` adopters add `optional` to the manifest's `capability_packs` (or use
+`CAPABILITY_PACKS=optional` with direct generation) when they need personal
+discovery, PRD publication, terse review, or shared-skill onboarding. This
+profile change makes no effectiveness or quality claim.

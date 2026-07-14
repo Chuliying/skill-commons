@@ -27,6 +27,72 @@ if python3 "$REPO/qa/scripts/check-traceability.py" --prd "$TMP/prd.md" --qa-pla
 else
   fail "QA traceability accepts complete AC-to-TC mappings"
 fi
+
+cat > "$TMP/qa-non-unit.md" <<'EOF'
+## Selected Seam
+| Field | Decision |
+|---|---|
+| Spec seam ID | SEAM-001 |
+| Spec reference | spec-seam-good.md#selected-seam |
+
+| AC-ID | TC-ID | Description |
+|---|---|---|
+| AC-001 | TC-101 | integration default |
+| AC-002 | TC-102 | integration custom |
+EOF
+cat > "$TMP/spec-seam-good.md" <<'EOF'
+## Selected Seam
+| Field | Decision |
+|---|---|
+| Seam ID | SEAM-001 |
+| Selected boundary | L4 integration |
+| Repository evidence | tests/integration/greeting_test.py; pytest tests/integration |
+| Lower-seam rationale | the observable contract crosses the HTTP boundary |
+| Residual lower-level checks | N/A; no isolated transformation exists |
+| Reliability and execution cost | stable fixture; 2 seconds; no network |
+EOF
+if python3 "$REPO/spec/scripts/check-selected-seam.py" --spec "$TMP/spec-seam-good.md" --qa-plan "$TMP/qa-non-unit.md" >/dev/null &&
+   python3 "$REPO/qa/scripts/check-traceability.py" --prd "$TMP/prd.md" --qa-plan "$TMP/qa-non-unit.md" >/dev/null; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: QA traceability accepts a valid non-unit selected seam"
+else
+  fail "QA traceability accepts a valid non-unit selected seam"
+fi
+
+if python3 "$REPO/spec/scripts/check-selected-seam.py" --spec "$TMP/spec-seam-good.md" >/dev/null; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: selected-seam contract accepts a complete Spec record"
+else
+  fail "selected-seam contract accepts a complete Spec record"
+fi
+sed '/Repository evidence/d' "$TMP/spec-seam-good.md" > "$TMP/spec-seam-missing-evidence.md"
+if python3 "$REPO/spec/scripts/check-selected-seam.py" --spec "$TMP/spec-seam-missing-evidence.md" >/dev/null 2>&1; then
+  fail "selected-seam contract rejects a Spec missing repository evidence"
+else
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: selected-seam contract rejects a Spec missing repository evidence"
+fi
+sed '/Reliability and execution cost/d' "$TMP/spec-seam-good.md" > "$TMP/spec-seam-missing-cost.md"
+if python3 "$REPO/spec/scripts/check-selected-seam.py" --spec "$TMP/spec-seam-missing-cost.md" >/dev/null 2>&1; then
+  fail "selected-seam contract rejects a Spec missing reliability and execution cost"
+else
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: selected-seam contract rejects a Spec missing reliability and execution cost"
+fi
+sed '/## Selected Seam/,+4d' "$TMP/qa-non-unit.md" > "$TMP/qa-seam-missing.md"
+if python3 "$REPO/spec/scripts/check-selected-seam.py" --spec "$TMP/spec-seam-good.md" --qa-plan "$TMP/qa-seam-missing.md" >/dev/null 2>&1; then
+  fail "selected-seam gate rejects a QA plan without a seam reference"
+else
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: selected-seam gate rejects a QA plan without a seam reference"
+fi
+sed 's/SEAM-001/SEAM-999/' "$TMP/qa-non-unit.md" > "$TMP/qa-seam-mismatch.md"
+if python3 "$REPO/spec/scripts/check-selected-seam.py" --spec "$TMP/spec-seam-good.md" --qa-plan "$TMP/qa-seam-mismatch.md" >/dev/null 2>&1; then
+  fail "selected-seam gate rejects a QA plan referencing another seam"
+else
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: selected-seam gate rejects a QA plan referencing another seam"
+fi
+sed 's#spec-seam-good.md#unrelated.md#' "$TMP/qa-non-unit.md" > "$TMP/qa-seam-bad-reference.md"
+if python3 "$REPO/spec/scripts/check-selected-seam.py" --spec "$TMP/spec-seam-good.md" --qa-plan "$TMP/qa-seam-bad-reference.md" >/dev/null 2>&1; then
+  fail "selected-seam gate rejects an unrelated Spec reference"
+else
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: selected-seam gate rejects an unrelated Spec reference"
+fi
 if python3 "$REPO/qa/scripts/check-traceability.py" --prd "$TMP/prd.md" --qa-plan "$TMP/qa-bad.md" >/dev/null 2>&1; then
   fail "QA traceability rejects an unmapped AC"
 else
@@ -222,5 +288,63 @@ for skill in to-prd prd-interview spec; do
     fail "$skill invokes check-prd via a resolvable shared-scripts path"
   fi
 done
+
+# Final convergence acceptance and execution evidence must name the same valid
+# secret-scan target and the exact regular-file-only protected digest boundary.
+if [ -f "$REPO/docs/work/skill-bundle-convergence/prd.md" ] &&
+   [ -f "$REPO/docs/work/skill-bundle-convergence/plan/plan.md" ]; then
+python3 - "$REPO" "$TMP" <<'PY'
+from pathlib import Path
+import sys
+
+repo = Path(sys.argv[1])
+tmp = Path(sys.argv[2])
+prd = (repo / "docs/work/skill-bundle-convergence/prd.md").read_text()
+plan = (repo / "docs/work/skill-bundle-convergence/plan/plan.md").read_text()
+ac011 = prd.split("### AC-011:", 1)[1].split("## 9. UI / UX", 1)[0]
+protected_preflight = prd.split("At controller preflight on HEAD", 1)[1].split(
+    "Benchmark/session integrity", 1
+)[0]
+t07 = plan.split("### T07 |", 1)[1].split("## Change Log", 1)[0]
+verification = t07.split("#### Verification", 1)[1]
+(tmp / "ac011.txt").write_text(ac011)
+(tmp / "protected-preflight.txt").write_text(protected_preflight)
+(tmp / "t07-verification.txt").write_text(verification)
+PY
+
+ac011_text="$(cat "$TMP/ac011.txt")"
+protected_preflight_text="$(cat "$TMP/protected-preflight.txt")"
+t07_verification_text="$(cat "$TMP/t07-verification.txt")"
+assert_contains "$ac011_text" "bash security/scripts/scan-secrets.sh ." "PRD AC-011 uses the explicit repository secret-scan target"
+assert_contains "$t07_verification_text" "bash security/scripts/scan-secrets.sh ." "T07 plan Verification uses the explicit repository secret-scan target"
+
+assert_no_bare_secret_scan() {
+  local file="$1" label="$2"
+  if python3 - "$file" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+text = Path(sys.argv[1]).read_text()
+raise SystemExit(0 if re.search(r"bash security/scripts/scan-secrets\.sh(?!\s+\.)", text) else 1)
+PY
+  then
+    fail "$label"
+  else
+    TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: $label"
+  fi
+}
+
+assert_no_bare_secret_scan "$TMP/ac011.txt" "PRD AC-011 rejects a no-target secret scan"
+assert_no_bare_secret_scan "$TMP/t07-verification.txt" "T07 plan Verification rejects a no-target secret scan"
+assert_contains "$ac011_text" 'The frozen `-type f` pipeline hashes regular files only' "PRD AC-011 states the protected regular-file hash boundary"
+assert_not_contains "$ac011_text" "29,809-file" "PRD AC-011 rejects the combined regular-file and symlink count"
+assert_contains "$protected_preflight_text" "29,767 regular files" "PRD preflight records the protected regular-file count"
+assert_contains "$protected_preflight_text" "42 symlinks" "PRD preflight records the separately observed symlink count"
+assert_contains "$protected_preflight_text" 'outside the `-type f` digest' "PRD preflight keeps symlinks outside the frozen digest boundary"
+assert_not_contains "$protected_preflight_text" "29,809 regular files" "PRD preflight rejects the combined count as a regular-file count"
+else
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: private convergence evidence is absent from the public payload"
+fi
 
 finish

@@ -362,7 +362,7 @@ def main() -> int:
         recorded["secret_preflight_command_recorded"] = secret_preflight_command_recorded(report)
         recorded["ship_skills_read_recorded"] = all(
             skill_read_recorded(report, name)
-            for name in ("verification-before-completion", "caveman-review", "security", "finishing-a-development-branch")
+            for name in ("verification-before-completion", "caveman-review", "security", "sync-work")
         )
 
     failed = [

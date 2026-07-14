@@ -73,7 +73,7 @@ Domain skills 的內容必須從當前專案的程式碼中歸納，不可從其
 **Light track** 條件（符合任一即可）：
 - `.agent/project-manifest.md` 已宣告 `delivery_mode: personal`
 - 使用者說「輕量」「minimal」「個人專案」「先接基本的就好」
-- 專案只需要 core 技能（`implement`/`sync-work`/`finishing-a-development-branch`/`security`），不涉及 `spec`/`qa`/`prototype`/`prd-interview` 等 team overlay 技能
+- 專案只需要 core 技能（`implement`/`sync-work`/`security`），不涉及 `spec`/`qa`/`prototype`/`prd-interview` 等 team overlay 技能
 
 **Full track**：`delivery_mode: team-sprint`，或使用者明確要接
 spec/qa/prototype/domain-modeling。舊 `profile:` 只當遷移輸入解讀，不用它建立
@@ -247,7 +247,7 @@ npx -y skills add 'vercel-labs/agent-skills@vercel-composition-patterns' --copy 
 - `has_e2e`: `[true/false；預設 false]`
 
 ## Git Workflow
-[sync-work / finishing-a-development-branch 用來解析分支與整合流程]
+[sync-work 用來解析 Scoped Save / Integrate / Finish / Recovery 流程]
 - `base_branch`: `[主整合分支]`
 - `remote`: `[主要 remote；通常由 remote default branch 偵測]`
 - `branch_pattern`: `[分支命名]`
@@ -268,9 +268,9 @@ Domain Skill Names 只登記已建立且有參考實作的 skills。不存在的
 
 ### Project Variables 填寫（Paths / Stack / Git Workflow）
 
-shared skills（spec、qa、implement、finishing-a-development-branch、sync-work、subagent-driven-development、security）已改為**讀 manifest 變數**而非寫死路徑/指令/分支。onboarding 必須把這些值寫進 manifest，否則這些技能會反覆詢問使用者。依 track 分兩層，不必兩層都填：
+shared skills（spec、qa、implement、sync-work、subagent-driven-development、security）已改為**讀 manifest 變數**而非寫死路徑/指令/分支。onboarding 必須把這些值寫進 manifest，否則這些技能會反覆詢問使用者。依 track 分兩層，不必兩層都填：
 
-- **Light track**：需要 `source_roots`/`source_extensions`、`tests_root`/`test_glob`、`work_root`/`docs_root`、`test_cmd`/`framework`/`package_manager`、四個 capability flags、`base_branch`/`remote`（供 `to-prd`/`plan-sync`/`implement`/`sync-work`/`finishing-a-development-branch`/`security`/`subagent-driven-development` 使用；capability 缺席一律為 false）。
+- **Light track**：需要 `source_roots`/`source_extensions`、`tests_root`/`test_glob`、`work_root`/`docs_root`、`test_cmd`/`framework`/`package_manager`、四個 capability flags、`base_branch`/`remote`（供 `to-prd`/`plan-sync`/`implement`/`sync-work`/`security`/`subagent-driven-development` 使用；capability 缺席一律為 false）。
 - **Full track** 額外需要：`lint_cmd`；`typed_contracts: true` 才需要 `typecheck_cmd`/`types_entry`，`has_e2e: true` 才需要 `e2e_cmd`，`has_ui: true` 才需要 `mockup_root`/`design_tokens`，`has_api: true` 才需要 `api_reference`/`api_client_entry`。Git workflow 欄位仍依團隊流程填寫。
 
 以下 1-5 步以 Full track 為準；Light track 只做 1（只取 Light 需要的欄位）、2、3，跳過 4（無 ticket_pattern 等欄位）與 5（不 offer git-workflow domain skill）。
@@ -280,7 +280,7 @@ shared skills（spec、qa、implement、finishing-a-development-branch、sync-wo
 3. 偵測為 `not detected` 的路徑或命令，**詢問使用者**，不要猜。Capability 未偵測到時採 `false`，不要求 CLI 專案虛構 UI、API、型別或 E2E 資產。
    偵測到 legacy artifact 目錄時只保留為歷史、不搬移；新工作項一律使用 `work_root`。
 4. `ticket_pattern` / `branch_pattern` / `commit_format` / `integration_flow` 無法可靠自動偵測，一律詢問使用者。
-5. **Git workflow 複雜度判斷**：若專案是多階段整合（feature → base → release）、有角色分支、或 ticket 綁定流程 → offer 用 [`templates/git-workflow-skill.md`](templates/git-workflow-skill.md) scaffold `project/git-workflow` domain skill，把這些專案專屬流程留在 project 端；shared 的 finishing-a-development-branch / sync-work 偵測到該 domain skill 時 defer 給它。簡單流程（單一 base branch、PR 直入）只填 manifest 即可，不需要這支 skill。
+5. **Git workflow 複雜度判斷**：若專案是多階段整合（feature → base → release）、有角色分支、或 ticket 綁定流程 → offer 用 [`templates/git-workflow-skill.md`](templates/git-workflow-skill.md) scaffold `project/git-workflow` domain skill，把這些專案專屬流程留在 project 端；shared `sync-work` 偵測到該 domain skill 時 defer 給它。簡單流程（單一 base branch、PR 直入）只填 manifest 即可，不需要這支 skill。
 
 > 設計依據：project-pattern externalization 為 maintainer-side 背景；public
 > 接入時以本節 contract 為準。

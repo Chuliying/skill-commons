@@ -11,29 +11,26 @@ output: <work_root>/<slug>/brainstorm.md
 
 # Brainstorming — Bounded Discovery
 
-> 改編自 [obra/superpowers](https://github.com/obra/superpowers)，本版以 skill-commons 的最小路由與成本邊界為準。
+> 改編自 [obra/superpowers](https://github.com/obra/superpowers)，採 skill-commons 的最小路由與成本邊界。
 
-將尚未決定、而且會改變實作的需求收斂成足夠執行的 decision brief。它不是所有
-任務的前置 Gate，也不替代 repo inspection、PRD、Spec、Plan 或 review。
+把會改變實作的未決需求收斂成 decision brief；repo inspection、PRD、Spec、Plan 與
+review 各自留在原 flow。
 
-使用時先告知：「我正在使用 brainstorming 釐清會改變實作的未決事項。」
+透明度放在 progress/commentary；final answer 只呈現決策與下一步，不重複 skill name 或 routing taxonomy。
 
 ## Qualification
 
-依序判斷：
-
-1. 是否存在會改變 scope、架構、公開行為或驗收方式的 material ambiguity？
-2. 現有 spec、程式碼、測試或其他 repo evidence 能否直接回答？
-3. 使用者的答案是否真的會改變接下來的工作？
-
-任一答案為「否」就用 Skip，不載入更多探索流程。下列任務預設 Skip：
+依序確認：存在會改變 scope、架構、公開行為或驗收方式的 material ambiguity；repo
+evidence 無法回答；使用者答案會改變後續工作。任一不成立就 Skip。預設 Skip：
 
 - 邊界與驗收已明確的 micro-task 或既有 spec 實作。
 - bug 重現、根因調查、測試失敗與修復。
 - code review、release evidence 更新與 read-only 說明。
 - 可由 repository 或權威來源查證的事實問題。
 
-未決事項仍會造成兩種以上實質不同的實作時，才使用本 skill。
+仍有兩種以上實質實作才繼續。事實問題直接查 repo、官方文件或 host browsing；只有
+qualified Standard / Deep 決策需要額外證據時，才讀
+[`references/research.md`](references/research.md)；Research 是 subroutine，不增加 mode。
 
 ## Cost modes
 
@@ -44,40 +41,44 @@ output: <work_root>/<slug>/brainstorm.md
 | Standard | 最多 3 個問題；每個決策最多 2 個選項；一次最終確認 | 依交接需要 |
 | Deep | 先記錄原因、範圍與預算；使用者明確同意後才擴張 | 必要時建立 |
 
-預設使用 Standard，但能用 Quick 解決就立即停止。只有高風險、跨 domain 或使用者
-明確要求廣泛探索時才提議 Deep；未獲同意不得自行升級。問題預算用完仍有 material
-ambiguity 時，回報剩餘決策與影響，請使用者決定是否 Deep、縮小範圍或暫停。
+能用 Quick 就停；其餘預設 Standard。高風險、跨 domain 或明確要求廣泛探索時才提議
+Deep，未獲使用者明確同意不得升級。預算耗盡就列出剩餘決策與影響，由使用者選擇
+Deep、縮小範圍或暫停。
+
+跨 session 且重大未知仍無法拆成 task 時，Deep 才讀
+[`references/wayfinding.md`](references/wayfinding.md)。consent package 仍屬 Standard：
+`proceed` 載入 Wayfinding；`stay Standard` 留在原模式；`narrow` 縮小提案後重新取得同意。
+缺 Wayfinding Control 的 legacy brief 僅供歷史讀取，走 Skip。
 
 ## Process
 
-1. **先查證**：讀相關檔案、既有決策、測試與最近變更；不要詢問 repo 已能回答的事。
-2. **只問決策題**：一次一問，先給推薦與理由；沒有合理替代方案時不用硬湊選項。
-3. **足夠即停**：當問題、範圍、成功標準與關鍵限制已足以選實作路徑，就停止探索。
-4. **收斂一次**：用短 decision brief 列出問題、in/out、決定、理由、風險與未決事項，做一次最終確認。
+1. 查相關檔案、決策、測試與最近變更，不問 repo 已能回答的事。
+2. 一次只問一個決策題，先給推薦與理由；沒有合理替代時不硬湊選項。
+3. 問題、範圍、成功標準與限制足以選路徑就停。
+4. 用短 brief 列出問題、in/out、決定、理由、風險與未決事項，做一次最終確認。
 
-不得每段要求確認、重問已回答事項，或因 skill 被載入就製造額外文件。
+Research 回到當前決策；Wayfinding 清除主要 Fog 後交給 PRD、Spec 或 Plan。Spec/QA
+研究留在原階段。避免重問、逐段確認或因載入 skill 製造文件。
 
 ## Artifact and handoff
 
-預設把 decision brief 留在當前對話。只有跨 session、跨 agent handoff、正式 team
-交接或使用者要求 durable record 時，才寫：
+brief 預設留在對話；跨 session、跨 agent、team handoff 或使用者要求 durable record
+時才寫：
 
 ```text
 <work_root>/<slug>/brainstorm.md
 <work_root>/<slug>/meta.yml
 ```
 
-落檔時遵循 [`../ARTIFACTS.md`](../ARTIFACTS.md)。這個 `output` 是條件式能力，
-不是每次執行的完成條件。
+落檔遵循 [`../ARTIFACTS.md`](../ARTIFACTS.md)。`brainstorm.md` 是 supporting input，不加
+lifecycle stage；沒有 work item 時，由後續 PRD、Spec 或 Plan producer 建立 `meta.yml`。
 
-- 清楚的 micro-task → `implement`。
-- 個人工作需要持久共識 → `to-prd`。
-- team 正式需求交接 → `prd-interview`。
-- 已有方案、只需壓測漏洞 → `grilling`，不要重跑 brainstorming。
-- 多步、跨 session 或需追蹤 drift → `plan-sync`。
+Consented Deep 仍用 `brainstorm.md`；map、budget、resume 與尺寸依 Wayfinding reference。
+
+Handoff：micro-task → `implement`；個人持久共識 → `to-prd`；team 需求 →
+`prd-interview`；既有方案壓測 → `grilling`；多步、跨 session 或 drift → `plan-sync`。
 
 ## Evidence boundary
 
-結構測試與 routing fixtures 只能證明文字契約、案例覆蓋與載入體積，不能證明模型
-一定正確觸發，也不能證明 token、時間或產出品質改善。這些主張需要同 prompt、同
-模型／host 的 with-skill／without-skill 重複執行與人工 adjudication。
+結構測試與 fixtures 只證明文字契約、案例覆蓋與載入體積。模型觸發率、token、時間
+或品質主張需要同 prompt、模型與 host 的 matched runs 加人工 adjudication。

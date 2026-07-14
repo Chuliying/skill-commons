@@ -1,91 +1,132 @@
 ---
 name: sync-work
 description: |
-  Git 工作同步工具。依專案 manifest 或既有 repository 慣例建立/切換分支、檢查變更、選擇性 stage、commit 與 push。
-  觸發關鍵字: /sync-work, 開始工作, 保存進度, commit, push, merge
+  Authoritative Git delivery interface for scoped save, integration, branch finish, and recovery. Preserves unrelated work and gates external or irreversible actions.
+  觸發關鍵字: /sync-work, 開始工作, 保存進度, commit, push, merge, PR, 收尾, recovery
 source_kind: original
 stage: infra
 ---
 
 # Sync Work
 
-提供跨專案的 Git 同步流程。不得假設固定分支名稱、ticket 格式、remote 或角色分支。
+Git delivery has one current interface with four modes: Scoped Save, Integrate,
+Finish, and Recovery. Branch-start capability is a subordinate setup step inside
+Scoped Save; it is not a fifth workflow owner or mode.
 
-> 分工：sync-work 處理**進行中**的存檔/同步（建/切分支、stage、commit、push）。**分支收尾的終局決策**（merge / PR / 保留 / 放棄）交給 `finishing-a-development-branch`。
+## Common contract
 
-## Hard Rules
+1. Read `.agent/project-manifest.md` `Git Workflow`, guardrails, and any declared
+   `project/git-workflow` domain skill. Missing values remain unknown; infer only
+   from repository evidence or ask.
+2. Inspect branch, remotes, status, staged/unstaged diff, and relevant commits.
+   Separate task files from unrelated dirty work before proposing any mutation.
+3. Require fresh verification for the exact candidate. Run `security` separately
+   and record separate security evidence; a secret preflight is not overall
+   verification or release approval.
+4. Show the exact files, refs, command category, and impact before mutation. Obtain
+   explicit approval before external or irreversible actions, including network,
+   push/PR, merge/rebase, stash, discard, branch deletion, or remote changes.
+5. Never use broad staging or cleanup. `git add .` and `git add -A` are forbidden;
+   preserve every unrelated path and report it afterward.
 
-1. 先讀 `.agent/project-manifest.md` 的 `Git Workflow`；沒有該區塊時，從目前 branch、remote 與最近 commit 推導，仍無法確定就詢問使用者。
-2. 若 manifest `Domain Skill Names` 宣告 `git-workflow`，先讀該 project skill；專案特有的角色分支、多階段整合與 ticket 規則以它為準。
-3. 禁止 `git add .`、`git add -A`；只 stage 本次任務的明確檔案。
-4. 禁止未經確認切換、rebase、merge 或 push protected branch。
-5. commit 前必須先執行 `verification-before-completion` 與安全檢查。
-6. 工作樹中的既有、無關變更屬於使用者，不得混入 commit。
+## Mode: Scoped Save
 
-## Manifest Contract
+Use for subordinate branch setup, explicit staging, local commits, or an authorized
+push.
 
-專案可選擇宣告：
+1. Inspect `git status --short`, current branch, remotes, and scoped diffs. Confirm
+   the task-owned file list and leave unrelated dirty work unstaged.
+2. If branch setup is needed, resolve base and naming from manifest/repo evidence.
+   Show how switching or creating the branch affects the dirty tree and obtain
+   approval before the branch mutation.
+3. Run fresh verification and the applicable separate security evidence before a
+   commit. Failures stop the mode.
+4. Stage only approved paths with `git add -- <paths>`, review `git diff --cached`,
+   then commit using the confirmed project convention.
+5. Push only after separate explicit approval and a known remote/target. If there is
+   no remote, stop without creating one. Record a commit SHA or push ref only after
+   the actual event succeeds.
 
-```markdown
-## Git Workflow
-- base_branch: <branch>
-- remote: <remote>
-- branch_pattern: <pattern>
-- ticket_pattern: <pattern or omitted>
-- commit_format: <format>
-- integration_flow: <source → target stages>
-```
+## Mode: Integrate
 
-未宣告的欄位不自行補預設值。
+Use to compare or combine a confirmed source and target.
 
-## Modes
+1. Resolve source, target, and integration policy from manifest/domain skill or ask.
+   A missing remote, unknown base, or unsupported policy is a safe stop.
+2. Inspect local refs first. Obtain approval before fetch or any other network
+   access; only then refresh the named refs.
+3. Show commits, diff stat, and ahead/behind counts. Stop on divergence that the
+   declared policy does not resolve.
+4. Obtain separate approval before merge or rebase. Never infer that fetch approval
+   also authorizes integration.
+5. On conflict, stop with the affected paths and preserve both sides; do not discard,
+   auto-resolve, or continue. After a successful integration, rerun fresh
+   verification and report the resulting ref without implying delivery.
 
-### Start
+## Mode: Finish
 
-1. 執行 `git status --short`, `git branch --show-current`, `git remote -v`。
-2. 解析 manifest 或現有 repo 慣例，確認 base branch 與 branch naming。
-3. 任何會覆蓋或重排工作樹的動作前，先回報影響並取得確認。
-4. 建立或切換工作分支後，回報 branch 與 base。
+Use after implementation is complete to request and execute one closeout outcome.
 
-### Save
+1. Require fresh verification, review, and separate security evidence. Prepare a
+   Gate Package with changes, evidence, risks, and four decision options. Code
+   completion sets `work_status: completed`; before approval keep
+   `delivery_status: awaiting_approval` and do not invent delivery evidence.
+2. Present exactly these outcomes:
 
-1. 執行 `git status --short`、`git diff --stat`、`git diff -- <scoped-files>`。
-2. 列出本次任務檔案；排除不相關修改與未追蹤檔。
-3. 跑專案定義的 verification 與 security gates。
-4. 只 stage 明確檔案：
+   1. Local merge
+   2. Push and create PR
+   3. Keep branch
+   4. Discard work
 
-   ```bash
-   git add -- <file-1> <file-2>
-   ```
+3. Local merge requires release approval, then approval before any fetch and
+   approval before merge or rebase. With no remote, use only confirmed local refs;
+   with a remote, stop on non-fast-forward divergence. Run post-merge verification.
+   Only after the actual event record `delivery_status: merged`, the durable
+   `approval_ref`, and the full `merge_sha`.
+4. Push and create PR requires release approval and separate approval for network
+   actions. Record `delivery_status: approved` after approval; record
+   `delivery_status: pr_created` plus `approval_ref` and `pr_url` only after the PR
+   actually exists. A blocked push or predicted URL is not evidence.
+5. Keep branch performs no merge, push, or deletion: set release stage: `done`, keep
+   `work_status: completed`, and restore `delivery_status: not_requested` without
+   PR/merge evidence.
+6. Discard work uses discard double-confirmation: selecting outcome 4 is the first
+   confirmation; then show the exact commits/files/branch that would be lost and
+   require the literal `discard` as the second. Only afterward may deletion occur,
+   with `work_status: abandoned` and `delivery_status: not_requested`.
 
-5. 依 manifest 或 repo 慣例產生 commit message；規則不明時先詢問。
-6. commit 後確認 `git status --short` 與 `git show --stat --oneline HEAD`。
-7. 只有使用者要求或 workflow 明確授權時才 push。
+Approval, PR, and merge evidence are actual-event-only. An approval never proves a
+PR or merge, and a local commit never proves delivery.
 
-### Integrate
+## Mode: Recovery
 
-1. 從 manifest 的 `integration_flow`、`project/git-workflow` 或使用者指定取得來源與目標；不得假設角色分支或固定 branch。
-2. 先 fetch，再顯示 commit 與 diff stat：
+Use to restore a verified stable state without erasing unrelated work.
 
-   ```bash
-   git fetch <remote> <source> <target>
-   git log --oneline <target>..<remote>/<source>
-   git diff --stat <target>..<remote>/<source>
-   ```
+1. Inspect and classify staged, uncommitted, unpushed, and published state, plus
+   current refs, remotes, affected files, and the last known-good point.
+2. Propose the smallest reversible action. Unstage only scoped paths; stash requires
+   approval and must name its scope; preserve unrelated dirty work throughout.
+3. Obtain approval before stash, discard, delete, or remote changes. For published
+   commits, use a new `git revert` commit after approval rather than rewriting
+   history. Stop when authorship, publication state, or impact is uncertain.
+4. Never use `reset --hard`, force push, or whole-tree checkout as a recovery
+   shortcut. Never broaden a path-scoped recovery to the whole repository.
+5. Run fresh verification after recovery, inspect status/diff again, and record the
+   resulting refs plus remaining unrelated changes. A failed verification leaves
+   recovery incomplete.
 
-3. 使用者確認差異後才 merge/rebase。
-4. 衝突時停止並回報，不自行捨棄任何一方修改。
-5. 整合後重新跑 verification。
-
-## Completion Report
+## Completion report
 
 ```text
-mode: start | save | integrate
-branch: <current>
-base/target: <branch>
-scoped files: <list>
-verification: PASS | FAIL
-commit: <sha or N/A>
-push: <remote/branch or not requested>
+mode: scoped-save | integrate | finish | recovery
+branch/source/target: <resolved values or N/A>
+scoped files: <task-owned list>
 remaining unrelated changes: <list or none>
+verification: <command and result>
+security evidence: <separate command/scope/result>
+approvals: <action + durable reference or not requested>
+actual events: <commit SHA / push ref / PR URL / merge SHA / none>
+work_status: <state or N/A>
+delivery_status: <state or N/A>
+safe stop: <reason or none>
 ```

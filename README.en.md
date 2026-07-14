@@ -1,65 +1,37 @@
 # skill-commons
 
-skill-commons is a repository-resident, portable feature-delivery protocol and
-skill toolkit for Claude Code, Codex, and Cursor. v0.7.1 stores execution state
-in versioned project artifacts, keeps machine contracts declarative, and
-provides local conformance tools. Portability covers the artifacts and protocol.
-Host capabilities still vary.
+skill-commons keeps one verifiable, resumable engineering state for developers,
+agents, tools, and sessions. Requirements, Spec, Plan, implementation state, and
+verification evidence live in the repository instead of one chat transcript.
 
-The skill sources are maintained in zh-TW. This page summarizes the public
-contract for English readers. Automated fixtures cover Python CLI and
-TypeScript/Web repository shapes. Other languages, frameworks, and deployment
-environments require their own validation.
+It is a portable feature-delivery protocol. Claude Code, Codex, and Cursor use their
+supported adapters to read the same latest work state; the consuming repository and host
+retain language, framework, scheduling, and runtime decisions.
 
-## Scope and boundaries
+[zh-TW](README.md) · [Spec-state protocol](docs/spec-state-protocol.md) ·
+[Evaluation](docs/evaluation.md) · [Skill index](INDEX.md)
 
-- Claude Code and Codex receive selected skills through generated discovery
-  roots. Cursor receives a rule plus `AGENTS.md` only.
-- `protocol-registry.json` describes execution modes, artifact requirements,
-  lifecycle evidence, and profiles. Conformance checks consume this data;
-  execution and scheduling stay with the host and user.
-- Artifacts are conditional. A team feature requires the formal PRD, Spec,
-  Plan, QA plan/report, and implementation report chain. Personal features,
-  bug fixes, and refactors deliberately omit or make some of those artifacts
-  optional.
-- `work_status` records completion of requested work. `delivery_status`
-  separately records approval, PR, merge, and deployment events using actual
-  evidence. Delivery evidence begins with an approval or remote event record.
-- The built-in scanner performs a heuristic secret preflight. Comprehensive
-  security coverage also requires separate dependency, auth, and operation
-  reviews where applicable.
+## Why it exists
 
-## Delivery selection and platforms
+Spec is the blueprint, Plan is the work sequence, `meta.yml` is the progress board,
+tests are inspection records, and Git preserves change history. The shared state lets a
+new collaborator determine the next task, blockers, changed intent, stale evidence, and
+the proof behind completion or delivery claims.
 
-Every consuming repository selects exactly one `delivery_mode`: `personal` or
-`team-sprint`. It may add the `frontend` and `optional` capability packs.
-Omitting the delivery mode stops onboarding before installation.
-The legacy `profile` form exists only for migration, and `PROFILE=all` is an
-explicit maintainer command.
+Use it for work that crosses sessions, agents, tools, developers, or formal review
+gates. Factual lookup and bounded micro-tasks take the shortest path without durable
+ceremony. See [Spec-state protocol](docs/spec-state-protocol.md) and
+[Discovery and planning](docs/discovery-and-planning.md).
 
-| Platform | Adapter |
-|---|---|
-| Claude Code | `.claude/skills/` fan-out, `CLAUDE.md`, and SessionStart hook |
-| Codex | `.codex/skills/` fan-out and `AGENTS.md` |
-| Cursor | Cursor rule plus `AGENTS.md`; no skill fan-out |
+## Quick Start
 
-Fan-out copies selected top-level sources and shared runtime files into host
-discovery roots. An ownership ledger limits later updates and uninstall to
-managed entries, preserving foreign skills and files.
-
-## Requirements and Quick Start
-
-Git with submodule support and Bash 3.2+ are the base requirements; the macOS
-system Bash is sufficient. `jq` is needed for the Claude Code settings merge.
-Python 3.10+ is required for Plan Sync, Repo Map, some optional utilities, and
-full repository verification. Node.js 18+ is limited to the onboarding scan and
-maintainer fixtures. Base fan-out uses the shell tooling above.
-
-Pin the `v0.7.1` tag when adding the submodule:
+Git and Bash 3.2+ are required. The Claude Code settings merge uses `jq`. Plan Sync,
+Repo Map, and full maintainer verification use Python 3.10+; the onboarding scan uses
+Node.js 18+.
 
 ```bash
 git submodule add git@github.com:Chuliying/skill-commons.git .agent/skills/_shared
-git -C .agent/skills/_shared checkout v0.7.1
+git -C .agent/skills/_shared checkout v0.8.0
 
 mkdir -p .agent
 cp .agent/skills/_shared/shared-skill-onboarder/templates/project-manifest.md \
@@ -67,7 +39,7 @@ cp .agent/skills/_shared/shared-skill-onboarder/templates/project-manifest.md \
 ${EDITOR:-vi} .agent/project-manifest.md
 ```
 
-Confirm the selection before onboarding:
+Select one delivery mode before onboarding:
 
 ```yaml
 ## skill-commons bootstrap
@@ -75,126 +47,86 @@ Confirm the selection before onboarding:
 - submodule_path: .agent/skills/_shared
 - platforms: claude-code, cursor, codex
 - delivery_mode: personal
-- capability_packs:
+- capability_packs: # add frontend or optional when needed
 ```
 
-Then run:
+`delivery_mode` is `personal` or `team-sprint`. Add `frontend` or `optional` capability
+packs only when needed. Missing selection stops onboarding.
+
+`v0.8.0` installs the current seven-skill core. Add the `optional` pack before
+onboarding when you need discovery, a personal PRD, review, or onboarding skills.
+Repositories that have not migrated may retain the `v0.7.1` legacy pin; see
+[Bootstrap](bootstrap/README.md), [Profile support](docs/profile-platform-support.md), and the
+[Submodule bridge](docs/skill-commons-submodule-bridge.md).
 
 ```bash
 bash .agent/skills/_shared/bootstrap/onboard.sh
 bash .agent/skills/_shared/bootstrap/manage.sh doctor
 ```
 
-## Brainstorming qualification and cost
+## After installation
 
-`brainstorming` loads only for material ambiguity that would change scope,
-architecture, public behavior, or acceptance criteria when repository evidence
-leaves the answer open. Clear
-micro-tasks, bug diagnosis, reviews, approved-spec implementation, and read-only
-questions skip it.
+Describe the task in natural language. For example, “add an export CSV feature” lets
+Router choose the smallest workflow; work that must survive another session is recorded
+under `docs/work/<slug>/`. To name a skill explicitly, say “use `implement`” or “use
+`sync-work`.” See [INDEX.md](INDEX.md) for the complete list.
 
-The interaction budget is explicit: Skip asks nothing, Quick asks at most one
-question, Standard asks at most three questions with at most two options per
-decision and one final confirmation, and Deep requires an explained scope and
-explicit user agreement. A durable `brainstorm.md` is conditional on a
-cross-session, cross-agent, formal team handoff, or user request.
+## Execution and trust model
 
-Contract tests verify these written boundaries and fixture coverage. Claims
-about model trigger accuracy, token or time savings, and outcomes require
-repeated with-skill/without-skill runs
-under the same prompt, model, and host, followed by human adjudication; v0.7
-makes no such empirical claim.
+| Selection | Surface |
+|---|---|
+| `personal` | implementation, debugging, verification, security, Git delivery |
+| `team-sprint` | formal PRD, Spec, QA, prototype, and domain modeling |
+| `frontend` pack | frontend design |
+| `optional` pack | discovery, personal PRD, review, onboarding, and utilities |
 
-## Plan Sync and host Goal Mode
+`delivery_mode` selects the installed skill set.
+`execution_mode` is the Router choice for one task and needs no manual setup; it
+determines which documents that task needs.
+Work and delivery states remain separate. See [ARTIFACTS.md](ARTIFACTS.md).
 
-Plan Sync owns the durable, repository-local execution contract. Host Goal Mode
-owns continuation, budget, pause/resume, and host completion. They can be used
-together. The host retains its Goal API and completion lifecycle. Plan Sync
-reports `host_goal=unmanaged` so repository completion and host completion stay
-separate.
+- Completion requires fresh verification evidence.
+- PRD approval, team design approval, and release approval are human gates.
+- Passing tests do not imply that a PR, merge, or deployment occurred.
+- Push, merge, destructive recovery, discard, and publication require explicit
+  authorization before the event.
+- Top-level skills are the only source; generated discovery roots are fan-out outputs.
 
-v0.7 supports canonical-v2 `plan/plan.md` only. A lite-v1 plan or retired
-`implementation.md`/`tasks.md`/`notes.md` input fails closed with two choices:
-migrate current truth to canonical-v2, or stay pinned to skill-commons v0.6
-until migration is possible.
+## Evidence boundary
 
-`planctl` validates recorded-evidence references, shape, and consistency.
-Executed Verify or QA gates provide behavioral evidence and authorship context.
-Repository plan state is a portable handoff record; release confidence still
-depends on separately executed Verify or QA gates.
+The 2026-07-13 convergence checkpoint recorded 1,520 deterministic assertions with no
+failures across artifact, Plan, profile, adapter generation, bootstrap, and release
+contracts. That checkpoint establishes repository conformance only; team speed and
+cross-tool handoff value remain unmeasured.
 
-## Repo Map and optional visualization
+In the frozen replay, all-preload used 64.9% more mean input tokens than no workflow;
+Router-first used 37.5% more and 16.6% fewer than all-preload. Earlier quality scores
+were invalidated because anonymous packets leaked arm identity. In the repaired blind
+scoring of eight cases, all-preload and Router-first passed 60/60 rubric items and no
+workflow passed 57/60, while no workflow had the best mean preference rank. This small
+descriptive sample proves no general quality advantage, so quality and usability remain
+outside product claims. The final adversarial review also found a self-verification
+timing defect, so the complete ten-session protocol did not pass.
 
-Repo Map provides deterministic `scan` and `status` commands using a Git
-worktree and the Python standard library. Python imports are AST-derived.
-JS/TS edges are line-oriented literal `textual_candidate` records: a multiline
-`} from "x"` tail is detectable; a specifier split onto another line may be
-missed. An unresolved `module_reference` remains a textual candidate until a
-separate resolver establishes dependency, caller/callee, impact, or semantic graph
-meaning.
+The next product test is a transcript-free cold-start handoff with Spec drift. See
+[Evaluation](docs/evaluation.md).
 
-Status is currently O(repo), and v1 uses full rebuilds rather than an
-incremental database. Understand-Anything remains an external, optional
-visualization reference. Repo Map owns freshness, and repository gates own
-release decisions.
+## Documentation
 
-## Upgrade and local management
+- [Spec-state protocol](docs/spec-state-protocol.md)
+- [Discovery and planning](docs/discovery-and-planning.md)
+- [Evaluation and evidence](docs/evaluation.md)
+- [Skill index](INDEX.md)
+- [Artifact contract](ARTIFACTS.md)
+- [Bootstrap and local management](bootstrap/README.md)
+- [Platform support](docs/profile-platform-support.md)
+- [Changelog](CHANGELOG.md) and [contributing guide](CONTRIBUTING.md)
 
-Before running the v0.7 tools, edit the consuming repository's
-`.agent/project-manifest.md`. Remove the blank `- profile:` from the v0.6
-template and replace it with an explicit selection. Legacy and new fields are
-mutually exclusive:
-
-```yaml
-## skill-commons bootstrap
-
-- submodule_path: .agent/skills/_shared
-- platforms: claude-code, cursor, codex
-- delivery_mode: personal
-- capability_packs:
-```
-
-Use `team-sprint` where the formal team flow is required, and add `frontend`
-or `optional` packs deliberately. Then move the submodule to a reviewed
-revision.
-
-`manage.sh update` re-runs onboarding from the submodule revision already
-checked out. Fetch and select a reviewed tag first:
+## Maintainer verification
 
 ```bash
-git -C .agent/skills/_shared fetch --tags
-git -C .agent/skills/_shared checkout v0.7.1
-bash .agent/skills/_shared/bootstrap/manage.sh update
-bash .agent/skills/_shared/bootstrap/manage.sh doctor
+PROFILE=all bash bootstrap/generate.sh
+bash tests/run-all.sh
 ```
 
-For changed pre-ledger v0.6 output, review the target before one explicit
-adoption run:
-
-```bash
-SKILL_COMMONS_ADOPT_LEGACY=1 \
-  bash .agent/skills/_shared/bootstrap/onboard.sh
-```
-
-`doctor` is a strict read-only health check. `uninstall` removes validated
-ledger-owned entries and managed adapter blocks while preserving foreign
-content, the project manifest, guardrails, and the submodule:
-
-```bash
-bash .agent/skills/_shared/bootstrap/manage.sh doctor [project-root]
-bash .agent/skills/_shared/bootstrap/manage.sh update [project-root]
-bash .agent/skills/_shared/bootstrap/manage.sh uninstall [project-root]
-```
-
-Platform shrink is explicit. If a deselected platform still has managed
-artifacts, `doctor`, `update`, and `uninstall` stop before mutation. Restore the
-previous selection, run `uninstall`, then choose the smaller set and run
-`onboard.sh` again.
-
-`submodule_path` must stay project-relative. Existing path components may not
-be symlinks or non-directories; bootstrap rejects them before publishing a
-SessionStart hook.
-
-See the [zh-TW README](README.md), [artifact contract](ARTIFACTS.md),
-[skill index](INDEX.md), and [submodule bridge](docs/skill-commons-submodule-bridge.md)
-for the complete operating contract.
+Release, push, PR, merge, tag, and publication require separate authorization.

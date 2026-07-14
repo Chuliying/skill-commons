@@ -225,6 +225,10 @@ web_search("[feature] performance optimization [manifest stack.framework]")
 5. 可逆性
 6. SOLID 原則
 
+依 [`references/spec-field-guide.md`](references/spec-field-guide.md) 選擇
+Selected Seam。使用最接近可觀察行為、已有穩定 harness 且成本合理的邊界；只有 seam
+選擇會改變架構或驗收方式時，才使用既有 team 設計核可，不新增人工 Gate。
+
 ### Step 7：規劃實作步驟
 
 將實作拆分為可獨立提交的步驟：
@@ -260,12 +264,18 @@ web_search("[feature] performance optimization [manifest stack.framework]")
 | **API 範例** | **契約安全** | `has_api: true` 時資料範例符合上述資料契約；false 為 N/A |
 | **無未定義引用** | **依賴完整** | Spec 中提到的 hook/component 都有定義，或明確標註 `[EXISTING]` |
 | **資料流** | **Transformer** | `has_api` 與 `has_ui` 都為 true 時定義 API Response → UI 轉換；否則依能力標 N/A |
-| **測試案例** | **Unit Test** | 包含 Logic/Transformer 的 Unit Test 規劃 |
+| **Selected Seam** | **可觀察且成本合理** | 有 existing harness、repository evidence、lower-seam rationale 與 residual checks；不強制固定測試層級 |
 | **UI Token 合規** | **禁止 Hex Code** | `has_ui: true` 時執行 manifest-aware design-token gate；false 為 N/A |
 | **UI Mockup 對齊** | **視覺規格一致** | `has_ui: true` 且有 mockup 時對齊；false 為 N/A |
 | **版控** | **版本歷史表** | 已填寫第一筆（含修改時間、修改內容、對應 PRD 版本、作者） |
 
 Gate 2 自檢通過後，team feature 依 [`../GATE-PACKAGE.md`](../GATE-PACKAGE.md) 呈現設計取捨：先把 spec stage 設為 `awaiting-approval`；收到 team 設計核可後改為 `approved`，才交給 QA plan。Refactor optional spec 不新增人工 Gate，只保留 self-check evidence；personal-feature 依 registry 不產生 Spec。
+
+Selected Seam 在 handoff 前執行 shipped machine gate：
+
+```bash
+python3 <spec-skill-dir>/scripts/check-selected-seam.py --spec "$WORK_ROOT/$SLUG/spec.md"
+```
 
 ---
 

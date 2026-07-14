@@ -39,10 +39,11 @@ QA 兩件事：**產出測試方案**（plan）與**驗收閘門**（validate）
 產出後執行 machine traceability gate：
 
 ```bash
+python3 <shared-skills-root>/spec/scripts/check-selected-seam.py --spec "$WORK_ROOT/$SLUG/spec.md" --qa-plan "$WORK_ROOT/$SLUG/qa-plan.md"
 python3 <qa-skill-dir>/scripts/check-traceability.py --prd "$WORK_ROOT/$SLUG/prd.md" --qa-plan "$WORK_ROOT/$SLUG/qa-plan.md"
 ```
 
-有未映射 AC 時修正 qa-plan；此檢查不等待人工核可。
+Seam reference 不完整、與 Spec 不一致或有未映射 AC 時修正 qa-plan；這些檢查不等待人工核可。
 
 ## B. 驗收閘門（validate）
 

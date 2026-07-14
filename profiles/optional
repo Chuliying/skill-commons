@@ -1,5 +1,10 @@
-# optional — 按任務安裝的 utilities，不屬於 delivery core。
+# optional — 按任務安裝的個人探索、PRD、review、onboarding 與 utilities。
 
+brainstorming
+grilling
+to-prd
+caveman-review
+shared-skill-onboarder
 markdown
 codebase-understanding
 subagent-driven-development

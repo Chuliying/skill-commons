@@ -5,6 +5,13 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 . "$REPO/tests/bootstrap/lib/assert.sh"
 
+artifacts_text="$(cat "$REPO/ARTIFACTS.md")"
+assert_not_contains "$artifacts_text" "brainstorm: { skill: brainstorming" "artifact contract keeps Deep control outside lifecycle stages"
+assert_contains "$artifacts_text" "brainstorm.md" "artifact contract recognizes the optional discovery document"
+assert_contains "$artifacts_text" "inputs" "artifact contract links optional discovery through existing inputs"
+assert_contains "$artifacts_text" "release: { skill: sync-work" "artifact release stage uses the authoritative Git owner"
+assert_not_contains "$(cat "$REPO/protocol-registry.json")" '"brainstorm"' "protocol registry has no undeclared brainstorm lifecycle"
+
 mkdir -p "$TMP/project/.git" "$TMP/project/.agent" "$TMP/project/src" "$TMP/project/tests"
 printf '%s\n' \
   '## Project Identity' \

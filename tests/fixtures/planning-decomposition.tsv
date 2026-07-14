@@ -1,0 +1,11 @@
+# Contract fixture only; does not prove live-agent decomposition quality.
+id	expected_class	prompt
+1	vertical	讓使用者開啟 Email 通知，含 UI、API、儲存與一條可驗證流程。
+2	vertical	收到 webhook 後驗簽、去重、儲存並回傳成功，整條行為可獨立驗證。
+3	non-feature	只更新公開文件；沒有 runtime 行為，不套用 feature 垂直切片規則。
+4	non-feature	建立獨立 maintainer CI runner；這是工具工作，以 runner 自身驗證，不製造 feature 例外。
+5	expand-contract	欄位改名先新增新欄位，再分批遷移 caller，最後移除舊欄位。
+6	reject-horizontal	先做所有 schema，再做所有 API，最後才整合；沒有例外理由或 checkpoint。
+7	reject-horizontal	這是 infrastructure，所以全部水平切分；沒有說明可觀察增量或整合 checkpoint。
+8	reject-horizontal	這是 migration，所以先一次破壞所有 caller，最後再一起修好。
+9	horizontal-exception	同一認證切換會讓新舊 signing key 互斥，無法留下可支援的中間狀態；下一個 integration checkpoint 是 canary 環境完成整條 login journey。

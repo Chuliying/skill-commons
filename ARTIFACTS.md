@@ -47,10 +47,18 @@ stages:
   plan: { skill: plan-sync, file: plan/plan.md, status: ready }
   implement: { skill: implement, file: implement-report.md, status: done }
   qa-report: { skill: qa, file: qa-report.md, status: validated }
-  release: { skill: finishing-a-development-branch, file: qa-report.md, status: awaiting-approval }
+  release: { skill: sync-work, file: qa-report.md, status: awaiting-approval }
 inputs:
   - <workspace-relative path or external reference>
 ```
+
+### Conditional discovery document
+
+A consented Deep exploration may write `brainstorm.md` as a supporting document.
+It does not create a lifecycle stage. An existing work item links the document
+through `inputs`; when discovery starts before a work item exists, the first PRD,
+Spec, or Plan producer creates `meta.yml` and may add `brainstorm.md` to `inputs`.
+The map's own Wayfinding Control records consent, remaining budget, and closeout.
 
 `work_status` records whether the requested work is complete. `delivery_status`
 records a separate, evidence-backed release transition. Completing code never

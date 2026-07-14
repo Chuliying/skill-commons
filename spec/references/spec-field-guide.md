@@ -98,6 +98,28 @@ Steps must be small enough for `plan-sync` and implementers to execute:
 
 Use semantic IDs such as `S1`, `S2`, not section-number references.
 
+## Selected Seam
+
+Assign one stable `Seam ID` such as `SEAM-001`; downstream QA references this
+record instead of copying its decision fields.
+
+Choose the closest stable existing boundary that directly proves each relevant
+AC or ERR. “Highest” means closest to observable behavior while remaining
+reliable and affordable; it does not mean choosing E2E by default.
+
+Record:
+
+- **Selected boundary**: the module, component, integration, or journey contract.
+- **Repository evidence**: an existing harness, command, and comparable test.
+- **Lower-seam rationale**: why narrower checks would duplicate behavior or miss the contract.
+- **Residual lower-level checks**: focused checks still needed for isolated risk, or N/A.
+- **Reliability and execution cost**: expected stability, runtime, and environment burden.
+
+Valid selections vary by behavior: Unit for a pure parser, Integration for an
+API/storage contract, Component for interactive UI state, and E2E for a journey
+whose risk exists only across the full boundary. Prefer one seam when it proves
+the behavior; add another only for a distinct risk.
+
 ## Test Strategy
 
 Trace PRD AC and ERR to levels that match capability flags.
@@ -117,7 +139,7 @@ Gate 2 passes only when the spec is actionable without hidden assumptions:
 
 - Capability Snapshot matches manifest.
 - Files, Contracts, API Contract, UI Design, Flow / Data Flow, Errors,
-  Decisions, Steps, and Test Strategy are filled or explicitly N/A.
+  Decisions, Steps, Selected Seam, and Test Strategy are filled or explicitly N/A.
 - Contract evidence is objective for enabled capabilities.
 - QA can map PRD AC / ERR to the Test Strategy.
 - Implementation can start from Steps without relying on PRD section numbers.

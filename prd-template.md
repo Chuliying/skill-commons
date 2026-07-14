@@ -4,8 +4,9 @@ enforces the machine-checkable subset of this shape and derives its
 placeholder set from this file, so keep placeholders in `[square brackets]`.
 
 Tier markers are authoring guidance for which sections a producer should populate:
-  core  — every profile (to-prd / personal); the connectable minimum.
-  team  — additionally expected for the formal team-sprint handoff.
+  core  — the connectable minimum used by optional to-prd for personal/refactor
+          work and reused by team-sprint prd-interview.
+  team  — additionally expected from the formal team-sprint prd-interview handoff.
 `scripts/check-prd.py` enforces a machine-checkable REQUIRED subset per tier (not
 every marked section); a `core` PRD may omit `team` sections entirely but must not
 leave placeholders unfilled. Headings are matched by name, not by number. -->

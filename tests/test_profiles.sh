@@ -108,7 +108,35 @@ team_overlay="$(overlay team-sprint | sort)"
 personal_overlay="$(overlay personal | sort)"
 optional_overlay="$(overlay optional | sort)"
 frontend_overlay="$(overlay frontend | sort)"
-assert_contains "$optional_overlay" "humanizer" "optional profile includes humanizer"
+expected_core="$(printf '%s\n' \
+  implement plan-sync security skill-router sync-work systematic-debugging \
+  verification-before-completion | tr ' ' '\n' | sort)"
+expected_optional="$(printf '%s\n' \
+  brainstorming caveman-review codebase-understanding grilling humanizer markdown \
+  reducing-entropy shared-skill-onboarder subagent-driven-development to-prd | tr ' ' '\n' | sort)"
+assert_eq "$expected_core" "$core" "core is the released v0.8.0 seven-owner set"
+assert_eq "$expected_optional" "$optional_overlay" "optional preserves personal discovery PRD review and onboarding"
+assert_eq "7" "$(printf '%s\n' "$core" | sed '/^$/d' | wc -l | tr -d ' ')" "core has seven owners"
+assert_eq "10" "$(printf '%s\n' "$optional_overlay" | sed '/^$/d' | wc -l | tr -d ' ')" "optional has ten capabilities"
+
+router_text="$(cat "$REPO/skill-router/SKILL.md")"
+assert_contains "$router_text" "七個 core owner" "router describes the T06 seven-owner core"
+assert_contains "$router_text" "CAPABILITY_PACKS=optional" "router names the explicit optional-pack adoption route"
+for optional_owner in brainstorming grilling to-prd caveman-review shared-skill-onboarder; do
+  assert_contains "$router_text" "$optional_owner" "router preserves optional route for $optional_owner"
+done
+router_bytes="$(wc -c < "$REPO/skill-router/SKILL.md" | tr -d ' ')"
+micro_bytes="$((router_bytes + $(wc -c < "$REPO/implement/SKILL.md") + $(wc -c < "$REPO/verification-before-completion/SKILL.md")))"
+if [ "$router_bytes" -lt 6747 ]; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: direct factual Router payload is below 6747 bytes ($router_bytes)"
+else
+  fail "direct factual Router payload must be below 6747 bytes (actual=$router_bytes)"
+fi
+if [ "$micro_bytes" -lt 17411 ]; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: Router + Implement + Verification is below 17411 bytes ($micro_bytes)"
+else
+  fail "Router + Implement + Verification must be below 17411 bytes (actual=$micro_bytes)"
+fi
 
 profile_model_conformance() {
 python3 - "$REPO" "$1" "$2" <<'PY'
@@ -355,11 +383,90 @@ else
 fi
 
 support="$(cat "$REPO/docs/profile-platform-support.md" 2>/dev/null || true)"
-assert_contains "$support" "personal = 16" "support matrix preserves audited personal baseline"
-assert_contains "$support" "team-sprint = 19" "support matrix preserves audited team baseline"
+assert_contains "$support" "current personal = 7" "support matrix records current personal membership"
+assert_contains "$support" "current team-sprint = 12" "support matrix records current team membership"
+assert_contains "$support" "current optional = 10" "support matrix records current optional membership"
 assert_contains "$support" "relevance" "frontend move is justified by relevance"
 assert_contains "$support" "Cursor" "support matrix documents Cursor"
 assert_contains "$support" "rule + AGENTS adapter" "Cursor support is not called skill fan-out"
+
+for entrypoint in README.md README.en.md; do
+  entrypoint_text="$(cat "$REPO/$entrypoint")"
+  assert_contains "$entrypoint_text" "v0.8.0" "$entrypoint keeps the concrete current release pin"
+  assert_contains "$entrypoint_text" "v0.7.1" "$entrypoint keeps the legacy compatibility pin"
+  assert_not_contains "$entrypoint_text" "Unreleased next-major" "$entrypoint removes pre-release wording"
+  assert_contains "$entrypoint_text" "docs/profile-platform-support.md" "$entrypoint links authoritative profile support"
+done
+for public_contract in INDEX.md bootstrap/README.md docs/profile-platform-support.md; do
+  contract_text="$(cat "$REPO/$public_contract")"
+  assert_contains "$contract_text" "CAPABILITY_PACKS=optional" "$public_contract documents optional-pack adoption"
+  assert_contains "$contract_text" "v0.8.0" "$public_contract documents the current release pin"
+  assert_contains "$contract_text" "v0.7.1" "$public_contract documents the concrete legacy-core pin"
+  assert_not_contains "$contract_text" "current next-major candidate" "$public_contract removes candidate wording after release"
+done
+for migration_contract in \
+  INDEX.md \
+  bootstrap/README.md \
+  docs/profile-platform-support.md; do
+  migration_text="$(cat "$REPO/$migration_contract")"
+  assert_contains "$migration_text" "v0.8.0" "$migration_contract names the released boundary"
+  assert_contains "$migration_text" "7-owner core" "$migration_contract names the released seven-owner core"
+  assert_not_contains "$migration_text" "current next-major candidate" "$migration_contract removes candidate wording after release"
+  assert_not_contains "$migration_text" "non-dispatch compatibility shell" "$migration_contract removes the T05 compatibility-shell wording"
+  assert_not_contains "$migration_text" "finishing-a-development-branch" "$migration_contract removes the retired owner name"
+done
+if [ -f "$REPO/docs/shared-skill-onboarding-checklist.md" ]; then
+  migration_text="$(cat "$REPO/docs/shared-skill-onboarding-checklist.md")"
+  assert_contains "$migration_text" "v0.8.0" "private onboarding checklist names the released boundary"
+  assert_contains "$migration_text" "7-owner core" "private onboarding checklist names the released seven-owner core"
+  assert_not_contains "$migration_text" "current next-major candidate" "private onboarding checklist removes candidate wording after release"
+  assert_not_contains "$migration_text" "non-dispatch compatibility shell" "private onboarding checklist removes the T05 compatibility-shell wording"
+  assert_not_contains "$migration_text" "finishing-a-development-branch" "private onboarding checklist removes the retired owner name"
+else
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: private onboarding checklist is absent from the public payload"
+fi
+template_text="$(cat "$REPO/shared-skill-onboarder/templates/project-manifest.md")"
+assert_contains "$template_text" "CAPABILITY_PACKS=optional" "fresh manifest explains optional personal capabilities"
+
+prd_template_text="$(cat "$REPO/prd-template.md")"
+assert_not_contains "$prd_template_text" "every profile (to-prd / personal)" "PRD template drops the pre-T04 every-profile claim"
+assert_contains "$prd_template_text" "optional to-prd" "PRD template identifies the optional personal/refactor producer"
+assert_contains "$prd_template_text" "team-sprint prd-interview" "PRD template identifies the formal team producer"
+
+readme_text="$(cat "$REPO/README.md")"
+if python3 - "$REPO/README.md" <<'PY'
+from pathlib import Path
+import sys
+
+text = Path(sys.argv[1]).read_text(errors="replace")
+start = text.find("## Quick Start")
+end = text.find("## 安裝完成後", start)
+section = text[start:end]
+selection = section.find("`optional` 加到 `capability_packs`")
+onboard = section.find("bootstrap/onboard.sh")
+if start < 0 or end < 0 or selection < 0 or onboard < 0 or selection >= onboard:
+    raise SystemExit("README Quick Start must select optional capability before onboarding")
+PY
+then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: Quick Start sequences optional onboarding selection before generation"
+else
+  fail "Quick Start sequences optional onboarding selection before generation"
+fi
+assert_contains "$readme_text" "未選擇 optional pack 時，不要要求 agent 讀" "Quick Start does not dispatch an uninstalled onboarder"
+
+if [ -f "$REPO/docs/shared-skill-onboarding-checklist.md" ]; then
+  onboarding_checklist="$(cat "$REPO/docs/shared-skill-onboarding-checklist.md")"
+  assert_contains "$onboarding_checklist" "v0.8.0 consuming path" "onboarding checklist names the current consuming path"
+  assert_contains "$onboarding_checklist" "capability_packs: optional" "onboarding checklist selects optional before onboarding"
+  assert_contains "$onboarding_checklist" "manual top-level-source maintainer path" "onboarding checklist distinguishes the manual maintainer path"
+fi
+
+bridge_text="$(cat "$REPO/docs/skill-commons-submodule-bridge.md")"
+assert_contains "$bridge_text" "## Install v0.8.0" "submodule bridge installs the current release"
+assert_contains "$bridge_text" "checkout v0.8.0" "submodule bridge preserves the concrete current checkout"
+assert_contains "$bridge_text" "v0.7.1" "submodule bridge explains the legacy compatibility pin"
+assert_not_contains "$bridge_text" "next-major" "submodule bridge removes pre-release wording"
+assert_contains "$bridge_text" "capability_packs: optional" "submodule bridge conditions v0.8.0 onboarder use"
 
 # --- 6b) Stack capabilities are strict booleans and default false ---
 cat >> "$TMP/manifest.md" <<'EOF'

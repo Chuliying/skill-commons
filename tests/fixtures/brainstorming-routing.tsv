@@ -1,18 +1,27 @@
 # Contract fixture only; does not prove model trigger accuracy, token savings, duration, or output quality.
-id	expected_route	prompt
-1	skip	把 README 的 teh 改成 the。
-2	skip	這個測試已穩定重現 IndexError，請找根因並修好。
-3	skip	Review 這個 diff，列出 Critical 和 Important findings。
-4	skip	解釋 repo 裡 delivery_status 的現行定義，附檔案證據。
-5	skip	把 shell script 的錯誤訊息補上檔名，其他行為不變。
-6	skip	執行完整測試並告訴我哪一項失敗，不要修改。
-7	skip	依照 spec 把已定義名稱與型別的 missing field 加進 schema。
-8	skip	把 release handoff 更新成最新 commit 與測試數字。
-9	quick	新增匯出按鈕；格式要 CSV 還是 JSON 我還沒決定。
-10	quick	舊 API 回傳 404，新版想改空陣列，但相容策略不確定。
-11	quick	讓 onboarding 可選 profile；預設 personal 或 team-sprint 請幫我判斷。
-12	standard	我想加離線模式，但還沒定義離線範圍與同步衝突處理。
-13	standard	建立團隊審批功能；角色、核准規則與 audit log 都還沒定。
-14	standard	把 CLI 變成服務，但部署邊界、consumer、成功標準都不清楚。
-15	standard	需要通知系統，目前不知道 channel、重試語意和使用者控制範圍。
-16	deep	高風險資料平台遷移；我明確要 Deep 比較 build/buy/hybrid，並接受額外成本。
+id	expected_route	expected_next	expected_deep_action	prompt
+1	skip	implement	n/a	把 README 的 teh 改成 the。
+2	skip	implement	n/a	這個測試已穩定重現 IndexError，請找根因並修好。
+3	skip	answer	n/a	Review 這個 diff，列出 Critical 和 Important findings。
+4	skip	answer	n/a	解釋 repo 裡 delivery_status 的現行定義，附檔案證據。
+5	skip	implement	n/a	把 shell script 的錯誤訊息補上檔名，其他行為不變。
+6	skip	answer	n/a	執行完整測試並告訴我哪一項失敗，不要修改。
+7	skip	implement	n/a	依照 spec 把已定義名稱與型別的 missing field 加進 schema。
+8	skip	implement	n/a	把 release handoff 更新成最新 commit 與測試數字。
+9	skip	answer	n/a	查官方文件告訴我 Python 3.13 是否支援這個語法。
+10	skip	answer	n/a	比較兩份官方規格並整理它們對同一欄位的事實差異。
+11	skip	plan-sync	n/a	需求與驗收都已確定，請把六個相依步驟排成跨 session 計畫。
+12	skip	continue-current-flow	n/a	已核可的 Spec 需要研究第三方 library 的限制後繼續完成技術設計。
+13	skip	continue-current-flow	n/a	根據既有 Spec 研究測試工具最佳實務並完成 QA plan。
+14	quick	implement	n/a	新增匯出按鈕；格式要 CSV 還是 JSON 我還沒決定。
+15	quick	implement	n/a	舊 API 回傳 404，新版想改空陣列，但相容策略不確定。
+16	quick	implement	n/a	讓 onboarding 可選 profile；預設 personal 或 team-sprint 請幫我判斷。
+17	standard	implement	n/a	我想加離線模式，但還沒定義離線範圍與同步衝突處理。
+18	standard	research-subroutine	n/a	授權方案會改變架構，需綜合官方規格與供應商限制後才能決定。
+19	standard	implement	n/a	建立團隊審批功能；角色、核准規則與 audit log 都還沒定。
+20	standard	plan-sync	n/a	通知系統的 channel 與重試語意需收斂，完成後會跨 session 實作。
+21	deep	wayfinding	proceed	高風險資料平台遷移；我同意指定 Destination、範圍與問題預算後開始 Deep。
+22	standard	implement	stay-standard	這項跨 domain 工作可能需要 Deep，但我不同意額外預算，留在 Standard。
+23	standard	continue-current-flow	narrow	Deep 範圍太大；先縮到資料保留策略，再提出新的 bounded consent package。
+24	deep	continue-current-flow	resume	沿用已保存 consent scope 與剩餘 budget，繼續目前 Wayfinding Frontier。
+25	skip	continue-current-flow	legacy-no-upgrade	這是舊 decision brief，沒有 Wayfinding Control；只當歷史讀取，不自動升級。

@@ -32,22 +32,23 @@ PRD (What - 業務需求)
 └── 邊界條件推導 ────→ 邊界測試
 
 spec.md (How - 技術實作)
-├── 函式/模組設計 ───→ 單元測試 (L2)
+├── Selected Seam ────→ 主要行為的驗證邊界
+├── 函式/模組設計 ───→ selected seam 或 residual check
 ├── 元件互動 ────────→ 元件測試 (L3)
 └── API 整合 ────────→ `has_api` 時做整合測試；`has_e2e` 時可加 L5
 
 ## Verification Strategy (The Gate)
 > [!IMPORTANT]
 > READ `.agent/knowledge/system-context.md` first.
-> **Rule 0**: NO E2E tests until Unit Tests pass.
-> **Rule 1**: Verify Logic/Data Transformer via manifest `stack.test_cmd` 對應的 unit-test framework。
+> **Rule 0**: Run the Selected Seam and its declared residual checks.
+> **Rule 1**: 使用 manifest command 或 repo 既有 harness 驗證選定邊界。
 > **Rule 2**: API/外部服務整合方式讀 manifest 與 project domain skills，不假設固定工具。
 
 | 層級 | 驗證目標 | 工具 | 執行時機 |
 |------|---------|------|---------|
-| **L2 (Unit)** | 核心邏輯 / 資料轉換 | manifest `stack.test_cmd` | **必做** (Gate 1) |
-| **L4 (Int)** | API / 外部服務契約 | repo 整合測試慣例或 domain skill | `has_api: true` 或有外部整合時必做 |
-| **L5 (E2E)** | 使用者流程/渲染 | manifest `stack.e2e_cmd` | `has_e2e: true` 時最後做；false 為 N/A |
+| **L2 (Unit)** | 核心邏輯 / 資料轉換 | manifest `stack.test_cmd` | selected seam 或 residual risk 時 |
+| **L4 (Int)** | API / 外部服務契約 | repo 整合測試慣例或 domain skill | contract 風險存在時 |
+| **L5 (E2E)** | 使用者流程/渲染 | manifest `stack.e2e_cmd` | journey 是 selected seam 或 residual risk 時 |
 
 > `has_api: true` 或有外部整合時 Gate L4 不可跳過；沒有該能力與依賴時記 N/A。
 
@@ -88,7 +89,7 @@ spec.md (How - 技術實作)
 
 | spec 項目 | 測試類型 | 層級 |
 |---------|---------|------|
-| 函式設計 | 單元測試 | L2 |
+| 函式設計 | seam 候選或 residual check | 適用層級 |
 | Hook 設計 | Hook 測試 | L2-L3 |
 | 元件設計 | 元件測試 | L3 |
 | API 設計 | 整合測試 | L4 |
@@ -132,6 +133,10 @@ search_web("how to mock [complex scenario] in [manifest stack.framework test too
 
 ### Step 3：建立 AC → TC 對照表
 
+從 Spec 取得 **Selected Seam** 的 `Seam ID`，在 QA plan 記錄 `Spec seam ID` 與
+`Spec reference`。QA 不複製或改寫 seam 決策；shipped checker 驗證 Spec record 完整且
+QA reference 指向同一個 ID。
+
 ```markdown
 | AC-ID | AC 描述 | TC-ID | TC 描述 | 層級 |
 |-------|--------|-------|--------|------|
@@ -146,14 +151,14 @@ search_web("how to mock [complex scenario] in [manifest stack.framework test too
 
 ### Step 4：建立測試矩陣 (Gate Check)
 
-**必須包含至少一個 L2 Unit Test 用於驗證核心邏輯或資料轉換。**
+測試矩陣必須覆蓋 Selected Seam。較低層測試只處理 record 中列出的 residual
+risk；沒有獨立風險時可標 N/A，不能為了層級數量重複同一行為。
 
 按測試層級組織：
 
-1. **L2 (Unit)**: 放 manifest `paths.tests_root` 下，符合 `paths.test_glob`（邏輯驗證）
-2. **L5 (E2E)**: 只在 `has_e2e: true` 時依 repo 慣例做 journey 驗證
-
-> 如果只有 E2E，退回重寫。
+1. **L2 (Unit)**: 純邏輯／轉換是 selected seam 或 residual risk 時使用
+2. **L3/L4**: component、API、storage 或外部 contract 是可觀察邊界時使用
+3. **L5 (E2E)**: `has_e2e: true` 且風險只存在完整 journey 時使用
 
 ### Step 5：推導邊界條件測試
 
@@ -172,6 +177,7 @@ search_web("how to mock [complex scenario] in [manifest stack.framework test too
    | **整合契約** | 已依 API reference / domain skill 執行 repo 定義的整合驗證 |
    | **AC 覆蓋** | PRD 中的每個 AC 都有對應的測試案例 |
    | **ERR 覆蓋** | PRD 中的每個 ERR 都有對應的測試案例 |
+   | **Selected Seam** | Spec seam ID/reference 已通過 shipped checker；每個主要行為在該 seam 有 TC，lower levels 只覆蓋 residual risk |
    | **Test 可執行** | 以 manifest `stack.test_cmd` 驗證代表性測試骨架或既有測試檔 |
    | **Mock 安全** | 測試中的 Mock Data 必須符合 Spec 中定義的 Interface |
    | **E2E 獨立性** | `has_e2e: true` 時 E2E 不依賴 runner 無法解析的 alias；false 為 N/A |
@@ -181,6 +187,7 @@ search_web("how to mock [complex scenario] in [manifest stack.framework test too
     先執行：
 
     ```bash
+    python3 <shared-skills-root>/spec/scripts/check-selected-seam.py --spec <spec.md> --qa-plan <qa-plan.md>
     python3 <qa-skill-dir>/scripts/check-traceability.py --prd <prd.md> --qa-plan <qa-plan.md>
     ```
 
@@ -210,8 +217,8 @@ search_web("how to mock [complex scenario] in [manifest stack.framework test too
    - 實作功能 (Green)
    - 重構優化 (Refactor)
 3. **執行驗收 (The Gate)**：
-   - **Phase 1**: 跑 Unit Test（manifest `stack.test_cmd` + `paths.tests_root`）-> 通過
-   - **Phase 2**: `has_e2e: true` 時跑 E2E Test；false 記 N/A
+   - **Selected Seam**: 跑 Spec 指定的主要驗證 command
+   - **Residual checks**: 只跑 Spec 記錄的獨立風險檢查；無則記 N/A
    - 使用 `/qa validate [spec路徑]` 進行最終確認
 
 ---
@@ -318,7 +325,8 @@ Machine gate 檢查:
    □ AC 覆蓋: [PASS/FAIL] (每個 AC 至少 1 TC)
    □ ERR 覆蓋: [PASS/FAIL] (每個 ERR 至少 1 TC)
    □ 邊界測試: [PASS/FAIL]
-   □ L2 Unit Test: [PASS/FAIL] (至少 1 個)
+   □ Selected Seam: [PASS/FAIL] (Spec seam ID 與 command)
+   □ Residual checks: [PASS/FAIL/N/A]
 
 Notes: [任何特殊情況或後續建議]
 ```

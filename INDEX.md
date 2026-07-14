@@ -11,16 +11,22 @@ Every consuming repository selects one `delivery_mode` and zero or more
 
 | Kind | Name | Added surface |
 |---|---|---|
-| Base | `core` | router, planning, implementation, debugging, review, verification, security, Git and onboarding |
+| Base | `core` | router, planning, implementation, debugging, verification, security and Git |
 | Delivery mode | `personal` | core without team ceremony |
 | Delivery mode | `team-sprint` | `prd-interview`, `spec`, `qa`, `prototype`, `domain-modeling` (ext) |
 | Capability pack | `frontend` | `design-taste-frontend` (ext) |
-| Capability pack | `optional` | `markdown`, `codebase-understanding`, `subagent-driven-development` (ext), `humanizer` (ext), `reducing-entropy` (ext) |
+| Capability pack | `optional` | `brainstorming` (ext), `grilling` (ext), `to-prd` (ext), `caveman-review` (ext), `shared-skill-onboarder`, `markdown`, `codebase-understanding`, `subagent-driven-development` (ext), `humanizer` (ext), `reducing-entropy` (ext) |
 
 `delivery_mode` is required. `capability_packs` is optional and composable.
 `PROFILE=all` is a maintainer-only full fan-out; it is not a consuming default.
 `skill-creator` remains a top-level maintainer tool and is not part of consuming
 profiles. Do not infer cost or quality from a hand-maintained skill count.
+
+The 7-owner core in the checked profiles is released in `v0.8.0`, with
+`sync-work` as the sole Git-delivery owner. Consumers that still need the legacy
+13-owner core remain pinned to `v0.7.1`. `v0.8.0` personal users select
+`CAPABILITY_PACKS=optional` for discovery, PRD, review, and onboarding owners.
+This membership change makes no effectiveness or quality claim.
 
 ## Workflow skills
 
@@ -33,8 +39,11 @@ profiles. Do not infer cost or quality from a hand-maintained skill count.
 | Plan | `plan-sync` | Keep canonical-v2 execution state and evidence across sessions |
 | Implement | `implement`, `systematic-debugging`; `reducing-entropy` (ext, optional) | RED→GREEN→REFACTOR, root-cause work, explicit entropy reduction |
 | Verify | `verification-before-completion`, `qa` (team), `security` | Execute scoped machine gates and record evidence |
-| Review/release | `caveman-review` (ext), `sync-work`, `finishing-a-development-branch` (ext) | Review the change and perform authorized Git/release handoffs |
+| Review/release | `caveman-review` (ext), `sync-work` | Review the change and perform authorized Git/release handoffs |
 | Onboard | `shared-skill-onboarder` | Establish manifest, guardrails, and project-specific evidence |
+
+Discovery cost, Research/Wayfinding, Selected Seam, and vertical-slice rules are
+summarized in [Discovery and planning](docs/discovery-and-planning.md).
 
 ## Optional utilities
 

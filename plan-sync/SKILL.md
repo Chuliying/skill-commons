@@ -1,9 +1,9 @@
 ---
 name: plan-sync
 description: |
-  建立與維護跨 session、跨 agent 的 durable execution plan。Use when work has multiple dependent steps, needs handoff/resume, or decisions and scope may drift. Skip for one-off edits and use spec for a one-time technical design that does not need execution state.
+  建立與維護跨 session、跨 agent 的 durable execution plan。Use for dependent steps, handoff/resume, Goal Mode, or drift. Skip one-off edits; use spec for design without execution state.
   觸發關鍵字: plan-sync, implementation plan, execution plan, task handoff, resume plan, drift check, 實作前規劃, 任務交接, 跨 session, 需求漂移
-compatibility: Python 3.10+ is required for the machine validation and status CLI.
+compatibility: Python 3.10+ for validation and status CLI.
 source_kind: original
 stage: plan
 output: <work_root>/<slug>/plan/plan.md
@@ -11,61 +11,59 @@ output: <work_root>/<slug>/plan/plan.md
 
 # Plan Sync
 
-Plan Sync keeps one current execution contract in the repository so a new
-session or another agent can continue without reconstructing intent from chat.
+Keep one repository execution contract that another session or agent can resume.
 
-> **Announce at start:** 「我正在使用 plan-sync 來建立或維護 durable execution plan。」
+> **progress/commentary only:** 簡短告知正在使用；final answer/artifact 不重複 skill name 或 routing taxonomy。
 
 ## Select the smallest durable surface
 
 | Situation | Action |
 |---|---|
 | One-off edit or router micro-task | Skip plan-sync |
-| One-time technical design, no execution tracking | Use `spec` |
-| Multiple steps, handoff, resume, or Goal Mode execution | Create canonical `plan/plan.md` |
-| A durable decision, scope change, blocker, or deviation occurs | Add `plan/journal.md` |
+| One-time design without execution state | Use `spec` |
+| Multiple steps, handoff, resume, or Goal Mode | Create `plan/plan.md` |
+| Durable decision, scope change, blocker, or deviation | Add `plan/journal.md` |
 
-`canonical-v2` is the only Plan Sync format for personal and team work. Complexity
-adds task detail or an optional journal, not a second planning schema or runtime.
-All work-item paths and `meta.yml` transitions follow
+`canonical-v2` is the only format. Complexity adds task detail or an optional journal,
+never another schema or runtime. Paths and `meta.yml` follow
 [`../ARTIFACTS.md`](../ARTIFACTS.md).
 
 ## Canonical contract
 
-```text
-<work_root>/<slug>/
-├── meta.yml
-└── plan/
-    ├── plan.md
-    └── journal.md   # optional; semantic events only
-```
+Write `<work_root>/<slug>/plan/plan.md` from `templates/plan.md`. Record:
 
-Start from `templates/plan.md`. Record:
-
-- `Plan`: format, current intent, scope, non-goals, and positive integer
-  `Concurrency` (new plans write `1`; older plans safely default to `1`).
-- `Sources`: typed durable references using exactly one of:
+- `Plan`: format, intent, scope, non-goals, and positive `Concurrency` (write `1`;
+  older plans default to `1`).
+- `Sources`: one typed durable reference per entry:
   `- local: <relative-path>[#<literal-stable-id>]`,
   `- user: <durable-opaque-reference>`, or
   `- external: <URL-or-durable-opaque-ID>`.
-- `Tasks`: authored execution contracts, not mechanically generated prose.
-- `Change Log`: short structural history for the plan file itself.
+- `Tasks`: authored execution contracts; `Change Log`: short structural history.
 
-Do not copy full PRD, Spec, or QA content into the plan. Reference upstream IDs
-and write only execution-specific sequencing, dependencies, and verification.
+Reference upstream IDs instead of copying PRD, Spec, or QA prose. Every task has stable
+`Txx`, title, `Status`, `Depends On`, `Intent`, `Expected Result`, `Definition of Done`,
+and replayable `Verification` with an exact command when available.
 
-Every canonical task has:
+## Task decomposition
 
-- stable `Txx` and title;
-- `Status` and `Depends On`;
-- `Intent` and `Expected Result`;
-- `Definition of Done` and replayable `Verification` (an exact command when the
-  check has a command-line form).
+For a behavior-changing feature, prefer a task demoable or verifiable end to end across
+its required boundaries. Fit one fresh context where practical and leave the integrated
+system supported. Express this with existing fields; add no slice schema.
 
-A task may become `in_progress` or `done` only after every `Depends On` task is
-`done`. A `blocked` task records `Blocker Reason` and a typed `Blocker Ref` in
-its task metadata. When it resumes, retain those fields and add a typed
-`Unblocked Ref`; prose in the journal does not clear structured blocker state.
+Documentation-only and standalone maintainer tools use their own observable output,
+without a horizontal exception label.
+
+A horizontal exception states why no observable integrated increment exists and names
+the next integration checkpoint restoring end-to-end verification. A label alone is
+not evidence.
+
+For a wide refactor use expand → migrate → contract: add the new form, migrate bounded
+caller batches while checks stay green, then remove the old. Name the integration
+checkpoint if a batch cannot stay green alone. Dependency-ready tasks form the frontier.
+
+Enter `in_progress` or `done` only after every dependency is `done`. A `blocked` task
+records `Blocker Reason` and typed `Blocker Ref`; resume retains them and adds typed
+`Unblocked Ref`. Journal prose cannot clear blocker state.
 
 Before setting a task to `done`, run every Verification item and add matching
 records under `#### Verification Evidence`:
@@ -74,64 +72,30 @@ records under `#### Verification Evidence`:
 - PASS | external:ci-run-123 | bash tests/test_feature.sh
 ```
 
-The Verification text must exactly match its evidence record, the recorded
-result must be PASS, and the local/external reference must identify a durable
-result. Plan Sync validates reference, shape, and consistency only. It never
-executes Verification, inspects whether an external runner really ran, or turns
-an authored PASS into behavioral proof. Use separately executed verification
-gates for release confidence.
+Verification text and evidence command must match; result is PASS with a durable
+local/external reference. Plan Sync validates reference, shape, and consistency only;
+it never executes checks or turns an authored PASS into behavioral proof. Release
+confidence needs separately executed verification.
 
-Allowed states are `pending`, `in_progress`, `blocked`, `needs_review`, `done`,
-and `superseded`. Keep only one `in_progress` task unless concurrent execution
-is explicitly enabled by `Concurrency`. The configured limit is enforced and
-dependency-ready tasks determine the next action; document order cannot bypass
-dependencies. `Depends On` is authoritative; do not maintain a second inverse
-`Blocks` list in new plans.
+States: `pending`, `in_progress`, `blocked`, `needs_review`, `done`, `superseded`.
+`Concurrency` limits active tasks; dependency-ready work determines the next action.
+`Depends On` is authoritative, so new plans omit inverse `Blocks` lists.
 
 ## Journal without log entropy
 
-Create `journal.md` only when a fact cannot be recovered cleanly from the current
-plan and Git diff. Allowed event types are:
+Create `journal.md` only when current plan and Git diff cannot recover a fact.
+Allowed events: `decision`, `scope_change`, `blocker`, `deviation`.
 
-- `decision`
-- `scope_change`
-- `blocker`
-- `deviation`
+Skip routine transitions, transcripts, and test output. Put evidence in the task,
+implement report, or QA report; link each short event to its task or source.
 
-Do not journal routine `pending -> done` transitions, command transcripts, or
-full test output. Put execution evidence in the task, implement report, or QA
-report. Keep each journal event short and link to the affected task or source.
+## Operations
 
-## Four operations
-
-### `create`
-
-1. Resolve `<work_root>/<slug>` from the manifest or repo artifact convention.
-2. Create `meta.yml` if this is the first stage, otherwise update only the plan stage.
-3. Create `plan/plan.md` from the canonical template.
-4. Run `planctl.py check` before handoff.
-
-### `refresh`
-
-Update current plan content when intent, scope, sequencing, dependency, or
-verification changes. Mark affected completed work `needs_review` when its
-completion evidence no longer proves the current contract.
-
-### `drift-check`
-
-After a material user decision, blocker, task transition, or handoff:
-
-1. Compare the new fact with Plan, Sources, Tasks, and Verification.
-2. Update current truth first.
-3. Add a journal event only for decision/scope/blocker/deviation semantics.
-4. Run consistency check and inspect compact status.
-
-### `resume`
-
-1. Read `plan.md` Plan and Sources.
-2. Read the active task and its dependencies.
-3. Read `journal.md` only if current state remains ambiguous.
-4. Run `planctl.py status` and continue from its next action.
+- `create`: resolve the work item, update its plan stage, render the template, run `check`.
+- `refresh`: update changed truth; use `needs_review` when old evidence no longer proves it.
+- `drift-check`: update truth, journal semantic events, run consistency and compact status.
+- `resume`: read Plan, Sources, active task, and dependencies; read journal if still
+  ambiguous, then continue from `status`.
 
 ## Machine surface
 
@@ -139,47 +103,24 @@ Resolve `<plan-sync-dir>` from the actual skill location:
 
 ```bash
 python <plan-sync-dir>/scripts/planctl.py check --plan-dir <plan-dir>
-python <plan-sync-dir>/scripts/planctl.py status --plan-dir <plan-dir>
-python <plan-sync-dir>/scripts/planctl.py status --plan-dir <plan-dir> --json
+python <plan-sync-dir>/scripts/planctl.py status --plan-dir <plan-dir> [--json]
 python <plan-sync-dir>/scripts/planctl.py status --plan-dir <plan-dir> --goal-status
 ```
 
-`check` validates format, required task fields, references, dependencies, cycles,
-the sibling work-item plan stage, and optional journal structure. Local Sources
-resolve from `plan.md`, remain inside the Git workspace (including through
-symlinks), exist, and use an exact literal-ID anchor when one is present.
-Directories are valid local Sources only without anchors. `status` returns the
-derived plan state, dependency-ready tasks, structured blockers, concurrency,
-remaining counts, next action, and consistency result.
+`check` covers format, tasks, references, dependencies, cycles, sibling plan stage, and
+journal. Local Sources resolve from `plan.md`, stay inside the Git workspace through
+symlinks, exist, and use exact literal-ID anchors; directories cannot use anchors.
+`status` derives ready work, blockers, concurrency, counts, next action, and consistency.
 
-For Goal Mode, the native Goal owns continuation, budget, pause/resume, and
-completion lifecycle. Plan Sync owns repository state. Surface the
-`--goal-status` line after meaningful turns so transcript-only evaluators can
-see current repository status. `plan_state=complete` never means the host Goal
-is complete; the output explicitly reports `host_goal=unmanaged`. Never call a
-platform Goal API from this skill.
+In Goal Mode the host owns lifecycle and budget; Plan Sync owns repository state. Surface
+`--goal-status` after meaningful turns. Complete plans report `host_goal=unmanaged`;
+this skill never calls a Goal API.
 
 ## Handoff gate
 
-Before `implement` or `subagent-driven-development` starts:
+Before implementation: current intent, dependencies, verification, blockers, and
+deviations are visible; `check` exits zero. The sibling metadata contains a `plan`
+stage whose `skill` is `plan-sync` and whose file resolves to this `plan/plan.md`.
 
-- plan reflects the latest user intent;
-- every non-superseded task has valid dependencies and verification;
-- blockers and deviations are visible;
-- `planctl.py check` exits zero;
-- sibling `meta.yml` has exactly one `plan` stage whose skill is `plan-sync` and
-  whose file resolves to the current `plan/plan.md`.
-
-Failure means repair the plan, not bypass the gate.
-
-## Final response
-
-```text
-Planning artifact updated.
-
-Mode: {create|refresh|drift-check|resume}
-Plan: <work_root>/<slug>/plan/plan.md
-Active task: {Txx|none}
-Key change: {one line}
-Validation: consistency check {passed|failed}
-```
+Failure means repair the plan before handoff. Report operation, plan path, active task,
+key change, and consistency result.

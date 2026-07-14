@@ -23,6 +23,13 @@ Cross-platform auto-load for the skill-commons skill set (Claude Code / Cursor /
    `optional`. The legacy `profile` key remains a migration interface, but must
    still contain exactly one delivery mode and cannot be combined with the new
    keys. Bundle lists live in `profiles/`.
+   The 7-owner core is released in `v0.8.0`, with `sync-work` as the sole
+   Git-delivery owner. Repositories that still need the legacy 13-owner core
+   remain pinned to `v0.7.1`. `v0.8.0` personal adopters select manifest
+   `capability_packs: optional`; direct generation uses
+   `DELIVERY_MODE=personal CAPABILITY_PACKS=optional`. That pack supplies
+   personal discovery, PRD, review, and onboarding capabilities. This profile
+   change makes no effectiveness or quality claim.
 3. Generate the per-platform shims:
    `bash .agent/skills/_shared/bootstrap/onboard.sh`
 
@@ -97,6 +104,10 @@ running `update`; this avoids silently overwriting edits inside managed output.
 - A v0.6 manifest with blank `profile:` must first be changed to one explicit
   `delivery_mode` plus optional `capability_packs` (or one non-empty legacy
   delivery mode). Legacy and new selection fields cannot coexist.
+- A repository adopting the `v0.8.0` 7-owner core adds
+  `optional` before onboarding if it depends on the personal
+  discovery/PRD/review/onboarding owners. A repository deferring that migration
+  keeps its `v0.7.1` pin.
 - This complements `shared-skill-onboarder` (which builds the manifest + domain skills);
   bootstrap only generates the cross-platform auto-load shims.
 - If you also have the superpowers plugin installed, consider disabling it for this project to avoid two routers.

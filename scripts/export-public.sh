@@ -138,13 +138,23 @@ for forbidden in \
   "docs/ai-harness-engineering-anthropic.md" \
   "docs/anthropic-skill-system.md" \
   "docs/shared-skill-onboarding-checklist.md" \
-  "docs/skill-eval-sop.md"
+  "docs/skill-eval-sop.md" \
+  "website"
 do
   if [ -e "$PAYLOAD/$forbidden" ]; then
     echo "error: public export contains private path: $forbidden" >&2
     exit 1
   fi
 done
+
+environment_entry="$(find "$PAYLOAD" \
+  \( -name .env -o -name '.env.*' \) \
+  ! -name .env.example \
+  -print -quit 2>/dev/null || true)"
+if [ -n "$environment_entry" ]; then
+  echo "error: public export contains environment file: ${environment_entry#$PAYLOAD/}" >&2
+  exit 1
+fi
 
 private_reorg_entry="$(find "$PAYLOAD/docs/skills-reorg" -mindepth 1 \
   ! -name decisions.md \

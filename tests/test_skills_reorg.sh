@@ -21,7 +21,6 @@ bash -n "$REPO/bootstrap/onboard.sh" || fail "onboard.sh syntax"
 changed_shells="$REPO/bootstrap/generate.sh
 $REPO/bootstrap/onboard.sh
 $REPO/verification-before-completion/scripts/verify.sh
-$REPO/finishing-a-development-branch/scripts/pre-merge.sh
 $REPO/qa/scripts/run-qa.sh
 $REPO/scripts/run-gate.sh
 $REPO/scripts/manifest-stack.sh
@@ -34,6 +33,12 @@ else
   fail "shared runner shell syntax"
 fi
 
+if [ ! -e "$REPO/finishing-a-development-branch" ]; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: retired Git owner has no top-level source tree"
+else
+  fail "retired Git owner has no top-level source tree"
+fi
+
 mkdir -p "$TMP/claude" "$TMP/codex" "$TMP/agents"
 PROFILE=all bash "$REPO/bootstrap/generate.sh" "$TMP/claude" "$TMP/codex" "$TMP/agents" >/dev/null
 
@@ -42,6 +47,21 @@ for target in claude codex agents; do
   generated="$(find "$TMP/$target" -mindepth 2 -maxdepth 2 -type f -name SKILL.md -print |
     sed "s#^$TMP/$target/##;s#/SKILL.md##" | sort)"
   assert_eq "$active" "$generated" "active skills match generated $target skills"
+  if [ ! -e "$TMP/$target/finishing-a-development-branch" ]; then
+    TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: generated $target omits the retired Git owner"
+  else
+    fail "generated $target omits the retired Git owner"
+  fi
+done
+
+for generated_root in .claude/skills .codex/skills .agents/skills; do
+  if [ ! -e "$REPO/$generated_root/finishing-a-development-branch" ]; then
+    TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: $generated_root removes the retired Git owner directory"
+  else
+    fail "$generated_root removes the retired Git owner directory"
+  fi
+  assert_not_contains "$(cat "$REPO/$generated_root/.skill-commons-ownership-v1")" \
+    "finishing-a-development-branch" "$generated_root ledger removes the retired Git owner"
 done
 
 find "$TMP" -type f -print0 | sort -z | xargs -0 shasum -a 256 > "$HASH1"
@@ -119,6 +139,12 @@ then
 else
   fail "active skill content has no legacy skill references"
 fi
+
+active_sources_text="$(sed '/^## Optional runtime adapters/,$d' "$REPO/SOURCES.md")"
+retired_sources_text="$(sed -n '/^## Retired source provenance/,/^## /p' "$REPO/SOURCES.md")"
+assert_not_contains "$active_sources_text" "finishing-a-development-branch" "metadata active provenance excludes the retired owner"
+assert_contains "$retired_sources_text" "finishing-a-development-branch" "metadata retains retired owner provenance"
+assert_contains "$retired_sources_text" "handoff-only compatibility notice" "metadata retains retired local-patch history"
 
 python3 - "$REPO" "$TMP/claude" <<'PY'
 from collections import Counter
@@ -234,7 +260,10 @@ if missing_stages:
 
 table_names = []
 table_kinds = {}
-for line in (repo / "SOURCES.md").read_text().splitlines():
+active_source_table = (repo / "SOURCES.md").read_text().split(
+    "## Optional runtime adapters", 1
+)[0]
+for line in active_source_table.splitlines():
     match = re.match(r"^\|\s*([a-z][a-z0-9-]*)(?:\s+_\(dep\)_)?\s*\|", line)
     if match and match.group(1) != "skill":
         table_names.append(match.group(1))
@@ -326,7 +355,10 @@ repo = Path(sys.argv[1])
 excluded_dirs = {"_archive", ".claude", ".codex", ".agents", ".git", "docs",
                  "bootstrap", "tests", "scripts"}
 external_names = set()
-for line in (repo / "SOURCES.md").read_text().splitlines():
+active_source_table = (repo / "SOURCES.md").read_text().split(
+    "## Optional runtime adapters", 1
+)[0]
+for line in active_source_table.splitlines():
     match = re.match(r"^\|\s*([a-z][a-z0-9-]*)(?:\s+_\(dep\)_)?\s*\|", line)
     if match and match.group(1) != "skill":
         external_names.add(match.group(1))
@@ -418,11 +450,24 @@ repo = Path(sys.argv[1]).resolve()
 skip = {".git", ".agents", ".claude", ".codex"}
 errors = []
 
-for path in repo.rglob("*"):
-    relative = path.relative_to(repo)
+def export_ignored(relative: Path) -> bool:
+    output = subprocess.check_output(
+        ["git", "-C", str(repo), "check-attr", "export-ignore", "--", str(relative)],
+        text=True,
+    ).strip()
+    return output.rsplit(": ", 1)[-1] == "set"
+
+raw_paths = subprocess.check_output(
+    ["git", "-C", str(repo), "ls-files", "--cached", "--others", "--exclude-standard", "-z"]
+)
+for raw in raw_paths.split(b"\0"):
+    if not raw:
+        continue
+    relative = Path(raw.decode())
+    path = repo / relative
     if not path.is_file() or any(part in skip for part in path.parts):
         continue
-    if relative.parts[:2] == ("journey-evals", "runs") or "__pycache__" in relative.parts:
+    if export_ignored(relative) or "__pycache__" in relative.parts:
         continue
     text = path.read_text(errors="replace")
     if ("/" + "Users" + "/") in text:
@@ -655,11 +700,10 @@ EOF
   PAYLOAD_LOG="$TMP/payload-suite.log"
   if (cd "$EXPORT_TMP" &&
       PROFILE=all bash bootstrap/generate.sh &&
-      SKILL_COMMONS_PAYLOAD_CHECK=1 bash tests/test_skills_reorg.sh &&
-      SKILL_COMMONS_PAYLOAD_CHECK=1 bash tests/test_release_convergence.sh) >"$PAYLOAD_LOG" 2>&1; then
-    TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: payload passes its own test suites without private files"
+      SKILL_COMMONS_PAYLOAD_CHECK=1 bash tests/run-all.sh) >"$PAYLOAD_LOG" 2>&1; then
+    TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: payload passes its complete public test suite without private files"
   else
-    fail "payload passes its own test suites without private files"
+    fail "payload passes its complete public test suite without private files"
     grep -vE '^  ok:' "$PAYLOAD_LOG" | tail -20
   fi
 fi
@@ -765,7 +809,7 @@ else
 fi
 
 # Generated/tool-call wrapper residue is never valid shared-skill content.
-wrapper_scan_targets=("$REPO/finishing-a-development-branch" "$REPO/shared-skill-onboarder")
+wrapper_scan_targets=("$REPO/shared-skill-onboarder")
 if [ -f "$REPO/docs/skills-reorg/project-pattern-externalization.md" ]; then
   wrapper_scan_targets+=("$REPO/docs/skills-reorg/project-pattern-externalization.md")
 fi
@@ -810,22 +854,17 @@ if not bridge:
     errors.append("missing docs/skill-commons-submodule-bridge.md")
 
 quick_start = readme.find("## Quick Start")
-prereq = readme.find("### 需要的工具", quick_start)
-install = readme.find("### 1. 加入 submodule", quick_start)
-if quick_start < 0 or prereq < quick_start or install < prereq:
+install = readme.find("### 1. Pin submodule", quick_start)
+if quick_start < 0 or install < quick_start:
     errors.append("README Quick Start must place tools before installation")
 else:
-    prereq_end = readme.find("\n### ", prereq + 1)
-    prereq_body = readme[prereq:prereq_end if prereq_end >= 0 else len(readme)]
+    prereq_body = readme[quick_start:install]
     for token in (
         "Git",
-        "submodule",
         "Bash 3.2+",
         "jq",
         "Python 3.10+",
         "Node.js 18+",
-        "只使用 Markdown skills 時不需要 Python",
-        "完整驗證",
     ):
         if token not in prereq_body:
             errors.append(f"README prerequisites missing {token!r}")
@@ -843,11 +882,10 @@ for pattern in (r"\b(?:is|are) not\b", r",\s+not\b"):
         errors.append("README.en.md must state boundaries directly instead of using X-is-not-Y framing")
 
 repo_map_command = "<codebase-understanding-dir>/scripts/repo_map.py"
-for label, text in (("README.md", readme), ("codebase-understanding/SKILL.md", codebase_skill)):
-    if f"python3 {repo_map_command}" not in text:
-        errors.append(f"{label} Repo Map examples must select python3 explicitly")
-    if f"\npython {repo_map_command}" in text:
-        errors.append(f"{label} must not use ambiguous python for Repo Map")
+if f"python3 {repo_map_command}" not in codebase_skill:
+    errors.append("codebase-understanding Repo Map examples must select python3 explicitly")
+if f"\npython {repo_map_command}" in codebase_skill:
+    errors.append("codebase-understanding must not use ambiguous python for Repo Map")
 
 new_url = "git@github.com:Chuliying/skill-commons.git"
 if new_url not in readme or new_url not in bridge:
@@ -1078,6 +1116,9 @@ required_files = (
     "README.en.md",
     "CONTRIBUTING.md",
     "CHANGELOG.md",
+    "docs/spec-state-protocol.md",
+    "docs/discovery-and-planning.md",
+    "docs/evaluation.md",
     "skill-creator/references/new-skill-checklist.md",
     "scripts/lint-docs.sh",
 )
@@ -1086,41 +1127,59 @@ for relative in required_files:
         errors.append(f"missing public release artifact: {relative}")
 
 readme = (repo / "README.md").read_text(errors="replace")
+artifacts = (repo / "ARTIFACTS.md").read_text(errors="replace")
+spec_state = (repo / "docs/spec-state-protocol.md").read_text(errors="replace")
+discovery = (repo / "docs/discovery-and-planning.md").read_text(errors="replace")
+evaluation = (repo / "docs/evaluation.md").read_text(errors="replace")
+codebase = (repo / "codebase-understanding/SKILL.md").read_text(errors="replace")
+security = (repo / "security/SKILL.md").read_text(errors="replace")
 head = "\n".join(readme.splitlines()[:35])
 for token in ("Claude Code", "Codex", "Cursor", "可攜式 feature-delivery protocol"):
     if token not in head:
         errors.append(f"README first 35 lines missing positioning token {token!r}")
 
 ordered_sections = (
+    "## 核心價值",
     "## 什麼時候值得用",
     "## Quick Start",
-    "## Execution Mode 與工作流程",
-    "## 核心能力與邊界",
-    "## 平台與 fan-out",
-    "## 驗證、安全與授權",
-    "## 升級、檢查與移除",
-    "## 常用入口",
+    "## 執行模型",
+    "## 信任與授權邊界",
+    "## 已驗證與尚未驗證",
+    "## 文件入口",
     "## Maintainer verification",
 )
 positions = [readme.find(section) for section in ordered_sections]
 if any(position < 0 for position in positions) or positions != sorted(positions):
     errors.append(f"README public-audience section order invalid: {list(zip(ordered_sections, positions))}")
 
-for token in (
-    "execution_mode",
-    "delivery_mode",
-    "capability_packs",
-    "canonical-v2",
-    "host_goal=unmanaged",
-    "textual_candidate",
-    "submodule",
-    "jq",
-    "CONTRIBUTING.md",
-    "CHANGELOG.md",
-    "CLEAR/FINDINGS/SKIP",
-):
+for token in ("execution_mode", "delivery_mode", "capability_packs", "submodule", "jq", "CONTRIBUTING.md", "CHANGELOG.md"):
     if token not in readme:
         errors.append(f"README missing public release content {token!r}")
+
+owned_tokens = (
+    ("canonical-v2", artifacts, "artifact contract"),
+    ("host_goal=unmanaged", spec_state, "spec-state protocol"),
+    ("textual_candidate", codebase, "Repo Map owner"),
+    ("CLEAR/FINDINGS/SKIP", security, "security owner"),
+    ("83.33%", discovery, "discovery evidence"),
+    ("Luna-high scoring repair", evaluation, "evaluation evidence"),
+)
+for token, text, owner in owned_tokens:
+    if token not in text:
+        errors.append(f"{owner} missing public release content {token!r}")
+
+for target in (
+    "docs/spec-state-protocol.md",
+    "docs/discovery-and-planning.md",
+    "docs/evaluation.md",
+    "bootstrap/README.md",
+    "docs/profile-platform-support.md",
+):
+    if target not in readme:
+        errors.append(f"README missing authoritative link {target!r}")
+
+if len(readme.splitlines()) > 180:
+    errors.append("README exceeds the 180-line entry-surface budget")
 
 contributing_path = repo / "CONTRIBUTING.md"
 if contributing_path.is_file():
@@ -1327,7 +1386,14 @@ if not qa_template_path.is_file():
     errors.append("missing qa/resources/qa-template.md")
 else:
     qa_template = qa_template_path.read_text(errors="replace")
-    for token in ("## 1. Traceability", "## 2. Test Cases", "Machine traceability gate"):
+    for token in (
+        "## Selected Seam",
+        "Spec seam ID",
+        "Spec reference",
+        "## 1. Traceability",
+        "## 2. Test Cases",
+        "Machine traceability gate",
+    ):
         if token not in qa_template:
             errors.append(f"QA template missing {token!r}")
     for noisy in ("使用說明", "同上", "/reverse-prd", "TC-002", "AC-002", "ERR-002"):
@@ -1358,6 +1424,7 @@ spec_template_contract = (
     "## Errors",
     "## Decisions",
     "## Steps",
+    "## Selected Seam",
     "## Test Strategy",
     "## Gate 2 自檢",
 )
@@ -1404,6 +1471,10 @@ if spec_field_guide_path.is_file():
         "Errors",
         "Decisions",
         "Steps",
+        "Selected Seam",
+        "Seam ID",
+        "closest stable existing boundary",
+        "execution cost",
         "Test Strategy",
         "Gate 2",
         "semantic heading",
@@ -1418,6 +1489,23 @@ for downstream_path in (qa_plan_path, qa_validate_path):
         if re.search(r"\bStep\s+\d+\.\d+", downstream):
             label = downstream_path.relative_to(repo)
             errors.append(f"{label} must use semantic headings, not decimal Step numbers")
+
+if qa_plan_path.is_file():
+    qa_plan = qa_plan_path.read_text(errors="replace")
+    for forbidden in (
+        "必須包含至少一個 L2",
+        "如果只有 E2E，退回重寫",
+        "NO E2E tests until Unit Tests pass",
+        "**必做** (Gate 1)",
+        "Phase 1**: 跑 Unit Test",
+        "L2 Unit Test: [PASS/FAIL] (至少 1 個)",
+        "Spec record 已完整複製",
+    ):
+        if forbidden in qa_plan:
+            errors.append(f"qa/references/qa-plan.md keeps unconditional seam rule {forbidden!r}")
+    for token in ("Selected Seam", "Spec seam ID", "Spec reference", "check-selected-seam.py"):
+        if token not in qa_plan:
+            errors.append(f"qa/references/qa-plan.md missing selected-seam contract {token!r}")
 
 if not review_template_path.is_file():
     errors.append("missing caveman-review/references/review-template.md")
@@ -1445,14 +1533,16 @@ for relative in ("prd-interview/SKILL.md", "spec/SKILL.md"):
         errors.append(f"{relative} still performs git pull/merge")
 
 finish_path = repo / "finishing-a-development-branch/SKILL.md"
-if not finish_path.is_file():
-    errors.append("missing finishing-a-development-branch/SKILL.md")
+sync_path = repo / "sync-work/SKILL.md"
+if finish_path.exists():
+    errors.append("retired finishing-a-development-branch/SKILL.md still exists")
+if not sync_path.is_file():
+    errors.append("missing sync-work/SKILL.md")
 else:
-    finish = finish_path.read_text(errors="replace")
-    if re.search(r"\bgit\s+pull\b", finish):
-        errors.append("finishing-a-development-branch/SKILL.md still uses git pull")
-    if "git merge --ff-only" not in finish:
-        errors.append("finishing-a-development-branch/SKILL.md must update base with explicit ff-only handling")
+    sync = sync_path.read_text(errors="replace")
+    for mode in ("Scoped Save", "Integrate", "Finish", "Recovery"):
+        if f"## Mode: {mode}" not in sync:
+            errors.append(f"sync-work/SKILL.md missing authoritative {mode} mode")
 
 if (repo / "dev-kickoff").exists():
     errors.append("active dev-kickoff directory still exists")

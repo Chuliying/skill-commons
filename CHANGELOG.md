@@ -4,6 +4,49 @@
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-14
+
+### Added
+
+- Added conditional Research for qualified implementation ambiguity and
+  consent-gated Deep Wayfinding with bounded Destination, Fog, Frontier, resume,
+  and durable-map contracts.
+- Added Selected Seam records to Spec and QA so acceptance evidence names the
+  closest stable repository boundary, its execution cost, and residual checks.
+- Added vertical slices and expand-contract sequencing to Plan Sync feature
+  decomposition, with explicit integration checkpoints for justified horizontal
+  work.
+
+### Changed
+
+- Reduced the Router, Brainstorming, conditional discovery references, and Plan
+  Sync context surfaces from 25,326 to 19,361 UTF-8 bytes while retaining their
+  existing contract tests and progressive-loading boundaries.
+- Reclassified the identity-bound 12-case GPT-5.5 low-reasoning classifier
+  smoke as pre-T10 historical negative evidence. Its 0.8333 result is bound to
+  the stored pre-compression payload, not the present payload; predicted loading
+  and question counts remain informational.
+- Retained the owner no-effectiveness-claim disposition without rerunning a paid
+  smoke. The historical result remains below its frozen 0.9000 gate and remains
+  FAIL; the release makes no runtime-loading, user-burden, cross-model accuracy,
+  token-saving, or implementation-outcome claim.
+- Made full documentation and public-payload scans follow Git and export-ignore
+  boundaries, preventing a separately managed nested website from entering the
+  root verification surface.
+- Breaking: the v0.8.0 default core moves `brainstorming`, `grilling`, `to-prd`,
+  `caveman-review`, and `shared-skill-onboarder` to the `optional` capability pack.
+  Consuming repositories that need those skills must select `optional` before
+  onboarding; the published v0.7.1 profile remains the legacy pin.
+- Breaking: Plan loading is canonical-v2-only at `plan/plan.md`. Repositories that
+  still use `implementation.md`, `tasks.md`, and `notes.md` must migrate first or
+  remain pinned to v0.6.
+
+### Removed
+
+- Removed `finishing-a-development-branch` from source, profiles, generated ownership,
+  and active metadata at the v0.8.0 boundary. `sync-work` is now the sole Git
+  delivery interface; bootstrap migration still removes legacy generated copies.
+
 ## [0.7.1] - 2026-07-11
 
 ### Fixed

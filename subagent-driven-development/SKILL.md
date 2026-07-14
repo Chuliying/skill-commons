@@ -39,6 +39,7 @@ stage: infra
 - 適合需要人工核准或任務間高度相依的 plan
 - 依 plan 順序執行小批次，每批完成後暫停並提供 verification evidence
 - 使用者確認後才進下一批；不做平行 dispatch
+- Plan 仍含 unresolved Fog 時停止；先回 discovery 收斂，不能把未知偽裝成執行 task
 
 ---
 
@@ -49,6 +50,7 @@ stage: infra
 1. 讀取 plan 檔案（一次讀完）
 2. **提取所有任務的完整文字和 context**（不要讓 subagent 去讀 plan）
 3. 建立 TodoWrite，列出所有任務
+4. 執行已核定的 task decomposition；controller does not re-slice the approved plan
 
 ### Step 1: 執行每個任務（逐一進行）
 
@@ -131,7 +133,7 @@ stage: infra
 
 1. 分派 **Final Code Reviewer Subagent**（全面 review）
 2. 確認整體實作符合 spec
-3. 呼叫 `finishing-a-development-branch` skill
+3. 呼叫 `sync-work` Finish mode
 
 ---
 
@@ -190,7 +192,7 @@ stage: infra
 🚦 最終狀態:
    □ 所有任務完成: [Y/N]
    □ Final Review: [PASS/FAIL]
-   □ 下一步: finishing-a-development-branch
+   □ 下一步: sync-work Finish
 
 📝 備註: [特殊情況]
 ```
@@ -207,7 +209,7 @@ stage: infra
 - `caveman-review` — code quality review 與 fresh-context dispatch
 
 **後續 Skill：**
-- `finishing-a-development-branch` — 所有任務完成後呼叫
+- `sync-work` — 所有任務完成後以 Finish mode 處理授權與 closeout
 
 **替代方案：**
 - 序列 checkpoint 模式 — 依序分批並等待人工 checkpoint

@@ -3,7 +3,7 @@ set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 . "$REPO/tests/bootstrap/lib/assert.sh"
 
-for removed in tdd grill-me grill-with-docs requesting-code-review rollback ponytail; do
+for removed in tdd grill-me grill-with-docs requesting-code-review rollback ponytail finishing-a-development-branch; do
   if [ -d "$REPO/$removed" ]; then
     fail "$removed is removed from the active skill surface"
   else
@@ -19,25 +19,73 @@ assert_not_contains "$implement_text" '`tdd`' "implement no longer delegates its
 
 assert_contains "$(cat "$REPO/grilling/SKILL.md")" "adr.md" "grilling owns durable stress-test docs mode"
 assert_contains "$(cat "$REPO/caveman-review/SKILL.md")" "fresh-context" "review style and dispatch share one skill"
-assert_contains "$(cat "$REPO/finishing-a-development-branch/SKILL.md")" "Recovery Mode" "branch finish skill owns recovery mode"
+sync_text="$(cat "$REPO/sync-work/SKILL.md")"
+for mode in "Scoped Save" "Integrate" "Finish" "Recovery"; do
+  assert_contains "$sync_text" "## Mode: $mode" "sync-work owns the $mode mode"
+done
+for safety_contract in \
+  "unrelated dirty work" \
+  "fresh verification" \
+  "separate security evidence" \
+  "approval before fetch" \
+  "approval before merge or rebase" \
+  "no remote" \
+  "divergence" \
+  "conflict" \
+  "staged, uncommitted, unpushed, and published" \
+  "reset --hard" \
+  "force push" \
+  "whole-tree checkout"; do
+  assert_contains "$sync_text" "$safety_contract" "sync-work preserves $safety_contract"
+done
+for closeout in "Local merge" "Push and create PR" "Keep branch" "Discard work"; do
+  assert_contains "$sync_text" "$closeout" "sync-work presents closeout outcome: $closeout"
+done
+for delivery_contract in \
+  "work_status" \
+  "delivery_status" \
+  "Gate Package" \
+  "approval_ref" \
+  "pr_url" \
+  "merge_sha" \
+  "post-merge verification" \
+  "discard double-confirmation"; do
+  assert_contains "$sync_text" "$delivery_contract" "sync-work preserves delivery contract $delivery_contract"
+done
+sources_text="$(cat "$REPO/SOURCES.md")"
+active_sources_text="$(sed '/^## Optional runtime adapters/,$d' "$REPO/SOURCES.md")"
+assert_not_contains "$active_sources_text" "finishing-a-development-branch" "retired finish owner is absent from the active provenance table"
+assert_contains "$sources_text" "## Retired source provenance" "retired finish provenance remains explicit"
+assert_contains "$sources_text" "finishing-a-development-branch" "retired finish license and patch history remain recorded"
+assert_contains "$(cat "$REPO/SOURCES.md")" 'T05 closeout handoff 改為 `sync-work` Finish' "adapted subagent handoff patch is recorded in provenance"
 
 core_count="$(sed 's/#.*//' "$REPO/profiles/core" | tr -d ' \t' | grep -vcE '^(@.*)?$')"
-if [ "$core_count" -le 14 ]; then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: core profile converges to at most 14 skills"
+if [ "$core_count" -eq 7 ]; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: core profile is the released v0.8.0 seven-owner set"
 else
-  fail "core profile converges to at most 14 skills"
+  fail "core profile is the released v0.8.0 seven-owner set"
 fi
 assert_file "$REPO/profiles/optional" "optional utility profile exists"
 readme_text="$(cat "$REPO/README.md")"
 readme_en_text="$(cat "$REPO/README.en.md")"
 index_text="$(cat "$REPO/INDEX.md")"
 bridge_text="$(cat "$REPO/docs/skill-commons-submodule-bridge.md")"
+spec_state_text="$(cat "$REPO/docs/spec-state-protocol.md")"
+evaluation_text="$(cat "$REPO/docs/evaluation.md")"
+bootstrap_text="$(cat "$REPO/bootstrap/README.md")"
+security_text="$(cat "$REPO/security/SKILL.md")"
 changelog_text="$(cat "$REPO/CHANGELOG.md")"
+unreleased_text="$(awk '/^## \[Unreleased\]/{p=1;next} p && /^## \[/{exit} p' "$REPO/CHANGELOG.md")"
+release_080_text="$(awk '/^## \[0\.8\.0\]/{p=1;next} p && /^## \[/{exit} p' "$REPO/CHANGELOG.md")"
+gitattributes_text="$(cat "$REPO/.gitattributes")"
+export_script_text="$(cat "$REPO/scripts/export-public.sh")"
 
 if [ -d "$REPO/docs/work" ]; then
   active_work_items="$(bash "$REPO/scripts/work-items.sh" --work-root "$REPO/docs/work" list --status active)"
+  shipped_work_items="$(bash "$REPO/scripts/work-items.sh" --work-root "$REPO/docs/work" list --status shipped)"
   stale_work_items="$(bash "$REPO/scripts/work-items.sh" --work-root "$REPO/docs/work" stale --days 1 --now 2026-07-11T14:00:00+08:00)"
-  assert_contains "$active_work_items" "public-release" "public release remains the intentional active work item"
+  assert_not_contains "$active_work_items" "public-release" "public release leaves no active closeout residue"
+  assert_contains "$shipped_work_items" "public-release" "public release records its shipped legacy closeout"
   for reconciled in skill-workflow-review work-item-docs; do
     assert_not_contains "$active_work_items" "$reconciled" "$reconciled is closed before release"
     assert_not_contains "$stale_work_items" "$reconciled" "$reconciled is absent from stale active work"
@@ -46,12 +94,14 @@ fi
 
 assert_contains "$readme_text" "delivery_mode: personal" "README shows an explicit delivery mode before onboarding"
 assert_contains "$readme_text" "capability_packs:" "README documents composable capability packs"
-assert_contains "$readme_text" "v0.7.1" "README pins the v0.7.1 contract"
-assert_contains "$readme_en_text" "v0.7.1" "English summary pins the v0.7.1 contract"
-assert_contains "$bridge_text" "v0.7.1" "submodule bridge pins v0.7.1"
+assert_contains "$readme_text" "checkout v0.8.0" "README pins the v0.8.0 release"
+assert_contains "$readme_en_text" "checkout v0.8.0" "English summary pins the v0.8.0 release"
+assert_contains "$bridge_text" "checkout v0.8.0" "submodule bridge pins v0.8.0"
 assert_contains "$changelog_text" "## [Unreleased]" "changelog keeps an Unreleased section after the release cut"
+assert_contains "$changelog_text" "## [0.8.0] - 2026-07-14" "changelog records the v0.8.0 release date"
 assert_contains "$changelog_text" "## [0.7.1] - 2026-07-11" "changelog records the v0.7.1 release date"
 assert_contains "$changelog_text" "## [0.7.0] - 2026-07-11" "changelog records the v0.7.0 release date"
+assert_not_contains "$unreleased_text" "### " "new Unreleased section starts empty after the v0.8.0 release cut"
 assert_not_contains "$changelog_text" "Release candidate: v0.7.0" "changelog removes the release-candidate marker"
 public_release_text="$(printf '%s\n%s\n%s\n%s\n' \
   "$readme_text" "$readme_en_text" "$bridge_text" "$changelog_text" | \
@@ -70,6 +120,18 @@ for retired_cli in init_plan.py sync_tasks.py append_note.py refresh_snapshot.py
   assert_contains "$changelog_text" "$retired_cli" "changelog names retired Plan Sync CLI $retired_cli"
 done
 assert_contains "$changelog_text" "planctl.py" "changelog names the canonical Plan Sync CLI replacement"
+assert_contains "$release_080_text" "### Removed" "v0.8.0 changelog has a removed section"
+assert_contains "$release_080_text" "finishing-a-development-branch" "v0.8.0 changelog records the retired Git owner"
+for optional_move in brainstorming grilling to-prd caveman-review shared-skill-onboarder; do
+  assert_contains "$release_080_text" "\`$optional_move\`" "v0.8.0 changelog records core-to-optional move: $optional_move"
+done
+assert_contains "$release_080_text" "canonical-v2-only" "v0.8.0 changelog records the plan-format break"
+assert_contains "$gitattributes_text" "/website/** export-ignore" "archive attributes exclude the nested website"
+assert_contains "$gitattributes_text" "**/.env export-ignore" "archive attributes exclude .env files"
+assert_contains "$gitattributes_text" "**/.env.* export-ignore" "archive attributes exclude environment variants"
+assert_contains "$gitattributes_text" "**/.env.example -export-ignore" "archive attributes retain synthetic env examples"
+assert_contains "$export_script_text" '"website"' "public export forbidden list rejects the website"
+assert_contains "$export_script_text" "public export contains environment file" "public export rejects environment files after extraction"
 
 for stale_version in "v0.5.0" "v0.6.0"; do
   assert_not_contains "$readme_text" "$stale_version" "README has no stale $stale_version pin"
@@ -78,14 +140,32 @@ for stale_version in "v0.5.0" "v0.6.0"; do
 done
 
 for heading in \
-  "## Execution Mode 與工作流程" \
-  "## 核心能力與邊界" \
-  "### Plan Sync" \
-  "### Repo Map" \
-  "## 平台與 fan-out" \
-  "## 驗證、安全與授權"; do
-  assert_contains "$readme_text" "$heading" "README keeps public contract section: $heading"
+  "## 核心價值" \
+  "## 什麼時候值得用" \
+  "## Quick Start" \
+  "## 執行模型" \
+  "## 信任與授權邊界" \
+  "## 已驗證與尚未驗證" \
+  "## 文件入口" \
+  "## Maintainer verification"; do
+  assert_contains "$readme_text" "$heading" "README keeps minimum entry section: $heading"
 done
+
+for core_narrative in \
+  "可驗證、可接續" \
+  "Spec 是施工圖" \
+  "## 已驗證與尚未驗證" \
+  "Spec drift"; do
+  assert_contains "$readme_text" "$core_narrative" "README explains the durable engineering-state product core: $core_narrative"
+done
+for protocol_contract in "spec entropy" "One durable work item" "References instead of copied truth" "Cross-tool portability"; do
+  assert_contains "$spec_state_text" "$protocol_contract" "spec-state document owns protocol detail: $protocol_contract"
+done
+for evidence_contract in "Frozen A/B/C benchmark" "Luna-high scoring repair" "Product-value test still needed"; do
+  assert_contains "$evaluation_text" "$evidence_contract" "evaluation document owns evidence detail: $evidence_contract"
+done
+assert_not_contains "$evaluation_text" "](work/" "public evaluation has no links into export-ignored work items"
+assert_contains "$evaluation_text" 'recorded `fail` against the pre-correction text' "evaluation preserves the review requirement failure precisely"
 
 for overclaim in \
   "最痛的三件事" \
@@ -93,53 +173,87 @@ for overclaim in \
   "留空會 fan-out"; do
   assert_not_contains "$readme_text" "$overclaim" "README removes overclaim: $overclaim"
 done
+assert_not_contains "$readme_text" "不是" "README avoids the owner-rejected X-not-Y sentence pattern"
+assert_not_contains "$readme_text" "並非" "README avoids the owner-rejected contrast synonym"
+assert_not_contains "$readme_text" "而是" "README avoids the owner-rejected contrast conjunction"
 assert_not_contains "$readme_en_text" "three worst" "English summary removes superlative positioning"
 assert_not_contains "$readme_en_text" "Right-sized" "English summary removes formulaic positioning"
+assert_contains "$readme_text" "最新工作狀態" "README uses a junior-readable shared-state term"
+assert_contains "$readme_en_text" "latest work state" "English README uses a junior-readable shared-state term"
+assert_not_contains "$readme_text" "current truth" "README removes unexplained internal state jargon"
+assert_not_contains "$readme_en_text" "current truth" "English README removes unexplained internal state jargon"
+assert_not_contains "$readme_text" "owner" "README calls installed capabilities skills instead of owners"
+assert_not_contains "$readme_en_text" "owner" "English README calls installed capabilities skills instead of owners"
+assert_contains "$readme_text" 'delivery_mode` 是安裝時選擇的技能組合' "README distinguishes install selection from task execution"
+assert_contains "$readme_text" 'execution_mode` 是 Router 依單一任務決定的執行方式' "README explains task execution without setup jargon"
+assert_contains "$readme_en_text" '`delivery_mode` selects the installed skill set' "English README distinguishes install selection from task execution"
+assert_contains "$readme_en_text" '`execution_mode` is the Router choice for one task' "English README explains task execution without setup jargon"
+assert_contains "$readme_text" "## 安裝完成後" "README tells a new user what to do after doctor"
+assert_contains "$readme_en_text" "## After installation" "English README tells a new user what to do after doctor"
+assert_contains "$readme_text" "匯出 CSV" "README gives one concrete natural-language task"
+assert_contains "$readme_en_text" "export CSV" "English README gives one concrete natural-language task"
+assert_not_contains "$readme_text" "A/B/C 路徑線索" "README keeps packet-leak lab detail in evaluation docs"
+assert_not_contains "$readme_en_text" "A/B/C path clues" "English README keeps packet-leak lab detail in evaluation docs"
+assert_not_contains "$readme_text" "零模型內容 gate" "README keeps packet-gate mechanics in evaluation docs"
+assert_not_contains "$readme_en_text" "zero-model content gate" "English README keeps packet-gate mechanics in evaluation docs"
 for heading in \
-  "## Scope and boundaries" \
-  "## Delivery selection and platforms" \
-  "## Plan Sync and host Goal Mode" \
-  "## Repo Map and optional visualization" \
-  "## Upgrade and local management"; do
-  assert_contains "$readme_en_text" "$heading" "English summary keeps public contract section: $heading"
+  "## Why it exists" \
+  "## Quick Start" \
+  "## Execution and trust model" \
+  "## Evidence boundary" \
+  "## Documentation" \
+  "## Maintainer verification"; do
+  assert_contains "$readme_en_text" "$heading" "English summary keeps minimum entry section: $heading"
 done
 
+assert_contains "$readme_text" "manage.sh doctor" "README keeps the first health-check command"
 for command in doctor update uninstall; do
-  assert_contains "$readme_text" "manage.sh $command" "README documents bootstrap $command"
+  assert_contains "$bootstrap_text" "manage.sh $command" "bootstrap manual owns $command"
   assert_contains "$bridge_text" "manage.sh $command" "submodule bridge documents bootstrap $command"
 done
 assert_contains "$bridge_text" "intentionally exits zero" "bridge labels check.sh as advisory"
 assert_contains "$bridge_text" "preserves foreign content" "bridge states uninstall preservation boundary"
-for text in "$readme_text" "$readme_en_text" "$bridge_text"; do
-  assert_contains "$text" '- profile:' "upgrade docs identify the legacy blank profile field"
-  assert_contains "$text" 'delivery_mode' "upgrade docs identify the explicit replacement field"
+assert_contains "$bootstrap_text" 'profile:' "bootstrap manual identifies the legacy profile field"
+assert_contains "$bootstrap_text" 'delivery_mode' "bootstrap manual identifies the explicit replacement field"
+assert_contains "$bridge_text" '- profile:' "upgrade guide identifies the legacy blank profile field"
+assert_contains "$bridge_text" 'delivery_mode' "upgrade guide identifies the explicit replacement field"
+assert_contains "$security_text" "CLEAR/FINDINGS/SKIP" "security owner keeps the scoped secret-preflight vocabulary"
+for entrypoint in "$readme_text" "$readme_en_text"; do
+  assert_contains "$entrypoint" "bootstrap/README.md" "README links the bootstrap owner"
+  assert_contains "$entrypoint" "docs/profile-platform-support.md" "README links the platform owner"
 done
-assert_contains "$readme_text" "CLEAR/FINDINGS/SKIP" "README uses the scoped secret-preflight vocabulary"
 
-if python3 - "$REPO/README.md" "$REPO/README.en.md" <<'PY'
+if python3 - "$REPO/docs/skill-commons-submodule-bridge.md" <<'PY'
 from pathlib import Path
 import sys
 
 for name in sys.argv[1:]:
     text = Path(name).read_text(errors="replace")
-    heading = "## 升級、檢查與移除" if name.endswith("README.md") else "## Upgrade and local management"
-    start = text.find(heading)
+    start = text.find("When upgrading a v0.6 installation")
     section = text[start:] if start >= 0 else ""
     positions = [
         section.find("fetch --tags"),
-        section.find("checkout v0.7.1"),
+        section.find("checkout v0.8.0"),
         section.find("bootstrap/manage.sh update"),
     ]
     if not section or any(position < 0 for position in positions) or positions != sorted(positions):
         raise SystemExit(f"{name}: upgrade commands must fetch, select, then update")
 PY
 then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: README upgrade commands require explicit revision selection"
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: upgrade owner requires explicit revision selection"
 else
-  fail "README upgrade commands require explicit revision selection"
+  fail "upgrade owner requires explicit revision selection"
 fi
 
-for external_skill in skill-creator brainstorming finishing-a-development-branch subagent-driven-development humanizer; do
+readme_lines="$(wc -l < "$REPO/README.md" | tr -d ' ')"
+readme_en_lines="$(wc -l < "$REPO/README.en.md" | tr -d ' ')"
+if [ "$readme_lines" -le 180 ] && [ "$readme_en_lines" -le 150 ]; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: README entry surfaces stay within line budgets"
+else
+  fail "README entry surfaces stay within line budgets"
+fi
+
+for external_skill in skill-creator brainstorming subagent-driven-development humanizer; do
   assert_contains "$index_text" "\`$external_skill\` (ext" "INDEX marks sourced skill $external_skill"
 done
 
@@ -219,12 +333,67 @@ assert_contains "$(cat "$REPO/prd-interview/SKILL.md")" "awaiting-approval" "PRD
 assert_contains "$(cat "$REPO/spec/SKILL.md")" "awaiting-approval" "team design approval is a durable state transition"
 assert_not_contains "$(cat "$REPO/spec/SKILL.md")" "Personal/refactor optional spec" "personal feature does not invent an optional Spec"
 assert_contains "$(cat "$REPO/qa/SKILL.md")" 'qa (validate)** → `verification-before-completion`' "QA pipeline hands off to final verification"
-assert_contains "$(cat "$REPO/finishing-a-development-branch/SKILL.md")" "awaiting-approval" "release approval is a durable state transition"
-assert_contains "$(cat "$REPO/finishing-a-development-branch/SKILL.md")" "PR URL / merge SHA" "release closeout reports actual delivery evidence"
-assert_not_contains "$(cat "$REPO/finishing-a-development-branch/SKILL.md")" '標記 `shipped`' "release closeout does not conflate completed work with delivery"
-finish_text="$(cat "$REPO/finishing-a-development-branch/SKILL.md")"
-assert_not_contains "$finish_text" '選項 3 將 release stage 設為 `blocked`' "keep-branch does not author a blocked stage on completed work"
-assert_contains "$finish_text" '選項 3 將 release stage 設為 `done`' "keep-branch uses a checker-legal completed release stage"
+assert_contains "$sync_text" "awaiting_approval" "release approval is a durable state transition"
+assert_contains "$sync_text" "actual event" "release closeout reports actual delivery evidence"
+assert_not_contains "$sync_text" '標記 `shipped`' "release closeout does not conflate completed work with delivery"
+assert_contains "$sync_text" 'release stage: `done`' "keep-branch uses a checker-legal completed release stage"
+
+if python3 - "$REPO" <<'PY'
+from pathlib import Path
+import sys
+
+repo = Path(sys.argv[1])
+needle = "finishing-a-development-branch"
+allowed_exact = {
+    Path("CHANGELOG.md"),
+    Path("SOURCES.md"),
+    Path(".claude/skills/SOURCES.md"),
+    Path(".codex/skills/SOURCES.md"),
+    Path(".agents/skills/SOURCES.md"),
+    Path("bootstrap/generate.sh"),
+    Path("tests/bootstrap/test_generate_safety.sh"),
+    Path("tests/test_profiles.sh"),
+    Path("tests/test_release_convergence.sh"),
+    Path("tests/test_skill_surface.sh"),
+    Path("tests/test_skills_reorg.sh"),
+}
+allowed_prefixes = (
+    Path(".claude/worktrees"),
+    Path("_archive"),
+    Path("journey-evals/runs"),
+    Path("docs/skills-reorg"),
+    Path("docs/superpowers"),
+    Path("docs/work/skill-bundle-convergence"),
+    Path("docs/work/skill-bundle-effect-benchmark"),
+    Path("docs/work/repo-explainer-site"),
+    Path("docs/work/public-release"),
+    Path("docs/work/skill-workflow-review"),
+    Path("docs/work/v0-7-0-release"),
+    Path("website"),
+)
+residue = []
+for path in repo.rglob("*"):
+    if not path.is_file() or path.is_symlink():
+        continue
+    rel = path.relative_to(repo)
+    if rel.parts and rel.parts[0] == ".git":
+        continue
+    if rel in allowed_exact or any(rel == prefix or prefix in rel.parents for prefix in allowed_prefixes):
+        continue
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError):
+        continue
+    if needle in text:
+        residue.append(str(rel))
+if residue:
+    raise SystemExit("active old-owner residue: " + ", ".join(sorted(residue)))
+PY
+then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: active surface has no retired Git-owner residue"
+else
+  fail "active surface has no retired Git-owner residue"
+fi
 
 handoff_path="$REPO/docs/work/v0-7-0-release/reviews/fable-final-release-candidate-handoff.md"
 if [ -f "$handoff_path" ]; then

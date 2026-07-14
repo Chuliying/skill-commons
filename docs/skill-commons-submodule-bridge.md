@@ -22,13 +22,13 @@ The adapters are intentionally different:
 | Codex | `.codex/skills/`, `AGENTS.md` |
 | Cursor | `.cursor/rules/skill-commons.mdc`, `AGENTS.md`; no skill fan-out |
 
-## Install v0.7.1
+## Install v0.8.0
 
 Pin the published tag:
 
 ```bash
 git submodule add git@github.com:Chuliying/skill-commons.git .agent/skills/_shared
-git -C .agent/skills/_shared checkout v0.7.1
+git -C .agent/skills/_shared checkout v0.8.0
 
 mkdir -p .agent
 cp .agent/skills/_shared/shared-skill-onboarder/templates/project-manifest.md \
@@ -96,6 +96,13 @@ evidence to refine:
 
 Unknown fields stay unknown until evidence exists.
 
+In `v0.8.0`, this refinement step is conditional: set
+`capability_packs: optional` before running onboarding when the agent should use
+`shared-skill-onboarder`. Without that pack, maintain the manifest manually or
+follow the top-level-source maintainer checklist; do not dispatch an uninstalled
+owner. Repositories that still depend on the legacy 13-owner core may remain
+pinned to `v0.7.1` until they migrate.
+
 ## Check, diagnose, update, and uninstall
 
 `bootstrap/check.sh` is a session advisory and intentionally exits zero so it
@@ -109,14 +116,14 @@ bash .agent/skills/_shared/bootstrap/manage.sh doctor
 When upgrading a v0.6 installation, first replace the old blank `- profile:` in
 `.agent/project-manifest.md` with explicit `platforms`, one
 `delivery_mode: personal|team-sprint`, and optional `capability_packs`. Do not
-leave the legacy field beside the new fields; v0.7 rejects that ambiguous shape.
+leave the legacy field beside the new fields; v0.7 and later reject that ambiguous shape.
 
 Then move the submodule to a reviewed revision. `manage.sh update` does not
 fetch, select, or checkout refs:
 
 ```bash
 git -C .agent/skills/_shared fetch --tags
-git -C .agent/skills/_shared checkout v0.7.1
+git -C .agent/skills/_shared checkout v0.8.0
 bash .agent/skills/_shared/bootstrap/manage.sh update
 bash .agent/skills/_shared/bootstrap/manage.sh doctor
 ```

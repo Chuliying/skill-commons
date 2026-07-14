@@ -236,7 +236,7 @@ SKILL_COMMONS_ADOPT_LEGACY=1 PROFILE=core bash "$REPO/bootstrap/generate.sh" "$L
 assert_file "$LEGACY_DRIFT_TARGET/.skill-commons-ownership-v1" "generate migrates a signed legacy fan-out root"
 assert_file "$LEGACY_DRIFT_TARGET/foreign-skill/KEEP" "legacy migration preserves unrelated skills"
 assert_eq "$(shasum -a 256 "$REPO/skill-router/SKILL.md" | awk '{print $1}')" "$(shasum -a 256 "$LEGACY_DRIFT_TARGET/skill-router/SKILL.md" | awk '{print $1}')" "legacy migration refreshes managed content"
-for retired_skill in dev-kickoff grill-me grill-with-docs requesting-code-review rollback skill-creator tdd; do
+for retired_skill in dev-kickoff finishing-a-development-branch grill-me grill-with-docs requesting-code-review rollback skill-creator tdd; do
   if [ ! -e "$LEGACY_DRIFT_TARGET/$retired_skill" ]; then
     TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: legacy migration removes historical $retired_skill output"
   else

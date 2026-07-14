@@ -79,6 +79,17 @@
 |---|---|---|---|---|---|
 | S1 | `[path]` [NEW/MODIFY/DELETE] | [change] | [none/Sx] | [time] | [command/result] |
 
+## Selected Seam
+
+| Field | Decision |
+|---|---|
+| Seam ID | SEAM-001 |
+| Selected boundary | [unit / integration / component / E2E contract] |
+| Repository evidence | [existing harness, test path, and command] |
+| Lower-seam rationale | [why narrower checks duplicate behavior or miss the contract] |
+| Residual lower-level checks | [focused checks for separate risk / N/A] |
+| Reliability and execution cost | [stability, runtime, environment burden] |
+
 ## Test Strategy
 
 | Level | Scope | Command / evidence | Applicability |
@@ -108,6 +119,7 @@
 
 - [ ] Capability Snapshot 與 manifest 一致。
 - [ ] Integration Target 有既有 artifact 與版本。
+- [ ] Selected Seam 有 repository evidence、成本判斷與 residual checks。
 - [ ] Files、Contracts、API/UI 條件式章節已填寫或標示 N/A。
 - [ ] Flow / Data Flow、Errors、Decisions、Steps 完整。
 - [ ] Test Strategy trace PRD AC / ERR，且 capability false 項目為 N/A。

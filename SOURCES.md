@@ -7,7 +7,6 @@ vendored 更新流程：`npx skills update <skill>` → 重新 vendor → 重套
 |---|---|---|---|---|---|---|
 | skill-creator | `anthropics/skills@skill-creator` | `9d2f1ae18723` | adapted | skill | — | Apache-2.0 |
 | brainstorming | `obra/superpowers@brainstorming` | `d884ae04edeb` | adapted | docs | — | MIT |
-| finishing-a-development-branch | `obra/superpowers@finishing-a-development-branch` | `d884ae04edeb` | adapted | infra | — | MIT |
 | subagent-driven-development | `obra/superpowers@subagent-driven-development` | `d884ae04edeb` | adapted | infra | — | MIT |
 | grilling _(dep)_ | `mattpocock/skills@grilling` | `2454c95dc305` | vendored | plan | — | MIT |
 | domain-modeling _(dep)_ | `mattpocock/skills@domain-modeling` | `2454c95dc305` | vendored | plan | — | MIT |
@@ -31,11 +30,32 @@ Understand-Anything requires an explicit user decision and review of its pinned
 upstream installation/runtime requirements; it is never a freshness authority
 or release gate.
 
+## Concept influences
+
+The entries below are a manual review reference for design provenance. They are
+not vendored install pins and do not enter the `npx skills update` workflow. The
+reviewed upstream revision is
+`391a2701dd948f94f56a39f7533f8eea9a859c87`.
+
+| Local contract | Reviewed source | Concept map | Similarity ratio | Longest identical token run | Expression review |
+|---|---|---|---:|---:|---|
+| Brainstorming Deep | `mattpocock/skills@wayfinder` | Wayfinder → Destination, Fog, Frontier, decision index | 0.0263 | 3 | concept only; project-original prose |
+| Brainstorming Research | `mattpocock/skills@research` | Research → primary-source evidence, bounded search, durable findings | 0.1070 | 2 | concept only; project-original prose |
+| Spec | `mattpocock/skills@to-spec` | to-spec → testing-seam selection | 0.0030–0.0134 | 2 | concept only; project-original prose |
+| Plan Sync | `mattpocock/skills@to-tickets` | to-tickets → tracer-bullet slices, expand-contract sequencing | 0.0186–0.0401 | 4 | concept only; project-original prose |
+
+Ratios come from token-level `difflib.SequenceMatcher` comparisons followed by
+manual word-diff review at the pinned revision. Text-level comparison found no retained upstream paragraph, template, or
+distinctive instruction block in these payloads. A future change that retains
+substantial upstream expression must place Matt Pocock's copyright and the full
+pinned MIT permission notice inside the affected distributed skill and verify
+its presence in every generated target.
+
 ## Credits
 
 MIT 授權要求重製時保留原始版權聲明，完整列在這裡（依來源 repo 的 LICENSE 檔）：
 
-- **mattpocock/skills**（`grilling`, `domain-modeling`, `to-prd`；淘汰入口保留於 private development repository 的 `_archive/`）— Copyright (c) 2026 Matt Pocock
+- **mattpocock/skills**（vendored: `grilling`, `domain-modeling`, `to-prd`；concept references: `wayfinder`, `research`, `to-spec`, `to-tickets`；淘汰入口保留於 private development repository 的 `_archive/`）— Copyright (c) 2026 Matt Pocock
 - **leonxlnx/taste-skill**（`design-taste-frontend`）— Copyright (c) 2026 Leonxlnx
 - **softaworks/agent-toolkit**（`reducing-entropy`）— Copyright (c) 2026 Leonardo Flores
 - **juliusbrussee/caveman**（`caveman-review`）— Copyright (c) 2026 Julius Brussee
@@ -69,10 +89,25 @@ vendor 後必須重套並跑測試：
 |---|---|---|
 | all vendored skills | `source_kind: vendored` frontmatter | 讓 provenance 可機器檢查；upstream 更新後一律重套 |
 | `skill-creator` | `stage`, `source`, `source_kind`; 保留本 repo 可用的 schema/eval scripts；新增本地 new-skill checklist reference | 登記官方來源並接入 skill-commons metadata 與 lifecycle contract |
-| `brainstorming` | project-specific bounded discovery：material-ambiguity qualification、Skip/Quick/Standard/Deep 預算、conditional artifact、local handoff | 避免 adapted upstream 的 always-on ceremony，同時保留來源、名稱與 profile 相容性 |
-| `finishing-a-development-branch` | manifest/guardrails、Gate Package、closeout、Recovery Mode、pre-merge runner | 接入跨專案安全、發布核可與 artifact closeout |
-| `subagent-driven-development` | plan-sync contract、雙 review、gate handoff | 接入本 repo orchestration contract |
+| `brainstorming` | project-specific bounded discovery：material-ambiguity qualification、Skip/Quick/Standard/Deep 預算、conditional Research、consent-gated Deep Wayfinding、conditional artifact、local handoff | 避免 adapted upstream 的 always-on ceremony，同時保留來源、名稱與 profile 相容性 |
+| `subagent-driven-development` | plan-sync contract、雙 review、gate handoff；T05 closeout handoff 改為 `sync-work` Finish | 接入本 repo orchestration contract，避免新任務派發 compatibility owner |
 | `to-prd` | `stage`, `output`, local-first artifact body；移除內嵌 PRD 模板，改引用 canonical `prd-template.md`；產出後跑 `scripts/check-prd.py --tier core` 當 output gate | 接入 work-item artifact contract v3；PRD 形狀改由單一 canonical 模板 + check-prd 強制，消除與 `prd-interview` 的漂移並確保可銜接 spec/qa |
 | `grilling` | `stage`, durable docs mode、`output`、`meta.yml` body | 合併壓測入口並接入 work-item artifact contract v3 |
 | `caveman-review` | fresh-context dispatch、findings-first local review template | 合併 review 風格與派發能力，避免結構化 handoff 重新引入冗長 review 儀式 |
 | `humanizer` | `stage`, `maturity`, `source`, `source_kind`; condensed optional utility with disclosure boundary | 接入 optional docs utility，保留 upstream pattern taxonomy 與 MIT notice |
+
+## Retired source provenance
+
+Retired entries remain here for license compliance and migration archaeology.
+They are not active skills, install pins, or candidates for the active-source
+metadata table above.
+
+| Retired skill | Source (owner/repo@skill) | Pinned commit | Former kind | Former stage | Retired at | License |
+|---|---|---|---|---|---|---|
+| finishing-a-development-branch | `obra/superpowers@finishing-a-development-branch` | `d884ae04edeb` | adapted | infra | T06 v0.8.0 contraction | MIT |
+
+### Retired local patches
+
+| Retired skill | Historical patch | Historical reason |
+|---|---|---|
+| `finishing-a-development-branch` | manifest/guardrails、Gate Package、closeout、Recovery Mode、pre-merge runner；T05 handoff-only compatibility notice 指向 `sync-work` 並停止 legacy procedure | 曾接入跨專案安全、發布核可與 artifact closeout；T05 保留 rollback safety body，T06 在零 active consumer 後移除 source |

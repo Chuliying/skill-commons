@@ -6,6 +6,8 @@
 - platforms: claude-code, cursor, codex
 - delivery_mode: personal
 - capability_packs:
+<!-- Add optional above when using the v0.8.0 core and personal discovery,
+     PRD, review, or onboarding owners are needed (direct form: CAPABILITY_PACKS=optional). -->
 
 ## Paths
 

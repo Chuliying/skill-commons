@@ -17,8 +17,8 @@ stage: infra
 
 # <專案名> Git Workflow
 
-> 由 shared-skill-onboarder 從本 repo 觀察歸納。shared 的 `finishing-a-development-branch` / `sync-work`
-> 在偵測到 `project/git-workflow` 時 defer 到此。
+> 由 shared-skill-onboarder 從本 repo 觀察歸納。shared `sync-work` 在偵測到
+> `project/git-workflow` 時 defer 到此。
 
 ## 分支模型
 - base branch: <manifest `git_workflow.base_branch`>
