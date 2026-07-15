@@ -38,4 +38,16 @@ empty="$TMP/empty-directive.md"; : > "$empty"
 out=$(AGENT_DIRECTIVE="$empty" bash "$CHECK" --platform codex --project-root "$TMP")
 assert_contains "$out" "submodule update --init" "init warning when directive empty"
 
+# A hand-written shim without the managed stamp is not an onboarded consumer.
+mkdir -p "$TMP/stampless"
+printf '# unrelated project instructions\n' > "$TMP/stampless/AGENTS.md"
+out=$(bash "$CHECK" --platform text --project-root "$TMP/stampless")
+assert_contains "$out" "managed stamp" "stamp-less consuming shim warns that onboarding is missing"
+
+# The toolkit source owns bootstrap and does not onboard against itself.
+out=$(bash "$CHECK" --platform text --project-root "$REPO")
+assert_not_contains "$out" "managed stamp" "skill-commons source repo is exempt from missing-stamp warnings"
+out=$(bash "$CHECK" --platform cursor --project-root "$REPO")
+assert_not_contains "$out" "onboard.sh" "skill-commons source repo is exempt when a platform shim is absent"
+
 finish

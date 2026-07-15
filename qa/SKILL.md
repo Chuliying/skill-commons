@@ -38,6 +38,10 @@ QA 兩件事：**產出測試方案**（plan）與**驗收閘門**（validate）
 
 產出後執行 machine traceability gate：
 
+執行前，將 `<shared-skills-root>` 解析為本輪實際讀取之 skill-commons root 的絕對路徑，
+並將 `<qa-skill-dir>` 解析為本輪實際讀取之 `qa/SKILL.md` 所在目錄的絕對路徑；
+不得假設固定 fan-out 或 submodule mount。
+
 ```bash
 python3 <shared-skills-root>/spec/scripts/check-selected-seam.py --spec "$WORK_ROOT/$SLUG/spec.md" --qa-plan "$WORK_ROOT/$SLUG/qa-plan.md"
 python3 <qa-skill-dir>/scripts/check-traceability.py --prd "$WORK_ROOT/$SLUG/prd.md" --qa-plan "$WORK_ROOT/$SLUG/qa-plan.md"
@@ -53,7 +57,7 @@ Seam reference 不完整、與 Spec 不一致或有未映射 AC 時修正 qa-pla
 - 一鍵驗收腳本：
 
 ```bash
-bash .agent/skills/_shared/qa/scripts/run-qa.sh "$WORK_ROOT/$SLUG/qa-plan.md"
+bash <qa-skill-dir>/scripts/run-qa.sh "$WORK_ROOT/$SLUG/qa-plan.md"
 ```
 
 **輸入**：同一工作項的 `implement-report.md`，用來核對開發側 evidence；

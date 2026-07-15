@@ -14,12 +14,12 @@ description: |
 
 ```bash
 # 一鍵執行 CI + E2E + QA spec checklist（委託 verify.sh 跑基礎 CI）
-bash .agent/skills/_shared/qa/scripts/run-qa.sh
+bash <qa-skill-dir>/scripts/run-qa.sh
 
 # 指定 QA spec 檔案
 WORK_ROOT="<manifest paths.work_root; default: docs/work>"
 SLUG="<stable-work-item-slug>"
-bash .agent/skills/_shared/qa/scripts/run-qa.sh "$WORK_ROOT/$SLUG/qa-plan.md"
+bash <qa-skill-dir>/scripts/run-qa.sh "$WORK_ROOT/$SLUG/qa-plan.md"
 ```
 
 > 腳本讀 manifest `stack.e2e_cmd`，並委託 `verify.sh` 執行 type-check / lint / test，避免重複維護。

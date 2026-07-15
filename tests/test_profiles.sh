@@ -114,7 +114,7 @@ expected_core="$(printf '%s\n' \
 expected_optional="$(printf '%s\n' \
   brainstorming caveman-review codebase-understanding grilling humanizer markdown \
   reducing-entropy shared-skill-onboarder subagent-driven-development to-prd | tr ' ' '\n' | sort)"
-assert_eq "$expected_core" "$core" "core is the released v0.8.0 seven-owner set"
+assert_eq "$expected_core" "$core" "core is the released v0.9.0 seven-owner set"
 assert_eq "$expected_optional" "$optional_overlay" "optional preserves personal discovery PRD review and onboarding"
 assert_eq "7" "$(printf '%s\n' "$core" | sed '/^$/d' | wc -l | tr -d ' ')" "core has seven owners"
 assert_eq "10" "$(printf '%s\n' "$optional_overlay" | sed '/^$/d' | wc -l | tr -d ' ')" "optional has ten capabilities"
@@ -392,7 +392,7 @@ assert_contains "$support" "rule + AGENTS adapter" "Cursor support is not called
 
 for entrypoint in README.md README.en.md; do
   entrypoint_text="$(cat "$REPO/$entrypoint")"
-  assert_contains "$entrypoint_text" "v0.8.0" "$entrypoint keeps the concrete current release pin"
+  assert_contains "$entrypoint_text" "v0.9.0" "$entrypoint keeps the concrete current release pin"
   assert_contains "$entrypoint_text" "v0.7.1" "$entrypoint keeps the legacy compatibility pin"
   assert_not_contains "$entrypoint_text" "Unreleased next-major" "$entrypoint removes pre-release wording"
   assert_contains "$entrypoint_text" "docs/profile-platform-support.md" "$entrypoint links authoritative profile support"
@@ -400,7 +400,7 @@ done
 for public_contract in INDEX.md bootstrap/README.md docs/profile-platform-support.md; do
   contract_text="$(cat "$REPO/$public_contract")"
   assert_contains "$contract_text" "CAPABILITY_PACKS=optional" "$public_contract documents optional-pack adoption"
-  assert_contains "$contract_text" "v0.8.0" "$public_contract documents the current release pin"
+  assert_contains "$contract_text" "v0.9.0" "$public_contract documents the current release pin"
   assert_contains "$contract_text" "v0.7.1" "$public_contract documents the concrete legacy-core pin"
   assert_not_contains "$contract_text" "current next-major candidate" "$public_contract removes candidate wording after release"
 done
@@ -409,7 +409,7 @@ for migration_contract in \
   bootstrap/README.md \
   docs/profile-platform-support.md; do
   migration_text="$(cat "$REPO/$migration_contract")"
-  assert_contains "$migration_text" "v0.8.0" "$migration_contract names the released boundary"
+  assert_contains "$migration_text" "v0.9.0" "$migration_contract names the released boundary"
   assert_contains "$migration_text" "7-owner core" "$migration_contract names the released seven-owner core"
   assert_not_contains "$migration_text" "current next-major candidate" "$migration_contract removes candidate wording after release"
   assert_not_contains "$migration_text" "non-dispatch compatibility shell" "$migration_contract removes the T05 compatibility-shell wording"
@@ -417,7 +417,7 @@ for migration_contract in \
 done
 if [ -f "$REPO/docs/shared-skill-onboarding-checklist.md" ]; then
   migration_text="$(cat "$REPO/docs/shared-skill-onboarding-checklist.md")"
-  assert_contains "$migration_text" "v0.8.0" "private onboarding checklist names the released boundary"
+  assert_contains "$migration_text" "v0.9.0" "private onboarding checklist names the released boundary"
   assert_contains "$migration_text" "7-owner core" "private onboarding checklist names the released seven-owner core"
   assert_not_contains "$migration_text" "current next-major candidate" "private onboarding checklist removes candidate wording after release"
   assert_not_contains "$migration_text" "non-dispatch compatibility shell" "private onboarding checklist removes the T05 compatibility-shell wording"
@@ -456,17 +456,17 @@ assert_contains "$readme_text" "未選擇 optional pack 時，不要要求 agent
 
 if [ -f "$REPO/docs/shared-skill-onboarding-checklist.md" ]; then
   onboarding_checklist="$(cat "$REPO/docs/shared-skill-onboarding-checklist.md")"
-  assert_contains "$onboarding_checklist" "v0.8.0 consuming path" "onboarding checklist names the current consuming path"
+  assert_contains "$onboarding_checklist" "v0.9.0 consuming path" "onboarding checklist names the current consuming path"
   assert_contains "$onboarding_checklist" "capability_packs: optional" "onboarding checklist selects optional before onboarding"
   assert_contains "$onboarding_checklist" "manual top-level-source maintainer path" "onboarding checklist distinguishes the manual maintainer path"
 fi
 
 bridge_text="$(cat "$REPO/docs/skill-commons-submodule-bridge.md")"
-assert_contains "$bridge_text" "## Install v0.8.0" "submodule bridge installs the current release"
-assert_contains "$bridge_text" "checkout v0.8.0" "submodule bridge preserves the concrete current checkout"
+assert_contains "$bridge_text" "## Install v0.9.0" "submodule bridge installs the current release"
+assert_contains "$bridge_text" "checkout v0.9.0" "submodule bridge preserves the concrete current checkout"
 assert_contains "$bridge_text" "v0.7.1" "submodule bridge explains the legacy compatibility pin"
 assert_not_contains "$bridge_text" "next-major" "submodule bridge removes pre-release wording"
-assert_contains "$bridge_text" "capability_packs: optional" "submodule bridge conditions v0.8.0 onboarder use"
+assert_contains "$bridge_text" "capability_packs: optional" "submodule bridge conditions v0.9.0 onboarder use"
 
 # --- 6b) Stack capabilities are strict booleans and default false ---
 cat >> "$TMP/manifest.md" <<'EOF'

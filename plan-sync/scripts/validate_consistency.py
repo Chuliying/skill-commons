@@ -24,7 +24,20 @@ from planning_lib import (
 
 
 BRACE_PLACEHOLDER_RE = re.compile(r"\{[a-z][a-z0-9-]*\}")
-ANGLE_PLACEHOLDER_RE = re.compile(r"<[^>\n]+>")
+ANGLE_PLACEHOLDER_RE = re.compile(r"<[a-z][a-z0-9]*(?:[ _-][a-z0-9]+)*>")
+TYPE_ATOM = r"[A-Za-z_$][A-Za-z0-9_.$]*(?:\[\])?"
+GENERIC_TYPE_RE = re.compile(
+    rf"\b[A-Za-z_$][A-Za-z0-9_.$]*<\s*{TYPE_ATOM}"
+    rf"(?:\s*(?:,|\||&)\s*{TYPE_ATOM})*\s*>"
+)
+JSX_TAG_RE = re.compile(
+    r"</?[A-Za-z][A-Za-z0-9:._-]*(?:\s+[^<>\n]*?)?\s*/?>"
+)
+INLINE_CODE_RE = re.compile(r"`([^`\n]*)`")
+FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})\s*([A-Za-z0-9_+.-]*)")
+ANGLE_CODE_FENCE_LANGUAGES = {
+    "html", "javascript", "js", "jsx", "svelte", "tsx", "typescript", "ts", "vue", "xml"
+}
 ELLIPSIS_PLACEHOLDER_RE = re.compile(r"(?:^|:\s)(?:\.\.\.|…)$")
 SOURCE_LINE_RE = re.compile(r"^- (local|user|external): (\S(?:.*\S)?)$")
 OPAQUE_SOURCE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/#@+\-]*$")
@@ -39,14 +52,51 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def mask_valid_code_angle_syntax(text: str, *, allow_jsx: bool) -> str:
+    """Mask unambiguous language syntax before checking placeholder tokens."""
+    masked = GENERIC_TYPE_RE.sub("", text)
+    if allow_jsx:
+        masked = JSX_TAG_RE.sub("", masked)
+    return masked
+
+
+def mask_inline_code_syntax(line: str) -> str:
+    def replace(match: re.Match[str]) -> str:
+        # A language fence is strong enough context for arbitrary JSX/HTML tag names.
+        # Inline code still masks generic types, but placeholder-shaped command tokens
+        # must remain visible to the release gate.
+        content = mask_valid_code_angle_syntax(match.group(1), allow_jsx=False)
+        return f"`{content}`"
+
+    return INLINE_CODE_RE.sub(replace, line)
+
+
 def placeholder_errors(path: Path, text: str) -> list[str]:
     errors = []
+    fence_marker: str | None = None
+    fence_language = ""
     for line_number, line in enumerate(text.splitlines(), 1):
+        fence_match = FENCE_RE.match(line)
+        if fence_match:
+            marker = fence_match.group(1)
+            if fence_marker is None:
+                fence_marker = marker
+                fence_language = fence_match.group(2).lower()
+            elif marker[0] == fence_marker[0]:
+                fence_marker = None
+                fence_language = ""
+            continue
+
         stripped = line.strip().removeprefix("- ").strip()
         reasons = []
         if BRACE_PLACEHOLDER_RE.search(line):
             reasons.append("template variable")
-        if ANGLE_PLACEHOLDER_RE.search(line):
+        angle_candidate = line
+        if fence_marker is not None and fence_language in ANGLE_CODE_FENCE_LANGUAGES:
+            angle_candidate = mask_valid_code_angle_syntax(line, allow_jsx=True)
+        elif fence_marker is None:
+            angle_candidate = mask_inline_code_syntax(line)
+        if ANGLE_PLACEHOLDER_RE.search(angle_candidate):
             reasons.append("angle-bracket value")
         if ELLIPSIS_PLACEHOLDER_RE.search(stripped):
             reasons.append("ellipsis value")

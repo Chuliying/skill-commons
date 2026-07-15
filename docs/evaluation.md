@@ -8,9 +8,9 @@ product value. A green structural test supports only the contract it executes.
 | Question | Current evidence | Status |
 |---|---|---|
 | Do artifact, Plan, profile, adapter, and release contracts agree? | Deterministic repository suites | Supported for the tested revision |
-| What is the input-token cost of loading workflow guidance? | Frozen eight-case A/B/C runs | Descriptive result supported |
+| What is the input-token cost of loading workflow guidance? | Historical eight-case A/B/C narrative; raw private run artifacts unavailable | Unverified until original evidence is recovered or rerun |
 | Did the historical blind scorer establish quality or usability gains? | Packets leaked arm identity | Unsupported; scores compromised |
-| Did the repaired Luna-high blind scoring establish a quality winner? | Independent packet audit plus eight fresh blind scores | No; descriptive results are mixed and underpowered |
+| Did the repaired Luna-high blind scoring establish a quality winner? | Historical audit/scoring narrative; raw private run artifacts unavailable | No; the narrative is mixed and cannot be independently replayed |
 | Can another tool cold-start and continue with less rework? | No matched handoff experiment yet | Unmeasured |
 | Does the bundle improve team throughput or human usability? | No matched team study | Unmeasured |
 
@@ -26,6 +26,17 @@ with zero failures. That proves the checked repository contracts agreed at that
 checkpoint. It does not measure developer time, rework, model quality, or cross-tool
 handoff success. Release candidates rerun `PROFILE=all bash bootstrap/generate.sh` and
 `bash tests/run-all.sh`; historical counts never replace fresh output.
+
+## Historical benchmark evidence warning
+
+During the 2026-07-15 private-source reconciliation, the benchmark harness, packets,
+ledgers, handoff, and replay artifacts described below were absent from private
+`origin/main`, every local branch/tag/reflog entry, recoverable Git blobs, and accessible
+workspace copies. No scores or session records were reconstructed. The numbers below
+are retained as the narrative that shipped in v0.8, but they are not independently
+replayable evidence and must not be used as a release claim. See the private
+`docs/work/skill-bundle-effect-benchmark/evidence-recovery.md` record in the development
+repository.
 
 ## Frozen A/B/C benchmark
 
@@ -127,7 +138,10 @@ collaborators, tools, and sessions.
 
 ## Private development evidence
 
-The private development repository additionally retains the benchmark handoff,
-completion audit, replay analysis, and convergence surface report under `docs/work/`.
-That directory is intentionally excluded from public exports, so this public document
-does not link to those private artifacts.
+The v0.8 text previously said the private repository retained the benchmark handoff,
+completion audit, and replay analysis. Reconciliation found that statement was false:
+those files were never preserved in the available private source history. The private
+repository now retains an evidence-recovery record plus a freshly generated deterministic
+convergence surface report. `docs/work/` remains excluded from public exports. Until the
+original benchmark artifacts are recovered or a new authorized run is completed, all
+historical model-run figures in this document remain unverified narrative.

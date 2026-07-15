@@ -4,6 +4,30 @@
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-07-15
+
+### Added
+
+- Added a deterministic, read-only `project-status` entry that reports bootstrap,
+  active work-item, canonical Plan, ambiguity, and next-action state without an LLM.
+
+### Changed
+
+- Reclassified model-run benchmark figures whose private replay artifacts were not
+  preserved as unverified historical narrative rather than current release evidence.
+
+### Fixed
+
+- Secret preflight now detects hard-coded environment fallback values and retains
+  staged `secret` and `token` name coverage while redacting candidate values.
+- Bootstrap check now warns when a consuming shim lacks a managed stamp; project
+  status also treats an active missing or unassessable Plan as `unknown` instead of PASS.
+- Canonical Plan placeholder checks accept real generic and JSX syntax while still
+  rejecting placeholder-shaped runnable values, and deterministic source gates use
+  portable extended-regex alternation for test-file exclusions.
+- QA, security, and final-verification runtime examples resolve from the actual
+  skill location instead of assuming one fixed fan-out or submodule mount.
+
 ## [0.8.0] - 2026-07-14
 
 ### Added

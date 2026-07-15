@@ -5,6 +5,10 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 . "$REPO/tests/bootstrap/lib/assert.sh"
 
+run_gate_text="$(cat "$REPO/scripts/run-gate.sh")"
+run_gate_extended_filters="$(printf '%s\n' "$run_gate_text" | grep -c 'grep -vE "test|spec')"
+assert_eq "3" "$run_gate_extended_filters" "run-gate uses portable ERE alternation for all three exclusion filters"
+
 artifacts_text="$(cat "$REPO/ARTIFACTS.md")"
 assert_not_contains "$artifacts_text" "brainstorm: { skill: brainstorming" "artifact contract keeps Deep control outside lifecycle stages"
 assert_contains "$artifacts_text" "brainstorm.md" "artifact contract recognizes the optional discovery document"
@@ -264,6 +268,9 @@ for fixture_name in python-cli ts-web; do
     assert_contains "$verify_output" "type-check PASSED" "TS Web runs typed-contract verification"
     assert_contains "$qa_output" "E2E step complete" "TS Web runs E2E verification"
     assert_contains "$gate_output" "Design Token" "TS Web runs UI gate"
+    assert_contains "$gate_output" "no production console.log" "gate exclusion filter spares console.log in test files"
+    assert_contains "$gate_output" "no unbounded any types" "gate exclusion filter spares any types in test files"
+    assert_contains "$gate_output" "no hard-coded color values" "gate exclusion filter spares color literals in test files"
     assert_contains "$api_gate_output" "PASS" "TS Web runs API gate"
     assert_contains "$scan_output" 'has_ui: `true`' "onboarding detects UI capability"
     assert_contains "$scan_output" 'has_api: `true`' "onboarding detects API capability"
@@ -310,13 +317,14 @@ make_scanner_fixture() {
   fixture_name="$1"
   ignore_rule="$2"
   source_roots="${3:-src}"
+  source_extensions="${4:-py}"
   SCANNER_FIXTURE="$TMP/scanner/$fixture_name"
   mkdir -p "$SCANNER_FIXTURE/.agent" "$SCANNER_FIXTURE/src"
   printf '%s\n' \
     '## Paths' \
     "- source_roots: $source_roots" \
     '## Stack' \
-    '- source_extensions: py' \
+    "- source_extensions: $source_extensions" \
     '- framework: python-cli' \
     '- package_manager: python' \
     '- has_ui: false' \
@@ -404,6 +412,34 @@ assert_contains "$type_ignore_output" "src/greet.py" "type-ignore finding retain
 assert_contains "$type_ignore_output" "hard-coded secret candidate redacted" "type-ignore finding retains a useful category"
 assert_not_contains "$type_ignore_output" "type-ignore-real-secret" "type-ignore finding redacts the secret value"
 
+make_scanner_fixture env-fallback-secret '.env'
+printf '%s%s%s\n' \
+  'api_key = os.environ.get("API_KEY") ' \
+  'or "fallback-real-secret-value' \
+  '"' > "$SCANNER_FIXTURE/src/greet.py"
+set +e
+env_fallback_output="$(cd "$SCANNER_FIXTURE" && bash "$REPO/security/scripts/scan-secrets.sh" 2>&1)"
+env_fallback_rc=$?
+set -e
+assert_neq "0" "$env_fallback_rc" "secret scanner catches a hard-coded environment fallback"
+assert_contains "$env_fallback_output" "src/greet.py" "environment fallback finding retains its file location"
+assert_contains "$env_fallback_output" "hard-coded secret candidate redacted" "environment fallback finding retains a useful category"
+assert_not_contains "$env_fallback_output" "fallback-real-secret-value" "environment fallback finding redacts the secret value"
+
+make_scanner_fixture process-env-fallback-secret '.env' src js
+printf '%s%s%s\n' \
+  'api_key = process.env.API_KEY ' \
+  '|| "abcdefgh123456' \
+  '"' > "$SCANNER_FIXTURE/src/greet.js"
+set +e
+process_env_fallback_output="$(cd "$SCANNER_FIXTURE" && bash "$REPO/security/scripts/scan-secrets.sh" 2>&1)"
+process_env_fallback_rc=$?
+set -e
+assert_neq "0" "$process_env_fallback_rc" "secret scanner catches a JavaScript environment fallback"
+assert_contains "$process_env_fallback_output" "src/greet.js" "JavaScript fallback finding retains its file location"
+assert_contains "$process_env_fallback_output" "hard-coded secret candidate redacted" "JavaScript fallback finding retains a useful category"
+assert_not_contains "$process_env_fallback_output" "abcdefgh123456" "JavaScript fallback finding redacts the secret value"
+
 make_scanner_fixture placeholder-value '.env'
 printf "password = 'example-password'\n" > "$SCANNER_FIXTURE/src/greet.py"
 set +e
@@ -457,6 +493,17 @@ assert_neq "0" "$staged_redaction_rc" "secret scanner catches a staged secret"
 assert_contains "$staged_redaction_output" "src/greet.py:" "staged finding retains its file and line location"
 assert_contains "$staged_redaction_output" "staged secret candidate redacted" "staged finding retains a useful category"
 assert_not_contains "$staged_redaction_output" "staged-real-secret-value" "staged finding redacts the secret value"
+
+make_scanner_fixture staged-token-redaction '.env'
+printf "%s = '%s'\n" token realstagedtokenvalue123 > "$SCANNER_FIXTURE/src/greet.py"
+git -C "$SCANNER_FIXTURE" add src/greet.py
+set +e
+staged_token_output="$(cd "$SCANNER_FIXTURE" && bash "$REPO/security/scripts/scan-secrets.sh" 2>&1)"
+staged_token_rc=$?
+set -e
+assert_neq "0" "$staged_token_rc" "secret scanner preserves staged token-name coverage"
+assert_contains "$staged_token_output" "staged secret candidate redacted" "staged token finding stays categorized"
+assert_not_contains "$staged_token_output" "realstagedtokenvalue123" "staged token value stays redacted"
 
 non_git="$TMP/scanner/non-git"
 mkdir -p "$non_git/.agent" "$non_git/src"

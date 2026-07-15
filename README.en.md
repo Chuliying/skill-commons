@@ -1,22 +1,26 @@
 # skill-commons
 
-skill-commons keeps one verifiable, resumable engineering state for developers,
-agents, tools, and sessions. Requirements, Spec, Plan, implementation state, and
-verification evidence live in the repository instead of one chat transcript.
+skill-commons is a repository-native workflow kit for AI-assisted engineering. It keeps
+requirements, Spec, Plan, implementation state, and verification evidence in Git so
+developers, Claude Code, Codex, and Cursor can resume from the same latest work state.
 
-It is a portable feature-delivery protocol. Claude Code, Codex, and Cursor use their
-supported adapters to read the same latest work state; the consuming repository and host
-retain language, framework, scheduling, and runtime decisions.
+Describe a task in natural language and Router selects the shortest viable workflow.
+Work that must survive another session stays in the repository. `v0.9.0` adds
+`project-status`, a deterministic, read-only, no-LLM view of current state and next action.
 
 [zh-TW](README.md) · [Spec-state protocol](docs/spec-state-protocol.md) ·
 [Evaluation](docs/evaluation.md) · [Skill index](INDEX.md)
 
 ## Why it exists
 
-Spec is the blueprint, Plan is the work sequence, `meta.yml` is the progress board,
-tests are inspection records, and Git preserves change history. The shared state lets a
-new collaborator determine the next task, blockers, changed intent, stale evidence, and
-the proof behind completion or delivery claims.
+The product is a verifiable, resumable shared engineering state. Spec is the blueprint,
+Plan is the work sequence, `meta.yml` is the progress board, tests are inspection records,
+and Git preserves change history. A new collaborator can find the next task, blockers,
+changed intent, stale evidence, and proof behind completion or delivery claims.
+
+`project-status` reads bootstrap, work-item, Plan, and Git state, then reports attention
+points and the next rule-based action. It does not modify the project or guess which
+active work item should win.
 
 Use it for work that crosses sessions, agents, tools, developers, or formal review
 gates. Factual lookup and bounded micro-tasks take the shortest path without durable
@@ -31,7 +35,7 @@ Node.js 18+.
 
 ```bash
 git submodule add git@github.com:Chuliying/skill-commons.git .agent/skills/_shared
-git -C .agent/skills/_shared checkout v0.8.0
+git -C .agent/skills/_shared checkout v0.9.0
 
 mkdir -p .agent
 cp .agent/skills/_shared/shared-skill-onboarder/templates/project-manifest.md \
@@ -53,7 +57,7 @@ Select one delivery mode before onboarding:
 `delivery_mode` is `personal` or `team-sprint`. Add `frontend` or `optional` capability
 packs only when needed. Missing selection stops onboarding.
 
-`v0.8.0` installs the current seven-skill core. Add the `optional` pack before
+`v0.9.0` installs the current seven-skill core. Add the `optional` pack before
 onboarding when you need discovery, a personal PRD, review, or onboarding skills.
 Repositories that have not migrated may retain the `v0.7.1` legacy pin; see
 [Bootstrap](bootstrap/README.md), [Profile support](docs/profile-platform-support.md), and the
@@ -64,6 +68,19 @@ bash .agent/skills/_shared/bootstrap/onboard.sh
 bash .agent/skills/_shared/bootstrap/manage.sh doctor
 ```
 
+### Read project state
+
+From the consuming repository root:
+
+```bash
+bash .agent/skills/_shared/scripts/project-status.sh
+bash .agent/skills/_shared/scripts/project-status.sh --json
+```
+
+The default output is for people; `--json` provides a stable machine-readable schema.
+Both read bootstrap health, work items, canonical Plans, the Git working tree, and
+active-work ambiguity without changing the project.
+
 ## After installation
 
 Describe the task in natural language. For example, “add an export CSV feature” lets
@@ -72,6 +89,10 @@ under `docs/work/<slug>/`. To name a skill explicitly, say “use `implement`”
 `sync-work`.” See [INDEX.md](INDEX.md) for the complete list.
 
 ## Execution and trust model
+
+Router selects an explore, build, fix, understand, or release flow for each task. Plans
+and evidence that must survive a session live under `docs/work/<slug>/`; Git delivery
+still waits for explicit authorization after the work is complete.
 
 | Selection | Surface |
 |---|---|
@@ -94,22 +115,15 @@ Work and delivery states remain separate. See [ARTIFACTS.md](ARTIFACTS.md).
 
 ## Evidence boundary
 
-The 2026-07-13 convergence checkpoint recorded 1,520 deterministic assertions with no
-failures across artifact, Plan, profile, adapter generation, bootstrap, and release
-contracts. That checkpoint establishes repository conformance only; team speed and
-cross-tool handoff value remain unmeasured.
+The maintainer gate checks source, generated adapters, artifact/Plan/profile contracts,
+bootstrap safety, secret preflight, and the clean public export. `bash tests/run-all.sh`
+is the complete release gate.
 
-In the frozen replay, all-preload used 64.9% more mean input tokens than no workflow;
-Router-first used 37.5% more and 16.6% fewer than all-preload. Earlier quality scores
-were invalidated because anonymous packets leaked arm identity. In the repaired blind
-scoring of eight cases, all-preload and Router-first passed 60/60 rubric items and no
-workflow passed 57/60, while no workflow had the best mean preference rank. This small
-descriptive sample proves no general quality advantage, so quality and usability remain
-outside product claims. The final adversarial review also found a self-verification
-timing defect, so the complete ten-session protocol did not pass.
-
-The next product test is a transcript-free cold-start handoff with Spec drift. See
-[Evaluation](docs/evaluation.md).
+These checks establish repository conformance. Team speed, model-output quality, and
+cross-tool handoff value remain unproven. Historical benchmark figures without private
+replay artifacts are retained only as unverified narrative. The next product test is a
+transcript-free, cross-tool cold-start handoff with Spec drift; see
+[Evaluation](docs/evaluation.md) for methods, data, and limits.
 
 ## Documentation
 

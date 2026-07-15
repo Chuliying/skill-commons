@@ -123,7 +123,13 @@ filter_hardcoded_secret_candidates() {
       sub(/^[^:]*:[0-9]+:/, "", content)
       lowered = tolower(content)
       value = lowered
-      sub(/^.*(api_key|apikey|api-key|secret_key|secret-key|private_key|password|passwd|bearer|access_token|refresh_token|secret|token)[[:space:]]*[:=][[:space:]]*["\047]/, "", value)
+      fallback = lowered
+      sub(/^.*([|][|]|[[:space:]]or[[:space:]])[[:space:]]*["\047]/, "", fallback)
+      if (fallback != lowered) {
+        value = fallback
+      } else {
+        sub(/^.*(api_key|apikey|api-key|secret_key|secret-key|private_key|password|passwd|bearer|access_token|refresh_token|secret|token)[[:space:]]*[:=][[:space:]]*["\047]/, "", value)
+      }
       sub(/["\047].*$/, "", value)
       if (value ~ /process\.env|os\.environ/) next
       if (value ~ /^(your-|placeholder([._-]|$)|example([._-]|$)|test([._-]|$)|mock([._-]|$)|fake([._-]|$)|changeme([._-]|$))/) next
@@ -181,6 +187,15 @@ for extension in "${extensions[@]}"; do
   include_args+=(--include="*.$extension")
 done
 
+secret_name_re='(api_key|apikey|api-key|secret_key|secret-key|private_key|password|passwd|bearer|access_token|refresh_token)'
+direct_secret_re="${secret_name_re}[[:space:]]*[:=][[:space:]]*['\"][^'\"]{6,}['\"]"
+fallback_secret_re="${secret_name_re}[[:space:]]*[:=][^[:cntrl:]]{0,160}(process\\.env|os\\.environ)[^[:cntrl:]]{0,160}([|][|]|[[:space:]]or[[:space:]])[[:space:]]*['\"][^'\"]{6,}['\"]"
+hardcoded_secret_re="(${direct_secret_re}|${fallback_secret_re})"
+staged_secret_name_re='(api_key|secret|password|token)'
+staged_direct_secret_re="${staged_secret_name_re}[[:space:]]*[:=][[:space:]]*['\"][^'\"]{6,}['\"]"
+staged_fallback_secret_re="${staged_secret_name_re}[[:space:]]*[:=][^[:cntrl:]]{0,160}(process\\.env|os\\.environ)[^[:cntrl:]]{0,160}([|][|]|[[:space:]]or[[:space:]])[[:space:]]*['\"][^'\"]{6,}['\"]"
+staged_hardcoded_secret_re="(${staged_direct_secret_re}|${staged_fallback_secret_re})"
+
 exclude_args=(
   --exclude-dir=.git
   --exclude-dir=.agents
@@ -201,7 +216,7 @@ echo "Manifest package manager: $package_manager"
 echo "Manifest framework: $framework"
 
 secrets="$(grep -riEn "${include_args[@]}" "${exclude_args[@]}" \
-  "(api_key|apikey|api-key|secret_key|secret-key|private_key|password|passwd|bearer|access_token|refresh_token)[[:space:]]*[:=][[:space:]]*['\"][^'\"]{6,}['\"]" \
+  "$hardcoded_secret_re" \
   -- "${targets[@]}" 2>&1 \
   | filter_hardcoded_secret_candidates)"
 secrets_rc=$?
@@ -332,7 +347,7 @@ if [[ "$staged_diff_rc" -ne 0 ]]; then
 else
   staged_secrets="$(printf '%s\n' "$staged_diff" \
     | annotate_staged_additions \
-    | grep -iE ":[0-9]+:.*(api_key|secret|password|token)[[:space:]]*=[[:space:]]*['\"][^'\"]{6,}['\"]" 2>&1 \
+    | grep -iE ":[0-9]+:.*$staged_hardcoded_secret_re" 2>&1 \
     | filter_staged_secret_candidates)"
   staged_grep_rc=$?
   case "$staged_grep_rc" in

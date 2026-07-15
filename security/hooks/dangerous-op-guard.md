@@ -8,10 +8,10 @@
 
 ```bash
 # 手動測試
-echo "rm -rf /data" | bash .agent/skills/_shared/security/hooks/dangerous-op-guard.sh
+echo "rm -rf /data" | bash <security-skill-dir>/hooks/dangerous-op-guard.sh
 
 # 或帶參數
-bash .agent/skills/_shared/security/hooks/dangerous-op-guard.sh "git push --force"
+bash <security-skill-dir>/hooks/dangerous-op-guard.sh "git push --force"
 ```
 
 > Exit code: `0` = 放行, `2` = 阻擋（Claude Code hook 協議）
@@ -68,7 +68,7 @@ Please type exactly "confirm-delete" to proceed, or "cancel" to abort.
         "matcher": "Bash",
         "hooks": [{
           "type": "command",
-          "command": "bash .agent/skills/_shared/security/hooks/dangerous-op-guard.sh"
+          "command": "bash <security-skill-dir>/hooks/dangerous-op-guard.sh"
         }]
       }
     ]

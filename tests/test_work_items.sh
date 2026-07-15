@@ -39,6 +39,7 @@ write_v3_item() {
   stage_status="$5"
   artifact="$6"
   evidence_kind="${7:-none}"
+  extra_stage="${8:-none}"
   mkdir -p "$WORK_ROOT/$slug/plan"
   if [ "$artifact" != "missing.md" ]; then
     printf '# Artifact\n' > "$WORK_ROOT/$slug/$artifact"
@@ -83,7 +84,11 @@ write_v3_item() {
       'stages:' \
       '  prd: { skill: to-prd, file: prd.md, status: done }' \
       "  plan: { skill: plan-sync, file: $artifact, status: $stage_status }" \
-      '  implement: { skill: implement, file: implement-report.md, status: done }' \
+      '  implement: { skill: implement, file: implement-report.md, status: done }'
+    if [ "$extra_stage" = qa-plan ]; then
+      printf '%s\n' '  qa-plan: { skill: qa, file: qa-plan.md, status: done }'
+    fi
+    printf '%s\n' \
       'inputs:' \
       '  - request.md'
   } > "$WORK_ROOT/$slug/meta.yml"
@@ -181,11 +186,8 @@ rm -f "$WORK_ROOT/completed-missing-prd/meta.yml.bak"
 write_v3_item completed-team-incomplete completed not_requested 2026-07-01T00:00:00+00:00 done plan/plan.md
 sed -i.bak 's/execution_mode: refactor/execution_mode: team-feature/' "$WORK_ROOT/completed-team-incomplete/meta.yml"
 rm -f "$WORK_ROOT/completed-team-incomplete/meta.yml.bak"
-write_v3_item refactor-with-qa completed not_requested 2026-07-01T00:00:00+00:00 done plan/plan.md
+write_v3_item refactor-with-qa completed not_requested 2026-07-01T00:00:00+00:00 done plan/plan.md none qa-plan
 printf '# QA plan\n' > "$WORK_ROOT/refactor-with-qa/qa-plan.md"
-sed -i.bak '/^inputs:/i\
-  qa-plan: { skill: qa, file: qa-plan.md, status: done }' "$WORK_ROOT/refactor-with-qa/meta.yml"
-rm -f "$WORK_ROOT/refactor-with-qa/meta.yml.bak"
 write_v3_item unknown-top-level completed not_requested 2026-07-01T00:00:00+00:00 done plan/plan.md
 printf '%s\n' 'alternate_delivery_truth: pr_created' >> "$WORK_ROOT/unknown-top-level/meta.yml"
 write_v3_item scalar-stages completed not_requested 2026-07-01T00:00:00+00:00 done plan/plan.md

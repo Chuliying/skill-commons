@@ -140,5 +140,5 @@ return NextResponse.json({ user: safeUser })
 
 ```bash
 # 執行完整安全掃描
-bash .agent/skills/_shared/security/scripts/scan-secrets.sh
+bash <security-skill-dir>/scripts/scan-secrets.sh
 ```

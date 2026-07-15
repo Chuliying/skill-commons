@@ -96,7 +96,7 @@ gate_design_token() {
   info "targets: ${scan_targets[*]}"
   result=$(grep -rEn "text-\[#|bg-\[#|border-\[#|from-\[#|to-\[#" \
     "${scan_targets[@]}" "${include_args[@]}" 2>/dev/null \
-    | grep -v "test\|spec\|\.d\.ts" || true)
+    | grep -vE "test|spec|\.d\.ts" || true)
   if [[ -z "$result" ]]; then
     pass "no hard-coded color values"
   else
@@ -122,7 +122,7 @@ gate_code_hygiene() {
     *" js "*|*" jsx "*|*" ts "*|*" tsx "*)
       result=$(grep -rEn "console\.log" \
         "${scan_targets[@]}" "${include_args[@]}" 2>/dev/null \
-        | grep -v "test\|spec\|config\|\.d\.ts" || true)
+        | grep -vE "test|spec|config|\.d\.ts" || true)
       if [[ -z "$result" ]]; then pass "no production console.log"; else fail "production console.log found"; echo "$result"; fi
       ;;
     *) na "console.log hygiene N/A (non-JS source extensions)" ;;
@@ -131,7 +131,7 @@ gate_code_hygiene() {
   if capability_enabled typed_contracts; then
     result=$(grep -rEn ": any\b" \
       "${scan_targets[@]}" "${include_args[@]}" 2>/dev/null \
-      | grep -v "test\|spec\|\.d\.ts" || true)
+      | grep -vE "test|spec|\.d\.ts" || true)
     if [[ -z "$result" ]]; then pass "no unbounded any types"; else fail "unbounded any types found"; echo "$result"; fi
   else
     na "typed hygiene N/A (typed_contracts=false)"

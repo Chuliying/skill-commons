@@ -7,11 +7,13 @@ cd "$ROOT"
 rc=0
 PUBLIC_SUITES="
   tests/test_skills_reorg.sh \
+  tests/test_release_baseline.sh \
   tests/test_profiles.sh \
   tests/test_artifact_contract.sh \
   tests/test_work_items.sh \
   tests/test_protocol_registry.sh \
   tests/test_plan_sync.sh \
+  tests/test_project_status.sh \
   tests/test_repo_map.sh \
   tests/test_journey_evals.sh \
   tests/test_gate_automation.sh \

@@ -854,7 +854,9 @@ if not bridge:
     errors.append("missing docs/skill-commons-submodule-bridge.md")
 
 quick_start = readme.find("## Quick Start")
-install = readme.find("### 1. Pin submodule", quick_start)
+# Use the first installation command as the boundary. Product-facing headings
+# may be localized or rewritten without weakening the prerequisite contract.
+install = readme.find("git submodule add ", quick_start)
 if quick_start < 0 or install < quick_start:
     errors.append("README Quick Start must place tools before installation")
 else:
@@ -956,11 +958,13 @@ else:
     root_runner = root_runner_path.read_text(errors="replace")
     expected_suites = (
         "tests/test_skills_reorg.sh",
+        "tests/test_release_baseline.sh",
         "tests/test_profiles.sh",
         "tests/test_artifact_contract.sh",
         "tests/test_work_items.sh",
         "tests/test_protocol_registry.sh",
         "tests/test_plan_sync.sh",
+        "tests/test_project_status.sh",
         "tests/test_repo_map.sh",
         "tests/test_journey_evals.sh",
         "tests/test_gate_automation.sh",
@@ -1134,7 +1138,14 @@ evaluation = (repo / "docs/evaluation.md").read_text(errors="replace")
 codebase = (repo / "codebase-understanding/SKILL.md").read_text(errors="replace")
 security = (repo / "security/SKILL.md").read_text(errors="replace")
 head = "\n".join(readme.splitlines()[:35])
-for token in ("Claude Code", "Codex", "Cursor", "可攜式 feature-delivery protocol"):
+for token in (
+    "Claude Code",
+    "Codex",
+    "Cursor",
+    "repository-native workflow kit",
+    "project-status",
+    "最新工作狀態",
+):
     if token not in head:
         errors.append(f"README first 35 lines missing positioning token {token!r}")
 

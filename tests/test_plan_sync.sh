@@ -136,6 +136,51 @@ else
   fail "canonical-v2 plan passes validation"
 fi
 
+# Real type/markup syntax in code spans and fences is not a template placeholder.
+GENERIC_ROOT="$TMP/generic-markup"
+cp -R "$CANONICAL_WORKSPACE" "$GENERIC_ROOT"
+GENERIC_PLAN="$GENERIC_ROOT/docs/work/canonical/plan/plan.md"
+perl -0pi -e 's/The final behavior is observable\./The final behavior returns `Map<String, Object>` and `Promise<string>`.\n\n```tsx\nconst view = <Widget \/>\nconst intrinsic = <div>ready<\/div>\nconst icon = <svg><path d="M0 0" \/><\/svg>\n```/' "$GENERIC_PLAN"
+set +e
+generic_output="$(python3 "$REPO/plan-sync/scripts/validate_consistency.py" --plan-dir "$(dirname "$GENERIC_PLAN")" 2>&1)"
+generic_rc=$?
+set -e
+assert_eq "0" "$generic_rc" "canonical Plan accepts generics and JSX by fenced language context"
+
+# Placeholder-shaped values still fail in prose and runnable shell examples.
+PROSE_PLACEHOLDER_ROOT="$TMP/prose-angle-placeholder"
+cp -R "$CANONICAL_WORKSPACE" "$PROSE_PLACEHOLDER_ROOT"
+PROSE_PLACEHOLDER_PLAN="$PROSE_PLACEHOLDER_ROOT/docs/work/canonical/plan/plan.md"
+perl -0pi -e 's/Deliver a dependency-aware change\./Deliver a <project root> change./' "$PROSE_PLACEHOLDER_PLAN"
+set +e
+prose_placeholder_output="$(python3 "$REPO/plan-sync/scripts/validate_consistency.py" --plan-dir "$(dirname "$PROSE_PLACEHOLDER_PLAN")" 2>&1)"
+prose_placeholder_rc=$?
+set -e
+assert_neq "0" "$prose_placeholder_rc" "prose angle-bracket placeholders fail validation"
+assert_contains "$prose_placeholder_output" "angle-bracket value" "prose placeholder failure names the reason"
+
+SHELL_PLACEHOLDER_ROOT="$TMP/shell-angle-placeholder"
+cp -R "$CANONICAL_WORKSPACE" "$SHELL_PLACEHOLDER_ROOT"
+SHELL_PLACEHOLDER_PLAN="$SHELL_PLACEHOLDER_ROOT/docs/work/canonical/plan/plan.md"
+perl -0pi -e 's/The final behavior is observable\./Run the QA command.\n\n```sh\nbash <qa-skill-dir>\/scripts\/run-qa.sh\n```/' "$SHELL_PLACEHOLDER_PLAN"
+set +e
+shell_placeholder_output="$(python3 "$REPO/plan-sync/scripts/validate_consistency.py" --plan-dir "$(dirname "$SHELL_PLACEHOLDER_PLAN")" 2>&1)"
+shell_placeholder_rc=$?
+set -e
+assert_neq "0" "$shell_placeholder_rc" "runnable shell placeholders fail validation"
+assert_contains "$shell_placeholder_output" "angle-bracket value" "shell placeholder failure names the reason"
+
+INLINE_PLACEHOLDER_ROOT="$TMP/inline-angle-placeholder"
+cp -R "$CANONICAL_WORKSPACE" "$INLINE_PLACEHOLDER_ROOT"
+INLINE_PLACEHOLDER_PLAN="$INLINE_PLACEHOLDER_ROOT/docs/work/canonical/plan/plan.md"
+perl -0pi -e 's/The final behavior is observable\./Run `bash <qa-skill-dir>\/scripts\/run-qa.sh`./' "$INLINE_PLACEHOLDER_PLAN"
+set +e
+inline_placeholder_output="$(python3 "$REPO/plan-sync/scripts/validate_consistency.py" --plan-dir "$(dirname "$INLINE_PLACEHOLDER_PLAN")" 2>&1)"
+inline_placeholder_rc=$?
+set -e
+assert_neq "0" "$inline_placeholder_rc" "inline runnable placeholders fail validation"
+assert_contains "$inline_placeholder_output" "angle-bracket value" "inline placeholder failure names the reason"
+
 DUPLICATE_PLAN_TITLE_ROOT="$TMP/duplicate-plan-title"
 cp -R "$CANONICAL_WORKSPACE" "$DUPLICATE_PLAN_TITLE_ROOT"
 DUPLICATE_PLAN_TITLE="$DUPLICATE_PLAN_TITLE_ROOT/docs/work/canonical/plan/plan.md"

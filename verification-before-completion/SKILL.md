@@ -19,12 +19,14 @@ Claiming work is complete without verification is dishonesty, not efficiency.
 
 ## Available Script
 
+`<skill-dir>` = 本檔絕對目錄；不得假設固定 fan-out 或 submodule mount。
+
 ```bash
 # 一鍵執行 type-check + lint + tests，輸出結構化摘要
-bash .agent/skills/_shared/verification-before-completion/scripts/verify.sh
+bash <skill-dir>/scripts/verify.sh
 
 # 跳過測試（快速檢查）
-bash .agent/skills/_shared/verification-before-completion/scripts/verify.sh --skip-test
+bash <skill-dir>/scripts/verify.sh --skip-test
 ```
 
 > 使用腳本取代手動逐一執行命令，每次都能獲得一致的輸出格式。
