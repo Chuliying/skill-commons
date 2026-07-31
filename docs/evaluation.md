@@ -25,7 +25,7 @@ The T07 convergence checkpoint on 2026-07-13 recorded 1,520 deterministic assert
 with zero failures. That proves the checked repository contracts agreed at that
 checkpoint. It does not measure developer time, rework, model quality, or cross-tool
 handoff success. Release candidates rerun `PROFILE=all bash bootstrap/generate.sh` and
-`bash tests/run-all.sh`; historical counts never replace fresh output.
+`bash tests/verify.sh`; historical counts never replace fresh output.
 
 ## Historical benchmark evidence warning
 

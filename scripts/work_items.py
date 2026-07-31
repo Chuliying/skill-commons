@@ -6,27 +6,23 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import execution_modes  # noqa: E402  (path set above so the CLI runs from any cwd)
 
 
 LEGACY_WORK_ITEM_STATUSES = {"active", "shipped", "abandoned"}
 
 
-def load_protocol_registry() -> dict:
-    path = Path(__file__).resolve().parent.parent / "protocol-registry.json"
-    try:
-        registry = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise RuntimeError(f"cannot load protocol registry {path}: {exc}") from exc
-    if registry.get("schema_version") != "skill-commons/protocol-registry/v1":
-        raise RuntimeError(f"unsupported protocol registry schema: {path}")
-    return registry
-
-
-PROTOCOL_REGISTRY = load_protocol_registry()
+# ADR-R3 I-M1: the registry is reached through the shared accessor so this module and
+# grade_journey.py cannot hold divergent copies of the same stage contract.
+PROTOCOL_REGISTRY = execution_modes.REGISTRY
 WORK_ITEM_CONTRACT = PROTOCOL_REGISTRY["work_item"]
 WORK_STATUSES = set(WORK_ITEM_CONTRACT["work_statuses"])
 DELIVERY_RULES = WORK_ITEM_CONTRACT["delivery_statuses"]
@@ -46,14 +42,7 @@ STAGE_STATUSES = {
 }
 INCOMPLETE_STAGE_STATUSES = {"pending", "ready", "in_progress", "blocked"}
 UNSUCCESSFUL_REQUIRED_STAGE_STATUSES = {"skipped", "superseded"}
-ARTIFACT_STAGES = {
-    "prd": ("prd", "prd.md"),
-    "spec": ("spec", "spec.md"),
-    "qa-plan": ("qa-plan", "qa-plan.md"),
-    "plan": ("plan", "plan/plan.md"),
-    "implement-report": ("implement", "implement-report.md"),
-    "qa-report": ("qa-report", "qa-report.md"),
-}
+ARTIFACT_STAGES = execution_modes.ARTIFACT_STAGES
 LEGACY_REQUIRED_FIELDS = {
     "slug",
     "title",
@@ -77,12 +66,52 @@ V3_REQUIRED_FIELDS = {
 }
 CONTAINER_FIELDS = {"stages", "inputs", "delivery_evidence"}
 LEGACY_ALLOWED_FIELDS = LEGACY_REQUIRED_FIELDS | {"schema_version"}
-V3_ALLOWED_FIELDS = V3_REQUIRED_FIELDS | {"delivery_evidence"}
+V3_ALLOWED_FIELDS = V3_REQUIRED_FIELDS | {"delivery_evidence", "documentation_impact"}
+DOCUMENTATION_IMPACT_FORMS = "doc:<project-document> or n/a:<bounded reason>"
+DOCUMENTATION_IMPACT_MAX_REASON = 200
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 STAGE_RE = re.compile(r"^  ([a-z0-9]+(?:-[a-z0-9]+)*):\s*\{(.*)\}\s*$")
 OPAQUE_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/#@+\-]{2,}$")
 DEPLOYMENT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/\-]{5,}$")
-V3_ADOPTION_TIME = datetime.fromisoformat("2026-07-10T00:00:00+08:00")
+# The date v3 became mandatory IN THIS REPOSITORY. It was 2026-07-10 in the release
+# lineage, but dev main forked before v3 existed and kept creating items on the legacy
+# schema until the two lines were reconciled on 2026-07-25. Items authored in a lineage
+# that had no v3 could not have declared it, so holding them to 07-10 would report a
+# defect that was never possible to avoid -- and the fix would be to backfill a
+# schema_version onto metadata that was not written against that contract.
+#
+# Forward-only, as ARTIFACTS.md's adoption stance requires: every item created from the
+# reconciliation onward must declare work-item/v3, and pre-reconciliation items stay
+# valid under the legacy schema (which is still fully validated) until each is migrated
+# on purpose. Migration is real work, not a field rename: those items carry three-file
+# plans that canonical-v2 replaced, so it converts planning documents, not metadata.
+V3_ADOPTION_TIME = datetime.fromisoformat("2026-07-25T00:00:00+08:00")
+# The date the documentation-impact rule became mandatory. Same forward-only stance as
+# above and as ARTIFACTS.md's adoption section: a shape gate applies to work edited from
+# its adoption onward, never retroactively, because a repository-wide sweep is a
+# deliberate migration rather than a default check. The trigger is updated_at, not
+# created_at, so work that was already open when the rule landed still has to record a
+# documentation-impact result at the moment it is completed.
+D3_ADOPTION_TIME = datetime.fromisoformat("2026-07-27T00:00:00+08:00")
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def skill_roster(repo_root: Path = REPO_ROOT) -> set[str]:
+    """Top-level skill folders, which are the only valid owners of a stage.
+
+    Derived from the tree rather than a hand-kept list so the roster cannot rot.
+    An empty roster disables the check instead of failing every stage, so a
+    checkout without skill folders stays usable.
+    """
+    if not repo_root.is_dir():
+        return set()
+    return {
+        child.name
+        for child in repo_root.iterdir()
+        if child.is_dir()
+        and not child.name.startswith((".", "_"))
+        and (child / "SKILL.md").is_file()
+    }
 
 
 @dataclass
@@ -264,17 +293,26 @@ def validate(item: WorkItem) -> list[str]:
         >= V3_ADOPTION_TIME
     ):
         errors.append("metadata created after work-item/v3 adoption must declare schema_version")
+    if schema_version == "work-item/v3":
+        errors.extend(
+            validate_documentation_impact(
+                item, item.fields.get("work_status", ""), timestamps
+            )
+        )
 
     if "stages" in item.fields and not item.stages:
         errors.append("stages must contain at least one stage")
     seen_stages: set[str] = set()
     item_root = item.path.parent.resolve()
+    roster = skill_roster()
     for stage in item.stages:
         if stage.name in seen_stages:
             errors.append(f"duplicate stage: {stage.name}")
         seen_stages.add(stage.name)
         if not stage.skill:
             errors.append(f"stage {stage.name} has empty skill")
+        elif roster and stage.skill not in roster:
+            errors.append(f"stage {stage.name} names an unknown skill: {stage.skill}")
         if stage.status not in STAGE_STATUSES:
             errors.append(f"invalid stage status for {stage.name}: {stage.status}")
         artifact = Path(stage.file)
@@ -338,6 +376,160 @@ def validate_execution_artifacts(
                 errors.append(
                     f"completed work item stage {stage.name} must not remain {stage.status}"
                 )
+    return errors
+
+
+@lru_cache(maxsize=None)
+def _git_toplevel(directory: str) -> str:
+    """The Git working-tree top level containing `directory`, or "" if there is none.
+
+    Cached on the directory because every item under one work root shares the same
+    answer, so a repository-wide check spawns one `git` process, not one per item.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "-C", directory, "rev-parse", "--show-toplevel"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return ""
+    return proc.stdout.strip() if proc.returncode == 0 else ""
+
+
+def workspace_root(work_root: Path) -> Path | None:
+    """The workspace a `doc:` result is resolved against, or None if there is none.
+
+    `<workspace>/docs/work` is only ARTIFACTS.md's default layout and `--work-root` is
+    a public option, so the workspace cannot be a fixed number of levels above the work
+    root: `.work/` at the workspace top level would anchor two directories too high.
+    The Git working tree holding the work root is the workspace anchor the rest of the
+    repository already uses (scripts/export-public.sh, the journey grader), and it holds
+    at any depth. Returning None where there is no working tree lets the caller fail
+    closed instead of guessing a base directory.
+    """
+    top = _git_toplevel(str(work_root))
+    return Path(top).resolve() if top else None
+
+
+def validate_documentation_impact(
+    item: WorkItem, work_status: str, timestamps: dict[str, datetime]
+) -> list[str]:
+    """Check the single documentation-impact result a completed work item carries.
+
+    Exactly one result, in exactly two legal forms: a named project document, or a
+    bounded N/A reason. The field is a scalar, so "exactly one" needs no counting -- a
+    second line is already rejected as a duplicate field.
+
+    A path inside the work item is refused: reports, journals, and plans record what
+    happened, and treating them as the documentation-impact result would let every item
+    satisfy the rule with the artifact it was going to write anyway.
+
+    A named document must also exist, because a path that resolves to nothing proves no
+    document was updated. Existence is the whole bound: content is never inspected and
+    no hash is taken, since a hash proves an artifact's identity, never its semantics.
+    This stays a shape, location, and existence check; it never proves the named
+    document was actually updated.
+    """
+
+    errors: list[str] = []
+    value = item.fields.get("documentation_impact", "").strip()
+    if not value:
+        updated = timestamps.get("updated_at", datetime.min.replace(tzinfo=timezone.utc))
+        if work_status == "completed" and updated >= D3_ADOPTION_TIME:
+            errors.append(
+                "completed work requires exactly one documentation_impact result: "
+                f"record {DOCUMENTATION_IMPACT_FORMS}"
+            )
+        return errors
+
+    kind, separator, detail = value.partition(":")
+    kind = kind.strip()
+    detail = detail.strip()
+    if not separator or kind not in {"doc", "n/a"}:
+        errors.append(
+            f"invalid documentation_impact: {value}; use {DOCUMENTATION_IMPACT_FORMS}"
+        )
+        return errors
+
+    if kind == "n/a":
+        if not detail:
+            errors.append(
+                f"documentation_impact n/a needs a bounded reason; use {DOCUMENTATION_IMPACT_FORMS}"
+            )
+        elif len(detail) > DOCUMENTATION_IMPACT_MAX_REASON:
+            errors.append(
+                "documentation_impact n/a reason must be at most "
+                f"{DOCUMENTATION_IMPACT_MAX_REASON} characters"
+            )
+        return errors
+
+    if not detail:
+        errors.append(
+            f"documentation_impact doc needs a document; use {DOCUMENTATION_IMPACT_FORMS}"
+        )
+        return errors
+    document = Path(detail)
+    if document.is_absolute() or ".." in document.parts:
+        errors.append(
+            f"documentation_impact doc must be a workspace-relative path: {detail}"
+        )
+        return errors
+    # Two ways to name the work item's own history: relative to the item
+    # (`implement-report.md`) or from the workspace (`docs/work/<slug>/plan/plan.md`).
+    # The workspace form is matched on the adjacent pair <work-root>/<slug> rather than
+    # on the slug alone, so a project document that merely sits in a directory sharing
+    # the item's name stays a legal result.
+    item_root = item.path.parent
+    location = (item_root.parent.name, item_root.name)
+    parts = document.parts
+    inside_work_item = any(parts[index : index + 2] == location for index in range(len(parts)))
+    if (item_root / document).exists() or inside_work_item:
+        errors.append(
+            f"documentation_impact names work-history inside the work item: {detail}; "
+            "name a canonical project document outside it"
+        )
+        return errors
+    # `doc:` is workspace-relative (ARTIFACTS.md), so the result is resolved against the
+    # workspace holding the work root at whatever depth `--work-root` puts it.
+    work_root = item_root.parent
+    workspace = workspace_root(work_root)
+    if workspace is None:
+        errors.append(
+            f"documentation_impact cannot be verified: the work root {work_root} is not "
+            "inside a Git working tree, so there is no workspace to resolve "
+            f"{detail} against; run the check inside a Git working tree and "
+            f"record {DOCUMENTATION_IMPACT_FORMS}"
+        )
+        return errors
+    # The resolved target has to stay in the workspace, not just be reachable from it: a
+    # symlink inside the workspace pointing outside it is a path the project does not
+    # own, so following it would accept a document the project never updated.
+    resolved = (workspace / document).resolve()
+    if not resolved.is_relative_to(workspace):
+        errors.append(
+            f"documentation_impact names a document outside the workspace: {detail} "
+            f"resolves to {resolved}, outside {workspace}"
+            "; name a project document inside the workspace and "
+            f"record {DOCUMENTATION_IMPACT_FORMS}"
+        )
+        return errors
+    # The lexical work-history match above cannot see a symlink whose target is the
+    # work item itself, so the resolved target is held to the same rule.
+    if resolved.is_relative_to(item_root.resolve()):
+        errors.append(
+            f"documentation_impact resolves to work-history inside the work item: "
+            f"{detail} resolves to {resolved}; name a canonical project document "
+            "outside it"
+        )
+        return errors
+    if not resolved.is_file():
+        errors.append(
+            f"documentation_impact names a document that does not exist: {detail}; "
+            f"record {DOCUMENTATION_IMPACT_FORMS}"
+        )
     return errors
 
 

@@ -581,6 +581,8 @@ symlink_source_rc=$?
 set -e
 assert_neq "0" "$symlink_source_rc" "canonical local source rejects symlink escape"
 assert_contains "$symlink_source_output" "escapes Git workspace" "symlink escape error is actionable"
+assert_contains "$symlink_source_output" "local source escapes Git workspace through a symlink: ../../../../docs/reference/escaped.md" "Sources symlink escape keeps its Source-oriented wording"
+assert_not_contains "$symlink_source_output" "verification evidence must stay inside" "Sources symlink escape does not borrow the evidence rule"
 
 PROSE_SOURCE_ROOT="$TMP/canonical-prose-source"
 cp -R "$CANONICAL_WORKSPACE" "$PROSE_SOURCE_ROOT"
@@ -602,6 +604,142 @@ multiple_source_output="$(python3 "$REPO/plan-sync/scripts/validate_consistency.
 multiple_source_rc=$?
 set -e
 assert_neq "0" "$multiple_source_rc" "canonical local source does not guess among multiple paths"
+
+# --- cross-repo participants -------------------------------------------------
+# A task that references work this repo cannot reach must declare where the other
+# repo is, instead of being rejected as a bare workspace escape.
+
+# A real checkout, not a `.git` marker: participant identity is confirmed by Git
+# itself, so the positive fixtures must be repos Git recognizes.
+git init -q "$TMP/other-repo" >/dev/null 2>&1
+mkdir -p "$TMP/other-repo/docs"
+printf 'participant artifact\n' > "$TMP/other-repo/docs/note.md"
+printf 'T01-PASS: participant-side verification record.\n' > "$TMP/other-repo/docs/evidence.md"
+
+PARTICIPANT_ROOT="$TMP/canonical-participant"
+cp -R "$CANONICAL_WORKSPACE" "$PARTICIPANT_ROOT"
+PARTICIPANT_PLAN="$PARTICIPANT_ROOT/docs/work/canonical/plan"
+perl -0pi -e 's#- local: ../prd\.md#- repo: other\@../other-repo\n- local: ../prd.md#' "$PARTICIPANT_PLAN/plan.md"
+set +e
+participant_output="$(python3 "$REPO/plan-sync/scripts/validate_consistency.py" --plan-dir "$PARTICIPANT_PLAN" 2>&1)"
+participant_rc=$?
+set -e
+assert_eq "0" "$participant_rc" "canonical Sources accept a declared participant repo"
+
+PARTICIPANT_REF_ROOT="$TMP/canonical-participant-ref"
+cp -R "$CANONICAL_WORKSPACE" "$PARTICIPANT_REF_ROOT"
+PARTICIPANT_REF_PLAN="$PARTICIPANT_REF_ROOT/docs/work/canonical/plan"
+perl -0pi -e 's#- local: ../prd\.md\#AC-001#- repo: other\@../other-repo\n- local: ../../../../../other-repo/docs/note.md#' "$PARTICIPANT_REF_PLAN/plan.md"
+set +e
+participant_ref_output="$(python3 "$REPO/plan-sync/scripts/validate_consistency.py" --plan-dir "$PARTICIPANT_REF_PLAN" 2>&1)"
+participant_ref_rc=$?
+set -e
+assert_eq "0" "$participant_ref_rc" "local source resolving inside a declared participant is accepted"
+
+UNDECLARED_PARTICIPANT_ROOT="$TMP/canonical-undeclared-participant"
+cp -R "$CANONICAL_WORKSPACE" "$UNDECLARED_PARTICIPANT_ROOT"
+UNDECLARED_PARTICIPANT_PLAN="$UNDECLARED_PARTICIPANT_ROOT/docs/work/canonical/plan"
+perl -0pi -e 's#- local: ../prd\.md\#AC-001#- local: ../../../../../other-repo/docs/note.md#' "$UNDECLARED_PARTICIPANT_PLAN/plan.md"
+set +e
+undeclared_participant_output="$(python3 "$REPO/plan-sync/scripts/validate_consistency.py" --plan-dir "$UNDECLARED_PARTICIPANT_PLAN" 2>&1)"
+undeclared_participant_rc=$?
+set -e
+assert_neq "0" "$undeclared_participant_rc" "local source outside every declared participant stays rejected"
+assert_contains "$undeclared_participant_output" "no declared participant repo" "undeclared participant error names the missing declaration"
+
+# A declared participant widens Sources only. Verification evidence stays in the
+# repo making the claim, so the rejection must state that rule instead of telling
+# the author to declare a repo that is already declared.
+PARTICIPANT_EVIDENCE_ROOT="$TMP/canonical-participant-evidence"
+cp -R "$CANONICAL_WORKSPACE" "$PARTICIPANT_EVIDENCE_ROOT"
+PARTICIPANT_EVIDENCE_PLAN="$PARTICIPANT_EVIDENCE_ROOT/docs/work/canonical/plan"
+perl -0pi -e 's#- local: ../prd\.md\#AC-001#- repo: other\@../other-repo\n- local: ../prd.md\#AC-001#' "$PARTICIPANT_EVIDENCE_PLAN/plan.md"
+perl -0pi -e 's#- PASS \| local:\.\./evidence\.md\#T01-PASS#- PASS | local:../../../../../other-repo/docs/evidence.md\#T01-PASS#' "$PARTICIPANT_EVIDENCE_PLAN/plan.md"
+set +e
+participant_evidence_output="$(python3 "$REPO/plan-sync/scripts/validate_consistency.py" --plan-dir "$PARTICIPANT_EVIDENCE_PLAN" 2>&1)"
+participant_evidence_rc=$?
+set -e
+assert_neq "0" "$participant_evidence_rc" "verification evidence inside a declared participant stays rejected"
+assert_contains "$participant_evidence_output" "verification evidence must stay inside the repo making the claim" "evidence escape error states the evidence rule"
+assert_not_contains "$participant_evidence_output" "declare the other repo in Sources" "evidence escape error does not tell the author to declare the repo"
+
+# A participant is a repo, not any reachable folder. A plain directory carries no
+# repo identity, so accepting it would let the boundary be widened by mkdir.
+mkdir -p "$TMP/plain-dir/docs"
+printf 'not a repo\n' > "$TMP/plain-dir/docs/note.md"
+PLAIN_PARTICIPANT_ROOT="$TMP/canonical-plain-participant"
+cp -R "$CANONICAL_WORKSPACE" "$PLAIN_PARTICIPANT_ROOT"
+PLAIN_PARTICIPANT_PLAN="$PLAIN_PARTICIPANT_ROOT/docs/work/canonical/plan"
+perl -0pi -e 's#- local: ../prd\.md#- repo: plain\@../plain-dir\n- local: ../prd.md#' "$PLAIN_PARTICIPANT_PLAN/plan.md"
+set +e
+plain_participant_output="$(python3 "$REPO/plan-sync/scripts/validate_consistency.py" --plan-dir "$PLAIN_PARTICIPANT_PLAN" 2>&1)"
+plain_participant_rc=$?
+set -e
+assert_neq "0" "$plain_participant_rc" "participant declaration rejects a plain non-Git directory"
+assert_contains "$plain_participant_output" "is not a Git working tree" "non-Git participant error names the missing repo identity"
+
+# `mkdir .git` is not repo identity. A directory carrying only the marker Git
+# looks for must be rejected, or the participant boundary is forgeable.
+mkdir -p "$TMP/fake-git-repo/.git" "$TMP/fake-git-repo/docs"
+printf 'not a real checkout\n' > "$TMP/fake-git-repo/docs/note.md"
+FAKE_GIT_PARTICIPANT_ROOT="$TMP/canonical-fake-git-participant"
+cp -R "$CANONICAL_WORKSPACE" "$FAKE_GIT_PARTICIPANT_ROOT"
+FAKE_GIT_PARTICIPANT_PLAN="$FAKE_GIT_PARTICIPANT_ROOT/docs/work/canonical/plan"
+perl -0pi -e 's#- local: ../prd\.md#- repo: fake\@../fake-git-repo\n- local: ../prd.md#' "$FAKE_GIT_PARTICIPANT_PLAN/plan.md"
+set +e
+fake_git_participant_output="$(python3 "$REPO/plan-sync/scripts/validate_consistency.py" --plan-dir "$FAKE_GIT_PARTICIPANT_PLAN" 2>&1)"
+fake_git_participant_rc=$?
+set -e
+assert_neq "0" "$fake_git_participant_rc" "participant declaration rejects an empty .git marker directory"
+assert_contains "$fake_git_participant_output" "is not a Git working tree" "forged-marker participant error names the missing repo identity"
+
+# Leaving the workspace directory is not leaving the repo: a sibling that Git
+# reports under the same working tree is this repo, however the path is spelled.
+ENCLOSING_ROOT="$TMP/enclosing-repo"
+git init -q "$ENCLOSING_ROOT" >/dev/null 2>&1
+mkdir -p "$ENCLOSING_ROOT/sibling/docs"
+printf 'same repo, different folder\n' > "$ENCLOSING_ROOT/sibling/docs/note.md"
+cp -R "$CANONICAL_WORKSPACE" "$ENCLOSING_ROOT/nested-workspace"
+SAME_TREE_PLAN="$ENCLOSING_ROOT/nested-workspace/docs/work/canonical/plan"
+perl -0pi -e 's#- local: ../prd\.md#- repo: sibling\@../sibling\n- local: ../prd.md#' "$SAME_TREE_PLAN/plan.md"
+set +e
+same_tree_output="$(python3 "$REPO/plan-sync/scripts/validate_consistency.py" --plan-dir "$SAME_TREE_PLAN" 2>&1)"
+same_tree_rc=$?
+set -e
+assert_neq "0" "$same_tree_rc" "participant declaration rejects a sibling in this repo's Git working tree"
+assert_contains "$same_tree_output" "belongs to this repo's Git working tree" "same-working-tree participant error names the shared repo identity"
+
+# The boundary must survive symlink resolution: an outside path that resolves back
+# into this repo is this repo, and must be referenced as a local source.
+SYMLINK_PARTICIPANT_ROOT="$TMP/canonical-symlink-participant"
+cp -R "$CANONICAL_WORKSPACE" "$SYMLINK_PARTICIPANT_ROOT"
+SYMLINK_PARTICIPANT_PLAN="$SYMLINK_PARTICIPANT_ROOT/docs/work/canonical/plan"
+ln -s "$SYMLINK_PARTICIPANT_ROOT/docs" "$TMP/symlinked-participant"
+perl -0pi -e 's#- local: ../prd\.md#- repo: inside\@../symlinked-participant\n- local: ../prd.md#' "$SYMLINK_PARTICIPANT_PLAN/plan.md"
+set +e
+symlink_participant_output="$(python3 "$REPO/plan-sync/scripts/validate_consistency.py" --plan-dir "$SYMLINK_PARTICIPANT_PLAN" 2>&1)"
+symlink_participant_rc=$?
+set -e
+assert_neq "0" "$symlink_participant_rc" "participant declaration rejects a symlink resolving back inside this repo"
+assert_contains "$symlink_participant_output" "resolves back inside this repo through a symlink" "symlinked-inside participant error names the resolved location"
+assert_contains "$symlink_participant_output" '`- local: ...`' "symlinked-inside participant error names the local remedy"
+
+# Evidence context owns its own rule, so the symlink-escape rejection must state
+# the evidence rule rather than the Source-oriented wording.
+printf 'T01-PASS: evidence recorded outside the repo.\n' > "$TMP/outside-evidence.md"
+EVIDENCE_SYMLINK_ROOT="$TMP/canonical-evidence-symlink"
+cp -R "$CANONICAL_WORKSPACE" "$EVIDENCE_SYMLINK_ROOT"
+EVIDENCE_SYMLINK_PLAN="$EVIDENCE_SYMLINK_ROOT/docs/work/canonical/plan"
+ln -s "$TMP/outside-evidence.md" "$EVIDENCE_SYMLINK_ROOT/docs/reference/linked-evidence.md"
+perl -0pi -e 's#- PASS \| local:\.\./evidence\.md\#T01-PASS#- PASS | local:../../../../docs/reference/linked-evidence.md\#T01-PASS#' "$EVIDENCE_SYMLINK_PLAN/plan.md"
+set +e
+evidence_symlink_output="$(python3 "$REPO/plan-sync/scripts/validate_consistency.py" --plan-dir "$EVIDENCE_SYMLINK_PLAN" 2>&1)"
+evidence_symlink_rc=$?
+set -e
+assert_neq "0" "$evidence_symlink_rc" "verification evidence rejects a symlink escaping the workspace"
+assert_contains "$evidence_symlink_output" "T01 Verification Evidence reference escapes Git workspace through a symlink" "evidence symlink escape is reported in evidence context"
+assert_contains "$evidence_symlink_output" "verification evidence must stay inside the repo making the claim" "evidence symlink escape states the evidence rule"
+assert_not_contains "$evidence_symlink_output" "plan.md:0: local source" "evidence symlink escape does not fall back to the Source-oriented message"
 
 INVALID_EXTERNAL_ROOT="$TMP/canonical-invalid-external"
 cp -R "$CANONICAL_WORKSPACE" "$INVALID_EXTERNAL_ROOT"

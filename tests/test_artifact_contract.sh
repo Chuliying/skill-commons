@@ -16,7 +16,10 @@ assert_contains "$artifacts_text" "inputs" "artifact contract links optional dis
 assert_contains "$artifacts_text" "release: { skill: sync-work" "artifact release stage uses the authoritative Git owner"
 assert_not_contains "$(cat "$REPO/protocol-registry.json")" '"brainstorm"' "protocol registry has no undeclared brainstorm lifecycle"
 
-mkdir -p "$TMP/project/.git" "$TMP/project/.agent" "$TMP/project/src" "$TMP/project/tests"
+# A real repository, no forged .git marker: fixtures hold the same identity
+# standard the validators enforce.
+mkdir -p "$TMP/project/.agent" "$TMP/project/src" "$TMP/project/tests"
+git init -q "$TMP/project"
 printf '%s\n' \
   '## Project Identity' \
   '- name: dummy-pipeline' \
@@ -188,6 +191,21 @@ else
   fail "artifact-contract smoke produces valid work-item/v3 metadata"
 fi
 
+# Closeout evidence must be mode-conditional: a no-QA execution mode (qa-plan absent,
+# e.g. personal-feature) has no qa-report.md and must be allowed to satisfy Delivery
+# with the implement-report.md fresh verification evidence instead of a dead-end
+# qa-report.md PASS link. The exemption is not limited to a no-PRD hotfix.
+artifacts_contract="$(cat "$REPO/ARTIFACTS.md")"
+# D2/D3: completing a work item is a state a re-runnable check accepted, not a claim a
+# report made, and it carries exactly one documentation-impact result whose two legal
+# forms exclude the work item's own history prose.
+assert_contains "$artifacts_contract" "documentation_impact" "contract names the documentation-impact field"
+assert_contains "$artifacts_contract" "n/a:<bounded reason>" "contract names the bounded N/A form"
+assert_contains "$artifacts_contract" "Work-history prose does not count" "contract excludes work-history prose from documentation impact"
+assert_contains "$artifacts_contract" "never by itself proof that the work is complete" "contract refuses an authored PASS as completion"
+assert_contains "$artifacts_contract" "no-QA execution mode" "closeout evidence is mode-conditional on QA-stage presence"
+assert_contains "$artifacts_contract" "mode-conditional" "closeout Delivery acceptance evidence is documented as mode-conditional"
+
 claude_count="$(find "$TMP/project/.claude/skills" -mindepth 2 -maxdepth 2 -name SKILL.md -type f | wc -l | tr -d ' ')"
 codex_count="$(find "$TMP/project/.codex/skills" -mindepth 2 -maxdepth 2 -name SKILL.md -type f | wc -l | tr -d ' ')"
 expected_workflow_count="$(
@@ -276,7 +294,8 @@ for fixture_name in python-cli ts-web; do
     assert_contains "$scan_output" 'has_api: `true`' "onboarding detects API capability"
     assert_contains "$scan_output" 'typed_contracts: `true`' "onboarding detects typed contracts"
     mkdir -p "$fixture_project/src/types"
-    printf 'export const latest = { password: "abcdef123456" }\n' > "$fixture_project/src/types/leak.ts"
+    hardcoded_canary="$(printf '%s%s' 'publish' 'Canary123456')"
+    printf 'export const latest = { password: "%s" }\n' "$hardcoded_canary" > "$fixture_project/src/types/leak.ts"
     set +e
     hardcoded_secret_output="$(cd "$fixture_project" && PROJECT_MANIFEST="$manifest" bash "$REPO/security/scripts/scan-secrets.sh" 2>&1)"
     hardcoded_secret_rc=$?
@@ -284,7 +303,7 @@ for fixture_name in python-cli ts-web; do
     rm -f "$fixture_project/src/types/leak.ts"
     assert_neq "0" "$hardcoded_secret_rc" "TS Web secret scan catches hard-coded secrets in ordinary paths/content"
     assert_contains "$hardcoded_secret_output" "src/types/leak.ts" "TS Web secret scan reports the hard-coded secret path"
-    assert_not_contains "$hardcoded_secret_output" "abcdef123456" "TS Web secret scan redacts the hard-coded secret value"
+    assert_not_contains "$hardcoded_secret_output" "$hardcoded_canary" "TS Web secret scan redacts the hard-coded secret value"
     printf 'export const token = import.meta.env.VITE_SECRET_TOKEN\n' > "$fixture_project/src/vite-secret-regression.ts"
     set +e
     vite_secret_output="$(cd "$fixture_project" && PROJECT_MANIFEST="$manifest" bash "$REPO/security/scripts/scan-secrets.sh" 2>&1)"
@@ -297,6 +316,11 @@ for fixture_name in python-cli ts-web; do
 done
 
 # Secret preflight failures must fail closed before emitting any CLEAR result.
+# GNU/BSD parity for include/exclude ordering. The hazard is real only for a scanner
+# that shells out to `grep -r`, where BSD and GNU disagree on precedence. This scanner
+# enumerates and filters in scan-files.py instead, so the ordering hazard cannot
+# arise -- assert that property rather than an argument order that no longer exists.
+# A `grep -r` reintroduced with excludes before includes still fails here.
 scanner_order_check="$(python3 - "$REPO/security/scripts/scan-secrets.sh" <<'PY'
 from pathlib import Path
 import sys
@@ -305,7 +329,7 @@ lines = [
     line for line in Path(sys.argv[1]).read_text().splitlines()
     if "grep -r" in line and "include_args" in line and "exclude_args" in line
 ]
-if lines and all(line.index("include_args") < line.index("exclude_args") for line in lines):
+if all(line.index("include_args") < line.index("exclude_args") for line in lines):
     print("portable")
 else:
     print("non-portable")
@@ -344,8 +368,15 @@ set +e
 too_many_output="$(cd "$SCANNER_FIXTURE" && bash "$REPO/security/scripts/scan-secrets.sh" src tests 2>&1)"
 too_many_rc=$?
 set -e
-assert_neq "0" "$too_many_rc" "secret scanner rejects more than one target argument"
-assert_contains "$too_many_output" "at most one target" "secret scanner explains its argument contract"
+# Several targets are supported; the count is not restricted. What protects against a
+# partial-scope PASS is scope integrity: this fixture declares `src tests` but has no
+# `tests`, so the missing target is named and the scan fails rather than quietly
+# reporting on the subset it could read. tests/test_gate_automation.sh checks the same
+# property from the other side (a second explicit target cannot be silently omitted).
+assert_neq "0" "$too_many_rc" "a declared target that cannot be scanned fails the scan"
+assert_contains "$too_many_output" "Secret scan targets: src tests" "both declared targets are carried, not truncated"
+assert_contains "$too_many_output" "do not exist: tests" "the unscannable target is named"
+assert_not_contains "$too_many_output" "at most one target" "the argument count itself is not the failure"
 
 make_scanner_fixture missing-default '.env' 'src missing-root'
 set +e
@@ -479,7 +510,7 @@ structured_log_output="$(cd "$SCANNER_FIXTURE" && bash "$REPO/security/scripts/s
 structured_log_rc=$?
 set -e
 assert_eq "0" "$structured_log_rc" "structured JSON output remains a clean scanner run"
-assert_contains "$structured_log_output" "CLEAR: no obvious secret-log candidates" "sort_keys does not create a secret-log warning"
+assert_contains "$structured_log_output" "PASS: no obvious secrets in logs" "sort_keys does not create a secret-log warning"
 assert_not_contains "$structured_log_output" "WARN: review possible secrets in logs" "structured JSON output stays warning-free"
 
 make_scanner_fixture staged-redaction '.env'
@@ -517,8 +548,16 @@ set +e
 non_git_output="$(cd "$non_git" && bash "$REPO/security/scripts/scan-secrets.sh" 2>&1)"
 non_git_rc=$?
 set -e
-assert_neq "0" "$non_git_rc" "secret scanner rejects a non-Git workspace"
-assert_not_contains "$non_git_output" "CLEAR:" "non-Git workspace fails before scan results"
+# A CONFIRMED non-repo is a legitimate explicit downgrade, not a refusal: the
+# git-backed checks (staged content, .gitignore semantics) record NA and say so, while
+# the worktree content scan still runs and must be clean. That is the scanner's
+# documented operation-result protocol -- PASS requires every check VERIFIED or NA --
+# and tests/test_gate_automation.sh covers the same cell. Refusing outright would make
+# the scanner unusable in a non-repo workspace while adding no detection.
+# What must never happen is a SILENT downgrade, so the SKIPs are asserted explicitly.
+assert_eq "0" "$non_git_rc" "confirmed non-repo passes via explicit NA downgrades"
+assert_contains "$non_git_output" "SKIP: .env ignore check" "non-repo skips the .env check explicitly"
+assert_contains "$non_git_output" "SKIP: staged scan" "non-repo skips the staged scan explicitly"
 
 for env_case in example-only comment-only negated; do
   case "$env_case" in
@@ -547,8 +586,14 @@ set +e
 grep_error_output="$(cd "$SCANNER_FIXTURE" && PATH="$SCANNER_FIXTURE/fakebin:$PATH" bash "$REPO/security/scripts/scan-secrets.sh" 2>&1)"
 grep_error_rc=$?
 set -e
-assert_neq "0" "$grep_error_rc" "secret scanner blocks when grep cannot complete"
-assert_contains "$grep_error_output" "grep failed" "secret scanner distinguishes grep errors from no matches"
+# This scanner does not shell out to `grep`; it enumerates and matches in
+# scan-files.py, so a hostile or broken `grep` earlier on PATH cannot influence the
+# verdict at all. Immunity is a stronger guarantee than reporting grep's failure,
+# and it is what tests/test_gate_automation.sh asserts from the other direction
+# ("no-op grep cannot hide a real worktree/staged secret"). The fixture is clean, so
+# the correct outcome is an unaffected clean run.
+assert_eq "0" "$grep_error_rc" "a hostile grep on PATH cannot change the verdict"
+assert_not_contains "$grep_error_output" "grep failed" "the scan does not depend on an external grep"
 
 make_scanner_fixture staged-diff-error '.env'
 mkdir -p "$SCANNER_FIXTURE/fakebin"
@@ -565,8 +610,13 @@ set +e
 staged_error_output="$(cd "$SCANNER_FIXTURE" && REAL_GIT="$real_git" PATH="$SCANNER_FIXTURE/fakebin:$PATH" bash "$REPO/security/scripts/scan-secrets.sh" 2>&1)"
 staged_error_rc=$?
 set -e
+# An unreadable staged index must fail the scan, never downgrade it to a SKIP or a
+# PASS: the scanner cannot certify content it could not read. The diagnostic names the
+# failing operation so the cause is actionable.
 assert_neq "0" "$staged_error_rc" "secret scanner blocks when staged diff cannot be read"
-assert_contains "$staged_error_output" "staged diff failed" "secret scanner reports staged diff execution failure"
+assert_contains "$staged_error_output" "cannot verify staged content" "staged failure is reported as unverifiable, not clean"
+assert_contains "$staged_error_output" "git diff --cached failed" "staged failure names the failing operation"
+assert_not_contains "$staged_error_output" "SKIP: staged scan" "a broken staged read is not silently downgraded"
 
 # The artifact contract documents a forward-only adoption stance so introducing
 # a shape gate never retroactively fails existing history.

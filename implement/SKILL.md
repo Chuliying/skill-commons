@@ -3,7 +3,8 @@ name: implement
 description: |
   使用 RED-GREEN-REFACTOR 實作 feature、bug fix 或 refactor。Use when: router 已指定 Execution Mode，且需要測試先行的程式碼變更。
   觸發關鍵字: implement, 實作, TDD, test first, coding, 開發
-source_kind: original
+source: obra/superpowers@d884ae04edebef577e82ff7c4e143debd0bbec99
+source_kind: adapted
 stage: implement
 output: <work_root>/<slug>/implement-report.md
 ---

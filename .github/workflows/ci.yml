@@ -16,8 +16,11 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Verify repository
-        run: bash tests/run-all.sh
+      - name: Verify repository (canonical runner; discovers every suite)
+        run: bash tests/verify.sh
+
+      - name: Lint documentation
+        run: bash scripts/lint-docs.sh
 
   bash-32-compat:
     runs-on: macos-latest

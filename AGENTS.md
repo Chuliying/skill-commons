@@ -13,7 +13,7 @@
 ## Commands
 
 - Generate (maintainer full fan-out): `PROFILE=all bash bootstrap/generate.sh`
-- Verify: `bash tests/run-all.sh`
+- Verify: `bash tests/verify.sh`
 
 ## Navigation
 

@@ -698,7 +698,12 @@ EOF
     fail "payload commit keeps ignore files under hostile global excludes"
   fi
   PAYLOAD_LOG="$TMP/payload-suite.log"
+  # VERIFY_ACTIVE must not leak into the payload run. The canonical runner has a
+  # re-entrancy guard for accidental nesting inside ONE tree; the payload is a
+  # separate exported tree whose suite legitimately runs its own full gate, so
+  # inheriting the flag would abort it as a false positive.
   if (cd "$EXPORT_TMP" &&
+      unset VERIFY_ACTIVE &&
       PROFILE=all bash bootstrap/generate.sh &&
       SKILL_COMMONS_PAYLOAD_CHECK=1 bash tests/run-all.sh) >"$PAYLOAD_LOG" 2>&1; then
     TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: payload passes its complete public test suite without private files"
@@ -921,7 +926,7 @@ else:
         "pull_request:",
         "runs-on: ubuntu-latest",
         "runs-on: macos-latest",
-        "run: bash tests/run-all.sh",
+        "run: bash tests/verify.sh",
         "run: /bin/bash --version",
         "run: PATH=/usr/bin:/bin /bin/bash tests/bootstrap/test_generate_safety.sh",
         "run: PATH=/usr/bin:/bin /bin/bash tests/bootstrap/test_manage.sh",
@@ -943,7 +948,7 @@ else:
     claude_verify = verify_commands("CLAUDE.md")
     if agents_verify != claude_verify:
         errors.append("AGENTS.md and CLAUDE.md Verify chains diverge")
-    if agents_verify != ["bash tests/run-all.sh"]:
+    if agents_verify != ["bash tests/verify.sh"]:
         errors.append("AGENTS.md and CLAUDE.md must expose one canonical root Verify command")
     for command in agents_verify:
         if f"run: {command}" not in active_tokens:
@@ -956,33 +961,41 @@ if not root_runner_path.is_file():
     errors.append("missing canonical tests/run-all.sh")
 else:
     root_runner = root_runner_path.read_text(errors="replace")
-    expected_suites = (
-        "tests/test_skills_reorg.sh",
-        "tests/test_release_baseline.sh",
-        "tests/test_profiles.sh",
-        "tests/test_artifact_contract.sh",
-        "tests/test_work_items.sh",
-        "tests/test_protocol_registry.sh",
-        "tests/test_plan_sync.sh",
-        "tests/test_project_status.sh",
-        "tests/test_repo_map.sh",
-        "tests/test_journey_evals.sh",
-        "tests/test_gate_automation.sh",
-        "tests/test_brainstorming.sh",
-        "tests/test_release_convergence.sh",
-        "tests/bootstrap/run-all.sh",
-    )
-    for suite in expected_suites:
-        if root_runner.count(suite) != 1:
-            errors.append(f"canonical root runner must invoke {suite} exactly once")
     if "ALL TESTS PASSED" not in root_runner:
         errors.append("canonical root runner must emit the final success marker")
+
+# The roster is discovered from the tree, so assert on what actually runs. A
+# hand-listed roster is how a suite goes dark: this fails if any tests/test_*.sh
+# or tests/bootstrap/test_*.sh is missing from the resolved roster, and if the
+# python layers are absent.
+import subprocess
+roster = subprocess.run(
+    ["bash", "tests/verify.sh", "--list"],
+    cwd=repo, capture_output=True, text=True,
+)
+if roster.returncode != 0:
+    errors.append("tests/verify.sh --list must succeed")
+else:
+    roster_lines = set(roster.stdout.split("\n"))
+    for layer in ("layer unit", "layer integration", "layer e2e"):
+        if layer not in roster_lines:
+            errors.append(f"canonical roster missing {layer!r}")
+    discovered = sorted(
+        str(p.relative_to(repo))
+        for d in ("tests", "tests/bootstrap")
+        for p in (repo / d).glob("test_*.sh")
+    )
+    if not discovered:
+        errors.append("no test suites discovered; roster check is vacuous")
+    for suite in discovered:
+        if f"suite {suite}" not in roster_lines:
+            errors.append(f"suite {suite} exists but is not in the canonical roster")
 
 bootstrap_runner = (repo / "tests" / "bootstrap" / "run-all.sh").read_text(errors="replace")
 if "../test_" in bootstrap_runner:
     errors.append("bootstrap run-all must stay inside the bootstrap suite boundary")
 
-if "bash tests/run-all.sh" not in readme:
+if "bash tests/verify.sh" not in readme:
     errors.append("README maintainer verification must use the canonical root runner")
 
 if errors:
@@ -1090,8 +1103,12 @@ for token in (
     "無新依賴",
     "無 schema/API 變更",
     "任一條件不成立或不確定",
-    "implement（帶 failing test）",
+    "failing test",
     "verification-before-completion",
+    # Personal micro is native implementation: it creates no work item, no plan, and
+    # no implement dispatch, so the bounded fix cannot grow a durable artifact chain.
+    "不建立 work item",
+    "不派發 `implement`",
 ):
     if token not in section:
         errors.append(f"router Micro-task branch missing {token!r}")
@@ -1149,19 +1166,8 @@ for token in (
     if token not in head:
         errors.append(f"README first 35 lines missing positioning token {token!r}")
 
-ordered_sections = (
-    "## 核心價值",
-    "## 什麼時候值得用",
-    "## Quick Start",
-    "## 執行模型",
-    "## 信任與授權邊界",
-    "## 已驗證與尚未驗證",
-    "## 文件入口",
-    "## Maintainer verification",
-)
-positions = [readme.find(section) for section in ordered_sections]
-if any(position < 0 for position in positions) or positions != sorted(positions):
-    errors.append(f"README public-audience section order invalid: {list(zip(ordered_sections, positions))}")
+# README entry-section presence and order (both languages) are owned by
+# tests/test_release_convergence.sh — a single contract, no duplicated copy here.
 
 for token in ("execution_mode", "delivery_mode", "capability_packs", "submodule", "jq", "CONTRIBUTING.md", "CHANGELOG.md"):
     if token not in readme:
@@ -1213,12 +1219,14 @@ if "references/new-skill-checklist.md" not in skill_creator:
     errors.append("skill-creator must link its local lifecycle checklist reference")
 
 ci_path = repo / ".github/workflows/ci.yml"
-root_runner_path = repo / "tests/run-all.sh"
-if ci_path.is_file() and root_runner_path.is_file():
+if ci_path.is_file():
     ci = ci_path.read_text(errors="replace")
-    root_runner = root_runner_path.read_text(errors="replace")
-    if "bash tests/run-all.sh" not in ci or "tests/test_skills_reorg.sh" not in root_runner:
-        errors.append("CI must reach full documentation lint through the canonical root runner")
+    # CI must reach the docs lint through the canonical runner, and that runner
+    # must reach this suite by discovery rather than by being named in a list.
+    if "bash tests/verify.sh" not in ci:
+        errors.append("CI must invoke the canonical runner tests/verify.sh")
+    if not (repo / "tests/test_skills_reorg.sh").is_file():
+        errors.append("this suite must exist for discovery to reach it")
 
 valid_maturity = {"experimental", "stable"}
 core = set((repo / "profiles/core").read_text().split())

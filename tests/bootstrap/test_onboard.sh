@@ -450,4 +450,47 @@ else
   fail "onboard replaced dangling prerequisite symlink"
 fi
 
+# `--help` used to be taken as a positional target directory: onboard created a
+# directory literally named `--help`, fanned skills into it, wrote AGENTS.md and
+# CLAUDE.md into the repo root, and printed "onboard complete". Typing --help at an
+# unfamiliar script is the most likely first action a new consumer takes, so a silent
+# real installation is the worst possible response.
+HELP_REPO="$TMP/help-flag"
+mkdir -p "$HELP_REPO"
+( cd "$HELP_REPO" && git init -q . ) >/dev/null 2>&1
+set +e
+help_out="$( cd "$HELP_REPO" && bash "$REPO/bootstrap/onboard.sh" --help 2>&1 )"
+help_rc=$?
+set -e
+assert_eq "0" "$help_rc" "onboard --help exits successfully"
+assert_contains "$help_out" "usage" "onboard --help prints usage"
+assert_not_contains "$help_out" "onboard complete" "onboard --help does not perform an installation"
+if [ -e "$HELP_REPO/--help" ]; then
+  fail "onboard --help does not create a directory named --help"
+else
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: onboard --help does not create a directory named --help"
+fi
+if [ -e "$HELP_REPO/AGENTS.md" ] || [ -e "$HELP_REPO/CLAUDE.md" ]; then
+  fail "onboard --help leaves the repository untouched"
+else
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: onboard --help leaves the repository untouched"
+fi
+
+# Any other option-shaped argument is an unsafe target, not a directory to create.
+# security/scripts/scan-secrets.sh already rejects these; onboard did not.
+UNSAFE_REPO="$TMP/unsafe-flag"
+mkdir -p "$UNSAFE_REPO"
+( cd "$UNSAFE_REPO" && git init -q . ) >/dev/null 2>&1
+set +e
+unsafe_out="$( cd "$UNSAFE_REPO" && bash "$REPO/bootstrap/onboard.sh" --not-a-flag 2>&1 )"
+unsafe_rc=$?
+set -e
+assert_neq "0" "$unsafe_rc" "onboard rejects an option-shaped target"
+assert_contains "$unsafe_out" "unsafe" "onboard names the rejected target as unsafe"
+if [ -e "$UNSAFE_REPO/--not-a-flag" ]; then
+  fail "onboard does not create a directory from an option-shaped target"
+else
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: onboard does not create a directory from an option-shaped target"
+fi
+
 finish

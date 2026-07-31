@@ -6,8 +6,10 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
+from typing import NamedTuple
 from urllib.parse import urlsplit
 
 sys.dont_write_bytecode = True
@@ -39,8 +41,9 @@ ANGLE_CODE_FENCE_LANGUAGES = {
     "html", "javascript", "js", "jsx", "svelte", "tsx", "typescript", "ts", "vue", "xml"
 }
 ELLIPSIS_PLACEHOLDER_RE = re.compile(r"(?:^|:\s)(?:\.\.\.|…)$")
-SOURCE_LINE_RE = re.compile(r"^- (local|user|external): (\S(?:.*\S)?)$")
+SOURCE_LINE_RE = re.compile(r"^- (local|user|external|repo): (\S(?:.*\S)?)$")
 OPAQUE_SOURCE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/#@+\-]*$")
+REPO_SOURCE_RE = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._+\-]*)@(\S+)$")
 STABLE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:\-]*$")
 WINDOWS_ABSOLUTE_RE = re.compile(r"^[A-Za-z]:[\\/]")
 ID_BOUNDARY_CLASS = r"A-Za-z0-9_\-"
@@ -120,6 +123,34 @@ def git_workspace_root(path: Path) -> Path | None:
     return None
 
 
+def git_toplevel(path: Path) -> tuple[Path | None, bool, str]:
+    """Ask Git for the canonical top-level of the working tree holding `path`.
+
+    Returns `(top_level, git_ran, detail)`. A `.git` marker can be produced with
+    `mkdir`, so repo identity is never inferred from the filesystem: only Git can
+    confirm it, and every failure mode is reported instead of assumed benign.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(path), "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as exc:
+        return None, False, str(exc)
+    if proc.returncode != 0:
+        detail = next(
+            (line.strip() for line in reversed(proc.stderr.splitlines()) if line.strip()),
+            f"git rev-parse exited {proc.returncode}",
+        )
+        return None, True, detail
+    output = proc.stdout.strip()
+    if not output:
+        return None, True, "git rev-parse reported no working tree"
+    return Path(output).resolve(), True, ""
+
+
 def path_is_within(path: Path, root: Path) -> bool:
     try:
         path.relative_to(root)
@@ -135,7 +166,142 @@ def literal_id_exists(text: str, stable_id: str) -> bool:
     return pattern.search(text) is not None
 
 
-def validate_local_source(plan_dir: Path, value: str, line_number: int) -> list[str]:
+class Participant(NamedTuple):
+    """A repo declared in Sources that this repo's work depends on."""
+
+    identifier: str
+    lexical_root: Path
+    resolved_root: Path
+
+
+def resolve_repo_source(
+    plan_dir: Path, value: str
+) -> tuple[Participant | None, list[str]]:
+    """Parse `id@path` into a participant, or explain why it is not one.
+
+    Reasons carry no location prefix so the same resolution can be reported both
+    per plan line and per declared participant.
+    """
+    match = REPO_SOURCE_RE.fullmatch(value)
+    if not match:
+        return None, [
+            "must be an identifier, `@`, then a path relative to the workspace root"
+        ]
+
+    identifier, path_text = match.groups()
+    if Path(path_text).is_absolute() or WINDOWS_ABSOLUTE_RE.match(path_text):
+        return None, [
+            f"`{identifier}` must be relative to the workspace root so the plan "
+            "stays readable in another checkout"
+        ]
+
+    workspace_root = git_workspace_root(plan_dir)
+    if workspace_root is None:
+        return None, ["cannot be checked because no Git workspace was found"]
+
+    lexical_root = Path(os.path.abspath(workspace_root / path_text))
+    if path_is_within(lexical_root, workspace_root):
+        return None, [
+            f"`{identifier}` resolves inside this repo; reference it with "
+            "`- local: ...` instead"
+        ]
+    if not lexical_root.exists():
+        return None, [f"`{identifier}` does not exist: {path_text}"]
+    if not lexical_root.is_dir():
+        return None, [f"`{identifier}` is not a directory: {path_text}"]
+
+    # The boundary is only real if it survives symlink resolution, and only means
+    # something if the target carries a separate repo's identity.
+    resolved_root = lexical_root.resolve()
+    if path_is_within(resolved_root, workspace_root):
+        return None, [
+            f"`{identifier}` resolves back inside this repo through a symlink: "
+            f"{path_text}; reference it with `- local: ...` instead"
+        ]
+    # Identity is what Git reports, not what the filesystem suggests: `mkdir .git`
+    # must not be able to forge a participant repo.
+    participant_root, git_ran, detail = git_toplevel(resolved_root)
+    if participant_root is None and not git_ran:
+        return None, [
+            f"`{identifier}` cannot be verified because Git could not be run: "
+            f"{detail}"
+        ]
+    if participant_root is None:
+        return None, [
+            f"`{identifier}` is not a Git working tree: {path_text}; "
+            f"a participant must be a separate repo checkout ({detail})"
+        ]
+    # This repo keeps its marker-anchored workspace root — `local:` containment
+    # owns that rule — and Git's own top-level is used when Git can confirm one.
+    current_root, _, _ = git_toplevel(workspace_root)
+    if (current_root or workspace_root) == participant_root:
+        return None, [
+            f"`{identifier}` belongs to this repo's Git working tree: "
+            f"{path_text}; reference it with `- local: ...` instead"
+        ]
+
+    return Participant(identifier, lexical_root, resolved_root), []
+
+
+def validate_repo_source(
+    plan_dir: Path, value: str, line_number: int
+) -> tuple[Participant | None, list[str]]:
+    """Resolve one `repo:` Source line, reported at its location in plan.md."""
+    participant, reasons = resolve_repo_source(plan_dir, value)
+    return participant, [
+        f"plan.md:{line_number}: repo source {reason}" for reason in reasons
+    ]
+
+
+def repo_source_values(sources: list[str]) -> list[str]:
+    """The raw `identifier@path` value of every `repo:` Source line.
+
+    One definition, so readers of a plan never grow a second Sources parser.
+    """
+    values: list[str] = []
+    for entry in sources:
+        source_type, separator, value = entry.partition(":")
+        if separator and source_type.strip() == "repo":
+            values.append(value.strip())
+    return values
+
+
+def declared_participant_ids(sources: list[str]) -> list[str]:
+    """Participant identifiers declared in a plan's Sources, sorted and unique."""
+    identifiers: set[str] = set()
+    for value in repo_source_values(sources):
+        match = REPO_SOURCE_RE.fullmatch(value)
+        if match:
+            identifiers.add(match.group(1))
+    return sorted(identifiers)
+
+
+def declared_participant_errors(plan_dir: Path, sources: list[str]) -> list[str]:
+    """Why any declared participant cannot be resolved, sorted and unique.
+
+    Independent of whole-plan validity: a declared participant is part of the work
+    item's identity, so a reader must be told that one is unreachable rather than
+    seeing it silently disappear from the declaration.
+    """
+    errors: set[str] = set()
+    for value in repo_source_values(sources):
+        participant, reasons = resolve_repo_source(plan_dir, value)
+        if participant is None:
+            errors.update(f"declared participant {reason}" for reason in reasons)
+    return sorted(errors)
+
+
+def validate_local_source(
+    plan_dir: Path,
+    value: str,
+    line_number: int,
+    participants: list[Participant],
+    *,
+    evidence_context: str | None = None,
+) -> list[str]:
+    """Check one `local:` path. `evidence_context` names the claim being recorded,
+    which has no participants to widen it: declaring a repo cannot make foreign
+    evidence legal, so the escape message must not suggest it."""
     prefix = f"plan.md:{line_number}: local source"
     errors: list[str] = []
     if value.count("#") > 1:
@@ -155,10 +321,43 @@ def validate_local_source(plan_dir: Path, value: str, line_number: int) -> list[
 
     lexical_path = Path(os.path.abspath(plan_dir / path_text))
     resolved_path = (plan_dir / path_text).resolve(strict=False)
-    if not path_is_within(lexical_path, workspace_root):
-        return [f"{prefix} escapes Git workspace: {path_text}"]
-    if not path_is_within(resolved_path, workspace_root):
-        return [f"{prefix} escapes Git workspace through a symlink: {path_text}"]
+    if path_is_within(lexical_path, workspace_root):
+        if not path_is_within(resolved_path, workspace_root):
+            if evidence_context is not None:
+                return [
+                    f"{evidence_context} escapes Git workspace through a symlink: "
+                    f"{path_text}; verification evidence must stay inside the repo "
+                    "making the claim, so declaring the other repo as a participant "
+                    "does not unlock it"
+                ]
+            return [f"{prefix} escapes Git workspace through a symlink: {path_text}"]
+    else:
+        owner = next(
+            (
+                participant
+                for participant in participants
+                if path_is_within(lexical_path, participant.lexical_root)
+            ),
+            None,
+        )
+        if owner is None:
+            if evidence_context is not None:
+                return [
+                    f"{evidence_context} escapes Git workspace: {path_text}; "
+                    "verification evidence must stay inside the repo making the "
+                    "claim, so declaring the other repo as a participant does "
+                    "not unlock it"
+                ]
+            return [
+                f"{prefix} escapes Git workspace with no declared participant repo: "
+                f"{path_text}; declare the other repo in Sources as "
+                "`- repo: identifier@path`"
+            ]
+        if not path_is_within(resolved_path, owner.resolved_root):
+            return [
+                f"{prefix} escapes participant `{owner.identifier}` through a "
+                f"symlink: {path_text}"
+            ]
     if not resolved_path.exists():
         return [f"{prefix} does not exist: {path_text}"]
     if resolved_path.is_dir():
@@ -191,6 +390,7 @@ def validate_sources(plan_dir: Path, text: str) -> list[str]:
 
     heading_line = text[: text.index(body)].count("\n") + 1
     errors: list[str] = []
+    typed: list[tuple[str, str, int]] = []
     for offset, line in enumerate(body.splitlines(), 1):
         line_number = heading_line + offset
         if not line.strip():
@@ -199,12 +399,41 @@ def validate_sources(plan_dir: Path, text: str) -> list[str]:
         if not match or "`" in line:
             errors.append(
                 f"plan.md:{line_number}: expected typed source exactly as "
-                "`- local: ...`, `- user: ...`, or `- external: ...`"
+                "`- local: ...`, `- user: ...`, `- external: ...`, or `- repo: ...`"
             )
             continue
         source_type, value = match.groups()
+        typed.append((source_type, value, line_number))
+
+    # Participants are resolved first: a local reference may only leave this repo
+    # into a repo the plan has already declared.
+    participants: list[Participant] = []
+    seen_identifiers: set[str] = set()
+    for source_type, value, line_number in typed:
+        if source_type != "repo":
+            continue
+        participant, participant_errors = validate_repo_source(
+            plan_dir, value, line_number
+        )
+        errors.extend(participant_errors)
+        if participant is None:
+            continue
+        if participant.identifier in seen_identifiers:
+            errors.append(
+                f"plan.md:{line_number}: repo source `{participant.identifier}` is "
+                "declared more than once"
+            )
+            continue
+        seen_identifiers.add(participant.identifier)
+        participants.append(participant)
+
+    for source_type, value, line_number in typed:
+        if source_type == "repo":
+            continue
         if source_type == "local":
-            errors.extend(validate_local_source(plan_dir, value, line_number))
+            errors.extend(
+                validate_local_source(plan_dir, value, line_number, participants)
+            )
         elif source_type == "user":
             if not OPAQUE_SOURCE_RE.fullmatch(value):
                 errors.append(
@@ -223,12 +452,21 @@ def typed_reference_errors(
     context: str,
     *,
     allow_user: bool,
+    is_evidence: bool = False,
 ) -> list[str]:
     if ":" not in reference:
         return [f"{context} must use a typed local, user, or external reference"]
     reference_type, value = reference.split(":", 1)
     if reference_type == "local":
-        return validate_local_source(plan_dir, value, 0)
+        # Deliberately no participants: a Source may point into another repo, but
+        # verification evidence must still live in the repo making the claim.
+        return validate_local_source(
+            plan_dir,
+            value,
+            0,
+            [],
+            evidence_context=context if is_evidence else None,
+        )
     if reference_type == "user":
         if not allow_user:
             return [f"{context} cannot use a user reference as execution evidence"]
@@ -314,6 +552,7 @@ def verification_evidence_errors(plan_dir: Path, task: object) -> list[str]:
                 reference,
                 f"{task_id} Verification Evidence reference",
                 allow_user=False,
+                is_evidence=True,
             )
         )
         if command not in verification:

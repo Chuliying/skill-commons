@@ -172,11 +172,27 @@ def load_registry(path: Path) -> dict:
     return value
 
 
+def is_managed_unit(candidate: Path) -> bool:
+    """Build artifacts are not managed units and must not affect the comparison.
+
+    __pycache__ appears in the source tree as soon as any python helper runs -- which
+    the test roster does before this check -- while a fan-out generated earlier does
+    not have it. Counting it made source-vs-generated equality depend on execution
+    order: the same tree passed standalone and failed inside the full runner.
+    """
+    return (
+        candidate.is_file()
+        and "__pycache__" not in candidate.parts
+        and candidate.suffix != ".pyc"
+        and candidate.name != ".DS_Store"
+    )
+
+
 def file_map(path: Path) -> dict[str, str]:
     if not path.is_dir():
         return {}
     result: dict[str, str] = {}
-    for file in sorted(candidate for candidate in path.rglob("*") if candidate.is_file()):
+    for file in sorted(candidate for candidate in path.rglob("*") if is_managed_unit(candidate)):
         relative = file.relative_to(path).as_posix()
         result[relative] = hashlib.sha256(file.read_bytes()).hexdigest()
     return result

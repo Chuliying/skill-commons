@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import os
 import re
@@ -42,6 +43,124 @@ def is_regular_file(path: Path) -> bool:
         return stat.S_ISREG(path.lstat().st_mode)
     except OSError:
         return False
+
+
+# The grader lives at <skills-repo>/journey-evals/scripts/grade_journey.py, so the
+# deterministic gates it re-runs resolve relative to the skills repo, not the graded
+# journey workspace. Re-running the TRUSTED copy is the point: a workspace copy is
+# writable by the agent being graded.
+SKILLS_REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(SKILLS_REPO / "scripts"))
+import execution_modes  # noqa: E402  (resolved against the trusted skills repo above)
+
+
+def _absent_files(mode):
+    """Canonical files a mode forbids, derived from the registry (ADR-R3 I-M1).
+
+    Previously each scenario restated its own tuple, which drifted: the
+    personal-feature check demanded prd.md be ABSENT while the registry declares prd
+    OPTIONAL for that mode, so a legitimate personal PRD would have failed the journey.
+    """
+    return sorted(execution_modes.canonical_file(name)
+                  for name in execution_modes.absent_artifacts(mode))
+
+
+def _none_present(work, mode):
+    return not any((work / name).exists() for name in _absent_files(mode))
+
+
+def _run_ok(args: list[str], cwd: Path | None = None) -> bool:
+    try:
+        return subprocess.run(
+            args, cwd=cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        ).returncode == 0
+    except OSError:
+        return False
+
+
+def prd_shape_ok(prd: Path, tier: str) -> bool:
+    """Re-run the deterministic PRD shape gate; a stub/[TBD] PRD fails it."""
+    script = SKILLS_REPO / "scripts/check-prd.py"
+    if not (script.is_file() and prd.is_file()):
+        return False
+    return _run_ok(["python3", str(script), "--prd", str(prd), "--tier", tier])
+
+
+def traceability_ok(prd: Path, qa_plan: Path) -> bool:
+    """Re-run AC->TC traceability; a single-char qa-plan leaves ACs unmapped."""
+    script = SKILLS_REPO / "qa/scripts/check-traceability.py"
+    if not (script.is_file() and prd.is_file() and qa_plan.is_file()):
+        return False
+    return _run_ok(["python3", str(script), "--prd", str(prd), "--qa-plan", str(qa_plan)])
+
+
+def security_gate_reproduced(workspace: Path) -> bool:
+    """Re-run the secret scan against the workspace using the TRUSTED scanner from the
+    skills repo -- never the workspace's own generated copy, which the graded agent can
+    tamper with (e.g. replace with `exit 0`). Runs with cwd=workspace so it reads the
+    workspace manifest/source roots and .gitignore. A planted secret fails this even if
+    the report claims 'Security: PASS' and the workspace scanner was neutered."""
+    scan = SKILLS_REPO / "security/scripts/scan-secrets.sh"
+    if not scan.is_file():
+        return False
+    return _run_ok(["bash", str(scan)], cwd=workspace)
+
+
+def plan_consistency_ok(work: Path) -> bool:
+    """Re-run plan-sync consistency on the work item's plan/. Stub plan files (single
+    line, no sections/tasks) fail this, so 'formal artifacts exist' is not enough."""
+    script = SKILLS_REPO / "plan-sync/scripts/validate_consistency.py"
+    plan_dir = work / "plan"
+    if not (script.is_file() and plan_dir.is_dir()):
+        return False
+    return _run_ok(["python3", str(script), "--plan-dir", str(plan_dir)])
+
+def _is_greet_ws(node: ast.AST) -> bool:
+    """True for a call greet("  Codex  ") (bound method or plain)."""
+    if not isinstance(node, ast.Call):
+        return False
+    func = node.func
+    name = func.attr if isinstance(func, ast.Attribute) else func.id if isinstance(func, ast.Name) else ""
+    return (
+        name == "greet"
+        and len(node.args) >= 1
+        and isinstance(node.args[0], ast.Constant)
+        and node.args[0].value == "  Codex  "
+    )
+
+
+def _is_expected(node: ast.AST) -> bool:
+    return isinstance(node, ast.Constant) and node.value == "hello Codex"
+
+
+def pinning_assertion_present(test_file: Path) -> bool:
+    """AST-verified: some assertion must actually compare greet("  Codex  ") to the
+    expected "hello Codex". Substring/comment tricks and trivial co-located assertions
+    (`assertEqual("hello Codex", "hello Codex"); greet("  Codex  ")`) do not count,
+    because the greet(...) call must be an OPERAND of the equality itself."""
+    if not test_file.is_file():
+        return False
+    try:
+        tree = ast.parse(test_file.read_text(encoding="utf-8", errors="replace"))
+    except SyntaxError:
+        return False
+    for node in ast.walk(tree):
+        # unittest style: self.assertEqual(<greet(...)>, "hello Codex") in either order
+        if isinstance(node, ast.Call):
+            func = node.func
+            fname = func.attr if isinstance(func, ast.Attribute) else func.id if isinstance(func, ast.Name) else ""
+            if fname == "assertEqual" and len(node.args) >= 2:
+                a, b = node.args[0], node.args[1]
+                if (_is_greet_ws(a) and _is_expected(b)) or (_is_greet_ws(b) and _is_expected(a)):
+                    return True
+        # pytest style: assert greet("  Codex  ") == "hello Codex"
+        if isinstance(node, ast.Assert) and isinstance(node.test, ast.Compare):
+            cmp = node.test
+            if any(isinstance(op, ast.Eq) for op in cmp.ops):
+                operands = [cmp.left, *cmp.comparators]
+                if any(_is_greet_ws(o) for o in operands) and any(_is_expected(o) for o in operands):
+                    return True
+    return False
 
 
 def contains(path: Path, token: str) -> bool:
@@ -184,22 +303,25 @@ def main() -> int:
                 "assert greet('Codex', '!') == 'hello Codex!'"
             ),
         )
-        structural["lightweight_fallback"] = not any(
-            (work / name).exists() for name in ("prd.md", "spec.md", "qa-plan.md")
-        )
+        structural["lightweight_fallback"] = _none_present(work, "personal-feature")
         recorded["implement_read_recorded"] = skill_read_recorded(report, "implement")
     elif scenario == "team-feature":
-        required = (
-            "prd.md",
-            "spec.md",
-            "qa-plan.md",
-            "implement-report.md",
-            "qa-report.md",
+        # ADR-R3 I-M1: the roster comes from the registry, not from a tuple restated
+        # here. A local list drifts from the contract while both halves keep looking
+        # correct -- this one had five entries and omitted plan/plan.md, which the
+        # following line then had to add back by hand.
+        structural["formal_artifacts"] = all(
+            (work / name).is_file()
+            for name in execution_modes.required_files("team-feature")
         )
-        structural["formal_artifacts"] = (
-            all((work / name).is_file() for name in required)
-            and (work / "plan/plan.md").is_file()
+        # Existence is not shape. A single-line stub satisfies the check above, so
+        # re-run the deterministic gates that own each artifact's contract, using the
+        # TRUSTED copies in the skills repo rather than the workspace's generated ones.
+        structural["prd_shape_verified"] = prd_shape_ok(work / "prd.md", "team")
+        structural["traceability_verified"] = traceability_ok(
+            work / "prd.md", work / "qa-plan.md"
         )
+        structural["plan_consistency_verified"] = plan_consistency_ok(work)
         behavioral["feature_behavior"] = command_ok(
             root,
             "python3",
@@ -218,10 +340,23 @@ def main() -> int:
             and all(skill_read_recorded(report, name) for name in ("spec", "qa", "plan-sync", "implement"))
         )
     elif scenario == "brownfield-bug":
-        structural["bug_fixed"] = contains(root / "src/greet.py", ".strip()")
-        structural["bug_fallback"] = not any(
-            (work / name).exists() for name in ("prd.md", "spec.md", "qa-plan.md")
+        # Behavior, not tokens. `contains(src/greet.py, ".strip()")` passed on a comment
+        # that merely mentioned .strip(), which is the JE-1 defect: a grader answering
+        # "was the bug fixed?" by looking for a string. Run the function instead.
+        structural["bug_fixed"] = command_ok(
+            root,
+            "python3",
+            "-c",
+            "from src.greet import greet; assert greet('  Codex  ') == 'hello Codex'",
         )
+        # The fixture's pinning test must survive as a real assertion. Deleting it and
+        # leaving the input string in a comment does not count, and neither does a
+        # trivial co-located assertion -- the greet(...) call must be an operand of the
+        # equality itself, which is checked against the AST.
+        structural["pinning_test_intact"] = pinning_assertion_present(
+            root / "tests/test_greet.py"
+        )
+        structural["bug_fallback"] = _none_present(work, "bug-fix")
         recorded["debug_skills_read_recorded"] = all(
             skill_read_recorded(report, name) for name in ("systematic-debugging", "implement")
         )
@@ -231,7 +366,7 @@ def main() -> int:
             "def _normalize_name" in source and source.count(".strip().title()") == 1
         )
         structural["intent_artifact"] = (work / "prd.md").is_file()
-        structural["no_qa_ceremony"] = not (work / "qa-plan.md").exists()
+        structural["no_qa_ceremony"] = _none_present(work, "refactor")
         recorded["refactor_skills_read_recorded"] = all(
             skill_read_recorded(report, name) for name in ("to-prd", "implement")
         )
@@ -360,6 +495,11 @@ def main() -> int:
             report, trusted_baseline
         )
         recorded["secret_preflight_command_recorded"] = secret_preflight_command_recorded(report)
+        # A recorded command is a claim, not evidence. Re-run the secret scan with the
+        # TRUSTED scanner from the skills repo -- never the workspace's generated copy,
+        # which the graded agent can replace with `exit 0`. A planted secret fails here
+        # even when the report says "Security: PASS".
+        structural["security_reproduced"] = security_gate_reproduced(root)
         recorded["ship_skills_read_recorded"] = all(
             skill_read_recorded(report, name)
             for name in ("verification-before-completion", "caveman-review", "security", "sync-work")

@@ -40,6 +40,7 @@ updated_at: <ISO-8601 timestamp>
 execution_mode: team-feature | personal-feature | refactor | bug-fix
 work_status: active | completed | abandoned
 delivery_status: not_requested | awaiting_approval | approved | pr_created | merged | deployed
+documentation_impact: doc:<workspace-relative project document> | n/a:<bounded reason>
 stages:
   prd: { skill: prd-interview, file: prd.md, status: ready }
   spec: { skill: spec, file: spec.md, status: ready }
@@ -117,6 +118,34 @@ is rejected until `delivery_status` reaches the corresponding state. Earlier
 event detail remains recoverable from Git history rather than being carried
 into an unrelated later-state shape.
 
+## Documentation impact
+
+Every completed work item carries exactly one documentation-impact result in the
+scalar `documentation_impact` field, in one of two forms:
+
+- `doc:<workspace-relative project document>` — the canonical project document
+  this work updated.
+- `n/a:<bounded reason>` — one line of at most 200 characters saying why no
+  project document changed.
+
+Work-history prose does not count: a path inside the work item — report, journal,
+plan — is rejected, because those record what happened instead of integrating the
+result into the project's documentation. A named document must also exist: a
+`doc:` path that resolves to nothing proves no document was updated and is
+rejected. The field is a shape, location, and existence check. It records which
+document was named; it never proves that document's content changed.
+
+Completion is a state a re-runnable check accepted, not a claim a report made. A
+Plan state, an implementation report, a diff, a hash, or an authored PASS line is
+never by itself proof that the work is complete; every execution path ends in a
+fresh verification run and its test report. A hash proves an artifact's identity
+or integrity, never its meaning.
+
+The rule is forward-only, matching the adoption stance below: a work item whose
+`updated_at` is on or after `2026-07-27T00:00:00+08:00` must carry the field when
+`work_status: completed`. Work completed before that stays valid without it until
+it is edited.
+
 Canonical planning is the default for new work items. It records:
 
 ```yaml
@@ -192,9 +221,15 @@ Before requesting release approval, a completed work item must:
 
 1. When the execution mode includes a PRD, append a `## Delivery` section with
    candidate/release date, explicit PRD deviations (or `無`), any promoted
-   assets, and a PASS link to the mode's final evidence: `qa-report.md` for
+   assets, and a PASS link to the mode's final evidence. That acceptance evidence
+   is **mode-conditional** on whether the mode has a QA stage: `qa-report.md` for
    `team-feature`, otherwise `implement-report.md`. If an allowed mode has no
    PRD, record the same closeout fields in `implement-report.md`.
+
+   A `qa-report.md` PASS link is never required for a **no-QA execution mode**
+   (`qa-plan` absent — `personal-feature`, `bug-fix`, `refactor`), because that
+   file is never produced there; requiring it would create an unsatisfiable gate.
+   The exemption follows from the mode contract, not from a work item being small.
 2. Set `work_status: completed`, `delivery_status: awaiting_approval`, and mark
    completed stages done/validated. Do not add delivery evidence yet.
 3. Promote still-valid decisions or terminology from `adr.md` / `glossary.md`

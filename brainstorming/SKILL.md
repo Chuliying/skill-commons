@@ -75,8 +75,10 @@ lifecycle stage；沒有 work item 時，由後續 PRD、Spec 或 Plan producer 
 
 Consented Deep 仍用 `brainstorm.md`；map、budget、resume 與尺寸依 Wayfinding reference。
 
-Handoff：micro-task → `implement`；個人持久共識 → `to-prd`；team 需求 →
-`prd-interview`；既有方案壓測 → `grilling`；多步、跨 session 或 drift → `plan-sync`。
+Handoff 依 profile 決定，不硬編 `prd-interview`（personal bundle 沒有它）：
+micro-task → `implement`；personal profile 的持久共識 → `to-prd`；team-sprint
+profile 的需求 → `prd-interview`；既有方案壓測 → `grilling`；多步、跨 session
+或 drift → `plan-sync`。
 
 ## Evidence boundary
 

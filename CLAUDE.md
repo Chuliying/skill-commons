@@ -12,12 +12,19 @@
 
 ## Commands
 
-- Generate (maintainer full fan-out): `PROFILE=all bash bootstrap/generate.sh`
-- Verify: `bash tests/run-all.sh`
+- Generate: `DELIVERY_MODE=personal bash bootstrap/generate.sh`
+- Verify: `bash tests/verify.sh`
+
+`verify.sh` 是唯一 canonical runner：它從樹上**探索** suites（`tests/test_*.sh`
+與 `tests/bootstrap/test_*.sh`）而非硬編清單，所以新增測試不會靜默不跑；python
+分層也在同一入口。`tests/run-all.sh` 只是轉呼叫的相容 shim。
+Maintainer 全量 fan-out：`PROFILE=all bash bootstrap/generate.sh`。
 
 ## Navigation
 
 - Skill index: [`INDEX.md`](INDEX.md)
+- Artifact contract: [`ARTIFACTS.md`](ARTIFACTS.md)
+- 跨 repo 契約與檢查（含執行方式）：[`docs/cross-repo-contract.md`](docs/cross-repo-contract.md)
 - Decisions: [`docs/skills-reorg/decisions.md`](docs/skills-reorg/decisions.md)
 - Development status lives in `docs/STATUS.md` only in the private development repo
   and is intentionally excluded from public exports.

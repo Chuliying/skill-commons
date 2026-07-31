@@ -39,3 +39,31 @@ team-tier precondition (it omits NFR, dependencies, and the metadata table).
    ```
 
 5. If an issue tracker and `ready-for-agent` label are configured, publish the PRD after the local files exist and the shape gate passes.
+
+## Execution Checklist（必填輸出）
+
+> 格式慣例見 [CHECKLIST-CONVENTION.md](../CHECKLIST-CONVENTION.md)。狀態只用 PASS/FAIL/N/A，不使用圖示。
+
+```
+Skill: to-prd
+Executed At: YYYY-MM-DD HH:MM
+Artifact: <work_root>/<slug>/prd.md
+
+Steps:
+PASS Step 1: 探索 repo 現況與既有 glossary/ADR
+  Evidence: <相關現況摘要>
+PASS Step 2: 界定最小可觀察驗證面
+  Evidence: <observable seam;不確定改記 Follow-up>
+PASS Step 3: 寫 prd.md 與 meta.yml（canonical PRD template）
+  Evidence: <work_root>/<slug>/prd.md
+PASS Step 4: PRD shape gate（core tier）
+  Evidence: check-prd.py --tier core 退出 0
+PASS Step 5: tracker 發佈
+  Evidence: <PASS 或 N/A（未設定 tracker）>
+
+Result: PASS | FAIL | N/A
+Summary: <core-tier PRD 產出摘要>
+Notes: <team-sprint 需接 spec 時改用 prd-interview（team tier）;否則填「無」>
+```
+
+**未輸出 Checklist = 未完成 Skill**

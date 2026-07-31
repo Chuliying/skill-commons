@@ -107,10 +107,15 @@ assert_contains "$changelog_text" "## [0.9.0] - 2026-07-15" "changelog records t
 assert_contains "$changelog_text" "## [0.8.0] - 2026-07-14" "changelog records the v0.8.0 release date"
 assert_contains "$changelog_text" "## [0.7.1] - 2026-07-11" "changelog records the v0.7.1 release date"
 assert_contains "$changelog_text" "## [0.7.0] - 2026-07-11" "changelog records the v0.7.0 release date"
-if [ -z "$(printf '%s' "$unreleased_text" | tr -d '[:space:]')" ]; then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: Unreleased is reset after the v0.9.0 cut"
+# What the cut must guarantee is that entries MOVED into the versioned section, not
+# that Unreleased stays empty forever. Development after the cut legitimately refills
+# it -- that is what the section is for, and leaving user-visible changes unrecorded to
+# keep it empty would defeat the changelog. So assert the released section carries the
+# content, which is the property a botched cut would break.
+if [ -n "$(printf '%s' "$release_090_text" | tr -d '[:space:]')" ]; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: the v0.9.0 cut moved entries into the released section"
 else
-  fail "Unreleased is reset after the v0.9.0 cut"
+  fail "the v0.9.0 cut moved entries into the released section"
 fi
 assert_contains "$release_090_text" "### Added" "v0.9.0 records its public feature addition"
 assert_contains "$release_090_text" "project-status" "v0.9.0 records the project-status entry"
@@ -159,22 +164,82 @@ for stale_version in "v0.5.0" "v0.6.0" "v0.8.0"; do
   assert_not_contains "$bridge_text" "$stale_version" "submodule bridge has no stale $stale_version pin"
 done
 
+# Owner-approved 2026-07-30 entry structure: scope, capabilities (how -> canonical
+# docs), verification, onboarding, references. This suite is the single owner of
+# the README entry-section contract (presence and order, both languages);
+# tests/test_skills_reorg.sh deliberately carries no copy.
 for heading in \
-  "## 核心價值" \
-  "## 什麼時候值得用" \
+  "## 專案範疇" \
+  "## 專案能力" \
+  "## 驗收" \
   "## Quick Start" \
-  "## 執行模型" \
-  "## 信任與授權邊界" \
-  "## 已驗證與尚未驗證" \
-  "## 文件入口" \
-  "## Maintainer verification"; do
+  "## 安裝完成後" \
+  "## References"; do
   assert_contains "$readme_text" "$heading" "README keeps minimum entry section: $heading"
 done
+if python3 - "$REPO/README.md" "$REPO/README.en.md" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+expected = {
+    sys.argv[1]: ("## 專案範疇", "## 專案能力", "## 驗收",
+                  "## Quick Start", "## 安裝完成後", "## References"),
+    sys.argv[2]: ("## Scope", "## Capabilities", "## Verification",
+                  "## Quick Start", "## After installation", "## References"),
+}
+
+def h2_headings(text):
+    headings = []
+    fence = None
+    for raw in text.splitlines():
+        marker = re.match(r"^\s*(`{3,}|~{3,})(.*)$", raw)
+        if marker:
+            run = marker.group(1)
+            kind = run[0]
+            if fence is None:
+                fence = (kind, len(run))
+            elif (
+                fence[0] == kind
+                and len(run) >= fence[1]
+                and not marker.group(2).strip()
+            ):
+                fence = None
+            continue
+        line = raw.rstrip()
+        if fence is None and line.startswith("## ") and not line.startswith("### "):
+            headings.append(line)
+    return headings
+
+def required_order(text, sections):
+    headings = h2_headings(text)
+    positions = [headings.index(section) if section in headings else -1 for section in sections]
+    return positions, all(position >= 0 for position in positions) and positions == sorted(positions)
+
+for name, sections in expected.items():
+    text = Path(name).read_text(errors="replace")
+    positions, valid = required_order(text, sections)
+    if not valid:
+        raise SystemExit(f"{name}: entry sections out of order: {list(zip(sections, positions))}")
+    mutated = text.replace(sections[0], f"{sections[0]} details", 1)
+    _, mutation_valid = required_order(mutated, sections)
+    if mutation_valid:
+        raise SystemExit(f"{name}: renamed heading still satisfies the exact H2 contract")
+    fenced_mutation = f"````text\n```\n{sections[0]}\n```\n````\n{mutated}"
+    _, fenced_mutation_valid = required_order(fenced_mutation, sections)
+    if fenced_mutation_valid:
+        raise SystemExit(f"{name}: heading inside a longer fenced block satisfies the H2 contract")
+PY
+then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: entry sections follow the owner-approved order in both READMEs"
+else
+  fail "entry sections follow the owner-approved order in both READMEs"
+fi
 
 for core_narrative in \
   "可驗證、可接續" \
   "Spec 是施工圖" \
-  "## 已驗證與尚未驗證" \
+  "fresh verification evidence" \
   "Spec drift"; do
   assert_contains "$readme_text" "$core_narrative" "README explains the durable engineering-state product core: $core_narrative"
 done
@@ -217,12 +282,12 @@ assert_not_contains "$readme_en_text" "A/B/C path clues" "English README keeps p
 assert_not_contains "$readme_text" "零模型內容 gate" "README keeps packet-gate mechanics in evaluation docs"
 assert_not_contains "$readme_en_text" "zero-model content gate" "English README keeps packet-gate mechanics in evaluation docs"
 for heading in \
-  "## Why it exists" \
+  "## Scope" \
+  "## Capabilities" \
+  "## Verification" \
   "## Quick Start" \
-  "## Execution and trust model" \
-  "## Evidence boundary" \
-  "## Documentation" \
-  "## Maintainer verification"; do
+  "## After installation" \
+  "## References"; do
   assert_contains "$readme_en_text" "$heading" "English summary keeps minimum entry section: $heading"
 done
 
@@ -349,6 +414,8 @@ assert_not_contains "$prototype_text" "G5 Stage 1" "prototype folds G5 confirmat
 
 assert_not_contains "$(cat "$REPO/spec/SKILL.md")" "Gate 0" "Spec preflight is folded into Gate 2"
 assert_contains "$(cat "$REPO/README.md")" "PRD 核可、team 設計核可、發布核可" "README names exactly three workflow human gates"
+readme_en_flat="$(tr '\n' ' ' < "$REPO/README.en.md")"
+assert_contains "$readme_en_flat" "PRD approval, team design approval, and release approval" "English README names exactly three workflow human gates"
 assert_contains "$(cat "$REPO/prd-interview/SKILL.md")" "awaiting-approval" "PRD approval is a durable state transition"
 assert_contains "$(cat "$REPO/spec/SKILL.md")" "awaiting-approval" "team design approval is a durable state transition"
 assert_not_contains "$(cat "$REPO/spec/SKILL.md")" "Personal/refactor optional spec" "personal feature does not invent an optional Spec"
@@ -374,23 +441,24 @@ allowed_exact = {
     Path("tests/bootstrap/test_generate_safety.sh"),
     Path("tests/test_profiles.sh"),
     Path("tests/test_release_convergence.sh"),
-    Path("tests/test_skill_surface.sh"),
     Path("tests/test_skills_reorg.sh"),
 }
+# The check guards the ACTIVE surface: skills, profiles, generated roots and the docs
+# a consumer reads. Private development history is not part of it and legitimately
+# names the retired owner when recording what happened -- erasing the name there would
+# falsify the record. The boundary is not a hand-kept list of work items: docs/work/**
+# and docs/STATUS.md are export-ignored in .gitattributes, so they are by definition
+# absent from any public payload.
 allowed_prefixes = (
     Path(".claude/worktrees"),
     Path("_archive"),
     Path("journey-evals/runs"),
     Path("docs/skills-reorg"),
     Path("docs/superpowers"),
-    Path("docs/work/skill-bundle-convergence"),
-    Path("docs/work/skill-bundle-effect-benchmark"),
-    Path("docs/work/repo-explainer-site"),
-    Path("docs/work/public-release"),
-    Path("docs/work/skill-workflow-review"),
-    Path("docs/work/v0-7-0-release"),
+    Path("docs/work"),
     Path("website"),
 )
+allowed_exact = allowed_exact | {Path("docs/STATUS.md")}
 residue = []
 for path in repo.rglob("*"):
     if not path.is_file() or path.is_symlink():
@@ -435,6 +503,18 @@ elif [ -d "$REPO/_archive" ]; then
   fail "metrics no longer call artifact smoke an E2E journey (private repo missing docs/skills-reorg/metrics.md)"
 else
   TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: metrics doc is absent on the public surface"
+fi
+
+# Public onboarding docs must pin the same reviewed submodule tag. README is the
+# single source of truth for the current tag; the bridge doc must not lag behind
+# and send consumers to a pre-fix contract. Compare extracted tags (do not hardcode
+# a version) so this assertion keeps holding across releases.
+readme_tag="$(grep -oE 'checkout v[0-9]+\.[0-9]+\.[0-9]+' "$REPO/README.md" | head -1 | sed 's/checkout //')"
+bridge_tag="$(grep -oE 'checkout v[0-9]+\.[0-9]+\.[0-9]+' "$REPO/docs/skill-commons-submodule-bridge.md" | head -1 | sed 's/checkout //')"
+if [ -n "$readme_tag" ] && [ "$readme_tag" = "$bridge_tag" ]; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: bridge doc pins the same submodule tag as README ($readme_tag)"
+else
+  fail "bridge doc pins the same submodule tag as README (README=$readme_tag bridge=$bridge_tag)"
 fi
 
 finish

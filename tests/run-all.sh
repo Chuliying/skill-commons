@@ -1,43 +1,26 @@
 #!/usr/bin/env bash
+# Compatibility shim. `tests/verify.sh` is the single canonical runner.
+#
+# This file used to carry its own explicit suite roster. That roster drifted from
+# the tree in two ways that mattered: it never ran the python unittest layers
+# under tests/py (so the foundation subsystem's tests did not gate CI at all),
+# and any newly added tests/test_*.sh stayed dark until someone remembered to
+# list it here. verify.sh discovers suites instead, so both classes are gone.
+#
+# The public/private split this file used to compute from `docs/work` presence is
+# now declared once in .gitattributes (maintainer-only suites are export-ignore),
+# so a public payload simply does not contain them and discovery yields the
+# correct smaller roster there.
+#
+# Kept as a shim because README, AGENTS.md, CI and the payload check refer to it.
+# Prefer `bash tests/verify.sh` in new callers.
 set -u
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-rc=0
-PUBLIC_SUITES="
-  tests/test_skills_reorg.sh \
-  tests/test_release_baseline.sh \
-  tests/test_profiles.sh \
-  tests/test_artifact_contract.sh \
-  tests/test_work_items.sh \
-  tests/test_protocol_registry.sh \
-  tests/test_plan_sync.sh \
-  tests/test_project_status.sh \
-  tests/test_repo_map.sh \
-  tests/test_journey_evals.sh \
-  tests/test_gate_automation.sh \
-  tests/test_brainstorming.sh \
-  tests/test_release_convergence.sh \
-  tests/bootstrap/run-all.sh
-"
-PRIVATE_SUITES="
-  tests/test_skill_inventory.sh
-  tests/test_skill_surface.sh
-  tests/test_skill_bundle_benchmark.sh
-"
-
-SUITES="$PUBLIC_SUITES"
-if [ -d "$ROOT/docs/work" ] && [ -f "$ROOT/docs/STATUS.md" ]; then
-  SUITES="$SUITES$PRIVATE_SUITES"
-else
-  echo "=== private development suites skipped (public payload) ==="
-fi
-
-for suite in $SUITES; do
-  echo "=== $suite ==="
-  bash "$suite" || rc=1
-done
+bash tests/verify.sh
+rc=$?
 
 if [ "$rc" -eq 0 ]; then
   echo "ALL TESTS PASSED"

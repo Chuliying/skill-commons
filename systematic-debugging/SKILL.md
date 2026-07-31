@@ -4,7 +4,8 @@ description: |
   系統化除錯流程。Use when: (1) 遇到任何 bug 或測試失敗, (2) 行為不如預期, (3) 連續修復失敗 2+ 次, (4) 遇到建置或整合錯誤。
   禁止: 在完成 Phase 1 (根因調查) 前提出修復方案。
   觸發關鍵字: bug, 測試失敗, 除錯, debug, unexpected behavior, 修不好, 一直失敗
-source_kind: original
+source: obra/superpowers@d884ae04edebef577e82ff7c4e143debd0bbec99
+source_kind: adapted
 stage: infra
 ---
 

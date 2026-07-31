@@ -37,6 +37,20 @@ assert_not_contains "$grader_source" 'root / ".codex/skills/security/scripts/sca
 assert_contains "$grader_source" 'scripts/work_items.py' "grader resolves the canonical work-item checker from the harness root"
 assert_not_contains "$grader_source" '.codex/skills/scripts/work_items.py' "grader does not trust an agent-writable generated work-item checker"
 
+# The grader-can-be-fooled class (docs/work/journey-grader-execution-only JE-1/2/3):
+# a gate that answers "did this work?" by looking for text in a workspace file is
+# satisfiable by a comment. These assertions exist because the behavioral bug_fixed
+# check was once replaced by `contains(src/greet.py, ".strip()")` during a merge and
+# nothing failed -- the grader kept its PASS count while losing its teeth.
+assert_not_contains "$grader_source" 'contains(root / "src/greet.py", ".strip()")' "bug_fixed is not a token match on the source file"
+assert_contains "$grader_source" "from src.greet import greet; assert greet(" "bug_fixed executes the function it claims to verify"
+assert_contains "$grader_source" 'pinning_assertion_present(' "grader AST-verifies the fixture pinning assertion survives"
+assert_contains "$grader_source" 'prd_shape_ok(' "team-feature re-runs the PRD shape gate instead of checking existence"
+assert_contains "$grader_source" 'traceability_ok(' "team-feature re-runs AC-to-TC traceability"
+assert_contains "$grader_source" 'plan_consistency_ok(' "team-feature re-runs plan consistency"
+assert_contains "$grader_source" 'security_gate_reproduced(' "commit-pr re-runs the secret scan instead of trusting the report"
+assert_contains "$grader_source" 'SKILLS_REPO = Path(__file__).resolve()' "re-run gates resolve from the trusted skills repo, not the graded workspace"
+
 security_skill="$(cat "$REPO/security/SKILL.md")"
 security_scanner="$(cat "$REPO/security/scripts/scan-secrets.sh")"
 assert_contains "$security_skill" "heuristic" "security skill labels secret scanning as heuristic"

@@ -1,146 +1,116 @@
 # skill-commons
 
 skill-commons is a repository-native workflow kit for AI-assisted engineering. It keeps
-requirements, Spec, Plan, implementation state, and verification evidence in Git so
-developers, Claude Code, Codex, and Cursor can resume from the same latest work state.
+requirements, Spec, Plan, implementation state, verification evidence, and delivery
+authorization in Git so developers, Claude Code, Codex, and Cursor resume from the same
+latest work state.
 
-Describe a task in natural language and Router selects the shortest viable workflow.
-Work that must survive another session stays in the repository. `v0.9.0` adds
-`project-status`, a deterministic, read-only, no-LLM view of current state and next action.
+[zh-TW](README.md) · [Quick Start](#quick-start) · [References](#references)
 
-[zh-TW](README.md) · [Spec-state protocol](docs/spec-state-protocol.md) ·
-[Evaluation](docs/evaluation.md) · [Skill index](INDEX.md)
+## Scope
 
-## Why it exists
+The product is a verifiable, resumable shared engineering state: Spec is the blueprint,
+Plan is the work sequence, `meta.yml` is the progress board, tests are inspection
+records, and Git preserves change history. Use it for work that crosses sessions,
+agents, tools, developers, or formal review gates; factual lookups and bounded
+micro-tasks take the shortest path without durable ceremony.
 
-The product is a verifiable, resumable shared engineering state. Spec is the blueprint,
-Plan is the work sequence, `meta.yml` is the progress board, tests are inspection records,
-and Git preserves change history. A new collaborator can find the next task, blockers,
-changed intent, stale evidence, and proof behind completion or delivery claims.
+Upstream ecosystems ([Agent Skills](https://agentskills.io/specification),
+[Superpowers](https://github.com/obra/superpowers)) cover portable skills and
+development methods; this project adds the shared contract layer above them —
+repository artifacts, Plans, evidence, and the delivery contract. External sources,
+pinned commits, and local patches live in [SOURCES.md](SOURCES.md).
 
-`project-status` reads bootstrap, work-item, Plan, and Git state, then reports attention
-points and the next rule-based action. It does not modify the project or guess which
-active work item should win.
+## Capabilities
 
-Use it for work that crosses sessions, agents, tools, developers, or formal review
-gates. Factual lookup and bounded micro-tasks take the shortest path without durable
-ceremony. See [Spec-state protocol](docs/spec-state-protocol.md) and
-[Discovery and planning](docs/discovery-and-planning.md).
+| Capability | In one line | How |
+|---|---|---|
+| Task routing | Router picks the smallest execution mode and artifact set per task; clear small changes take the direct path | [skill-router](skill-router/SKILL.md) |
+| Durable handoff | Dependencies, blockers, DoD, and evidence survive in `docs/work/<slug>/`; a second session resumes from repository state alone | [plan-sync](plan-sync/SKILL.md) · [Spec-state protocol](docs/spec-state-protocol.md) |
+| State entry point | `project-status` reports state, attention points, and the next action — read-only, deterministic, no LLM | [ARTIFACTS.md](ARTIFACTS.md) |
+| Cross-repo detection | A task depending on work outside this repo triggers detection and an explicit confirmation; participants live in the Plan and evidence stays in its own repo | [Cross-repo contract](docs/cross-repo-contract.md) |
+| Cross-tool install | Top-level skills stay the single source; onboarding generates per-platform adapters, with skill fan-out covering Claude Code and Codex while Cursor receives the rule + AGENTS adapter; a consuming repo pins the version as a submodule | [Bootstrap](bootstrap/README.md) · [Platform support](docs/profile-platform-support.md) |
+| Delivery authorization | Work completion and outward delivery stay separately recorded; push, merge, discard, destructive recovery, and publication require explicit authorization first | [ARTIFACTS.md](ARTIFACTS.md) · [sync-work](sync-work/SKILL.md) |
+
+`delivery_mode` selects the installed skill set (`personal`, `team-sprint`, plus
+`frontend` and `optional` capability packs);
+`execution_mode` is the Router choice for one task and needs no manual setup. See [INDEX.md](INDEX.md) for the per-skill mapping and
+[Discovery and planning](docs/discovery-and-planning.md) for requirement discovery.
+
+## Verification
+
+| Layer | What is checked | How |
+|---|---|---|
+| Composition | source, generated adapters, profiles, provenance | [INDEX](INDEX.md) · [SOURCES](SOURCES.md) |
+| Contract | work items, registry, Plans, artifacts, links, delivery evidence | [Cross-repo contract](docs/cross-repo-contract.md) |
+| Behavior | unit/integration/e2e, bootstrap safety, security, release convergence | [Evaluation](docs/evaluation.md) |
+| Agent journey | isolated personal/team/bug/refactor/release scenarios | [Journey evals](journey-evals/README.md) |
+
+Completion claims require fresh verification evidence, and every completed piece of
+work records one documentation-impact result. PRD approval, team design approval, and
+release approval are the three workflow human gates; push, merge, discard, destructive
+recovery, and publication require explicit authorization first. Deterministic gates
+establish repository conformance for the tested revision; team speed, model-output
+quality, token cost, and cross-tool handoff value still require independent experiments — see
+[Evaluation](docs/evaluation.md) for methods, data, and claim limits.
+
+Maintainer full verification (commit, tag, push, PR, merge, and publication require
+separate authorization):
+
+```bash
+PROFILE=all bash bootstrap/generate.sh
+bash tests/verify.sh
+```
 
 ## Quick Start
 
-Git and Bash 3.2+ are required. The Claude Code settings merge uses `jq`. Plan Sync,
-Repo Map, and full maintainer verification use Python 3.10+; the onboarding scan uses
-Node.js 18+.
+Git and Bash 3.2+ are required. The Claude Code settings merge uses `jq`; full
+verification uses Python 3.10+; the onboarding scan uses Node.js 18+.
 
 ```bash
 git submodule add git@github.com:Chuliying/skill-commons.git .agent/skills/_shared
 git -C .agent/skills/_shared checkout v0.9.0
-
 mkdir -p .agent
 cp .agent/skills/_shared/shared-skill-onboarder/templates/project-manifest.md \
   .agent/project-manifest.md
-${EDITOR:-vi} .agent/project-manifest.md
 ```
 
-Select one delivery mode before onboarding:
+In the manifest, choose platforms, exactly one `delivery_mode`, and add `optional` to
+`capability_packs` first when you need discovery, review, or onboarding skills:
 
 ```yaml
 ## skill-commons bootstrap
-
 - submodule_path: .agent/skills/_shared
 - platforms: claude-code, cursor, codex
 - delivery_mode: personal
-- capability_packs: # add frontend or optional when needed
+- capability_packs: optional
 ```
-
-`delivery_mode` is `personal` or `team-sprint`. Add `frontend` or `optional` capability
-packs only when needed. Missing selection stops onboarding.
-
-`v0.9.0` installs the current seven-skill core. Add the `optional` pack before
-onboarding when you need discovery, a personal PRD, review, or onboarding skills.
-Repositories that have not migrated may retain the `v0.7.1` legacy pin; see
-[Bootstrap](bootstrap/README.md), [Profile support](docs/profile-platform-support.md), and the
-[Submodule bridge](docs/skill-commons-submodule-bridge.md).
 
 ```bash
 bash .agent/skills/_shared/bootstrap/onboard.sh
 bash .agent/skills/_shared/bootstrap/manage.sh doctor
 ```
 
-### Read project state
+## After installation
 
-From the consuming repository root:
+Describe the task in natural language — for example, “add an export CSV feature and
+run verification before finishing” — and Router picks the shortest workflow. For a state
+summary:
 
 ```bash
 bash .agent/skills/_shared/scripts/project-status.sh
 bash .agent/skills/_shared/scripts/project-status.sh --json
 ```
 
-The default output is for people; `--json` provides a stable machine-readable schema.
-Both read bootstrap health, work items, canonical Plans, the Git working tree, and
-active-work ambiguity without changing the project.
+Operational flows — missing submodule, selection errors, doctor drift, uninstall, and
+legacy adoption — live in the
+[Submodule bridge](docs/skill-commons-submodule-bridge.md) and
+[Bootstrap](bootstrap/README.md).
 
-## After installation
+## References
 
-Describe the task in natural language. For example, “add an export CSV feature” lets
-Router choose the smallest workflow; work that must survive another session is recorded
-under `docs/work/<slug>/`. To name a skill explicitly, say “use `implement`” or “use
-`sync-work`.” See [INDEX.md](INDEX.md) for the complete list.
-
-## Execution and trust model
-
-Router selects an explore, build, fix, understand, or release flow for each task. Plans
-and evidence that must survive a session live under `docs/work/<slug>/`; Git delivery
-still waits for explicit authorization after the work is complete.
-
-| Selection | Surface |
-|---|---|
-| `personal` | implementation, debugging, verification, security, Git delivery |
-| `team-sprint` | formal PRD, Spec, QA, prototype, and domain modeling |
-| `frontend` pack | frontend design |
-| `optional` pack | discovery, personal PRD, review, onboarding, and utilities |
-
-`delivery_mode` selects the installed skill set.
-`execution_mode` is the Router choice for one task and needs no manual setup; it
-determines which documents that task needs.
-Work and delivery states remain separate. See [ARTIFACTS.md](ARTIFACTS.md).
-
-- Completion requires fresh verification evidence.
-- PRD approval, team design approval, and release approval are human gates.
-- Passing tests do not imply that a PR, merge, or deployment occurred.
-- Push, merge, destructive recovery, discard, and publication require explicit
-  authorization before the event.
-- Top-level skills are the only source; generated discovery roots are fan-out outputs.
-
-## Evidence boundary
-
-The maintainer gate checks source, generated adapters, artifact/Plan/profile contracts,
-bootstrap safety, secret preflight, and the clean public export. `bash tests/run-all.sh`
-is the complete release gate.
-
-These checks establish repository conformance. Team speed, model-output quality, and
-cross-tool handoff value remain unproven. Historical benchmark figures without private
-replay artifacts are retained only as unverified narrative. The next product test is a
-transcript-free, cross-tool cold-start handoff with Spec drift; see
-[Evaluation](docs/evaluation.md) for methods, data, and limits.
-
-## Documentation
-
-- [Spec-state protocol](docs/spec-state-protocol.md)
-- [Discovery and planning](docs/discovery-and-planning.md)
-- [Evaluation and evidence](docs/evaluation.md)
-- [Skill index](INDEX.md)
-- [Artifact contract](ARTIFACTS.md)
-- [Bootstrap and local management](bootstrap/README.md)
-- [Platform support](docs/profile-platform-support.md)
-- [Changelog](CHANGELOG.md) and [contributing guide](CONTRIBUTING.md)
-
-## Maintainer verification
-
-```bash
-PROFILE=all bash bootstrap/generate.sh
-bash tests/run-all.sh
-```
-
-Release, push, PR, merge, tag, and publication require separate authorization.
+- Use: [Bootstrap](bootstrap/README.md) · [Submodule bridge](docs/skill-commons-submodule-bridge.md) · [Platform support](docs/profile-platform-support.md) · [Skill index](INDEX.md)
+- Contract: [Spec-state protocol](docs/spec-state-protocol.md) · [Artifacts](ARTIFACTS.md) · [Cross-repo contract](docs/cross-repo-contract.md) · [Discovery/plan](docs/discovery-and-planning.md)
+- Evidence: [Evaluation](docs/evaluation.md) · [Journey evals](journey-evals/README.md)
+- Sources: [SOURCES](SOURCES.md) · [Agent Skills spec](https://agentskills.io/specification) · [Superpowers](https://github.com/obra/superpowers)
+- Maintenance: [CONTRIBUTING](CONTRIBUTING.md) · [CHANGELOG](CHANGELOG.md) · [STYLE](STYLE.md) · [Gate package](GATE-PACKAGE.md) · [Decisions](docs/skills-reorg/decisions.md)

@@ -4,6 +4,10 @@ Top-level skill folders are the source of truth. `(ext)` marks external or
 adapted skills tracked in [SOURCES.md](SOURCES.md). Consuming bundle membership
 is defined only by [`profiles/`](profiles/) and [`profiles.json`](profiles.json).
 
+The artifact contract these skills produce against is [`ARTIFACTS.md`](ARTIFACTS.md);
+its machine source and the checks that enforce it are documented in
+[`docs/cross-repo-contract.md`](docs/cross-repo-contract.md).
+
 ## Delivery selection
 
 Every consuming repository selects one `delivery_mode` and zero or more

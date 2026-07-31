@@ -132,10 +132,15 @@ if [ "$router_bytes" -lt 6747 ]; then
 else
   fail "direct factual Router payload must be below 6747 bytes (actual=$router_bytes)"
 fi
-if [ "$micro_bytes" -lt 17411 ]; then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: Router + Implement + Verification is below 17411 bytes ($micro_bytes)"
+# 17541 = the previous 17411 plus the 130 bytes of MIT attribution frontmatter that
+# `implement` and `verification-before-completion` must carry (source +
+# source_kind: adapted, obra/superpowers). Attribution is not discretionary, so the
+# budget accommodates it rather than the credit being trimmed to fit. The bound still
+# holds the micro-task payload: it is a ceiling on prose, not on provenance.
+if [ "$micro_bytes" -lt 17541 ]; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: Router + Implement + Verification is below 17541 bytes ($micro_bytes)"
 else
-  fail "Router + Implement + Verification must be below 17411 bytes (actual=$micro_bytes)"
+  fail "Router + Implement + Verification must be below 17541 bytes (actual=$micro_bytes)"
 fi
 
 profile_model_conformance() {
@@ -393,10 +398,20 @@ assert_contains "$support" "rule + AGENTS adapter" "Cursor support is not called
 for entrypoint in README.md README.en.md; do
   entrypoint_text="$(cat "$REPO/$entrypoint")"
   assert_contains "$entrypoint_text" "v0.9.0" "$entrypoint keeps the concrete current release pin"
-  assert_contains "$entrypoint_text" "v0.7.1" "$entrypoint keeps the legacy compatibility pin"
+  # Owner direction 2026-07-30: entry READMEs recommend the current release instead
+  # of carrying the legacy pin; migration owners below retain that boundary.
+  assert_not_contains "$entrypoint_text" "v0.7.1" "$entrypoint recommends upgrade instead of the legacy pin"
   assert_not_contains "$entrypoint_text" "Unreleased next-major" "$entrypoint removes pre-release wording"
   assert_contains "$entrypoint_text" "docs/profile-platform-support.md" "$entrypoint links authoritative profile support"
 done
+readme_text="$(cat "$REPO/README.md")"
+readme_en_text="$(cat "$REPO/README.en.md")"
+assert_contains "$readme_text" "skill fan-out 僅及 Claude Code 與 Codex" "README limits skill fan-out to platforms with skill discovery"
+assert_contains "$readme_text" "Cursor 走 rule + AGENTS adapter" "README describes the Cursor adapter boundary"
+assert_not_contains "$readme_text" "fan-out 產生 Claude Code、Codex、Cursor adapters" "README does not call Cursor adapter generation skill fan-out"
+assert_contains "$readme_en_text" "skill fan-out covering Claude Code and Codex" "English README limits skill fan-out to platforms with skill discovery"
+assert_contains "$readme_en_text" "Cursor receives the rule + AGENTS adapter" "English README describes the Cursor adapter boundary"
+assert_not_contains "$readme_en_text" "fan-out generates Claude Code, Codex, and Cursor adapters" "English README does not call Cursor adapter generation skill fan-out"
 for public_contract in INDEX.md bootstrap/README.md docs/profile-platform-support.md; do
   contract_text="$(cat "$REPO/$public_contract")"
   assert_contains "$contract_text" "CAPABILITY_PACKS=optional" "$public_contract documents optional-pack adoption"
@@ -452,7 +467,9 @@ then
 else
   fail "Quick Start sequences optional onboarding selection before generation"
 fi
-assert_contains "$readme_text" "未選擇 optional pack 時，不要要求 agent 讀" "Quick Start does not dispatch an uninstalled onboarder"
+# Owner direction 2026-07-30: the uninstalled-onboarder caution left the README
+# together with the legacy-pin accommodation; the manifest template still
+# documents optional-pack adoption.
 
 if [ -f "$REPO/docs/shared-skill-onboarding-checklist.md" ]; then
   onboarding_checklist="$(cat "$REPO/docs/shared-skill-onboarding-checklist.md")"

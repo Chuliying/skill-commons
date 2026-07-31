@@ -5,8 +5,17 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 . "$REPO/tests/bootstrap/lib/assert.sh"
 
-WORK_ROOT="$TMP/work"
-mkdir -p "$WORK_ROOT"
+# The fixture workspace mirrors the real layout `<workspace>/docs/work`, so a
+# `doc:` result is resolved against the same base a project uses. The workspace is a
+# real `git init` working tree because that is what anchors a workspace-relative
+# `doc:` path; a hand-made `.git` directory is not a working tree and would forge the
+# anchor the checker reads.
+WORKSPACE="$TMP/ws"
+WORK_ROOT="$WORKSPACE/docs/work"
+mkdir -p "$WORK_ROOT" "$WORKSPACE/docs/v3-namesake-doc"
+git init -q "$WORKSPACE" >/dev/null 2>&1
+printf '# Decisions\n' > "$WORKSPACE/docs/decisions.md"
+printf '# Overview\n' > "$WORKSPACE/docs/v3-namesake-doc/overview.md"
 
 write_item() {
   slug="$1"
@@ -14,6 +23,7 @@ write_item() {
   updated_at="$3"
   stage_status="$4"
   artifact="$5"
+  skill="${6:-plan-sync}"
   mkdir -p "$WORK_ROOT/$slug/plan"
   if [ "$artifact" != "missing.md" ]; then
     printf '# Artifact\n' > "$WORK_ROOT/$slug/$artifact"
@@ -25,7 +35,7 @@ write_item() {
     "updated_at: $updated_at" \
     "status: $status" \
     'stages:' \
-    "  plan: { skill: plan-sync, file: $artifact, status: $stage_status }" \
+    "  plan: { skill: $skill, file: $artifact, status: $stage_status }" \
     'inputs:' \
     '  - request.md' \
     > "$WORK_ROOT/$slug/meta.yml"
@@ -94,6 +104,32 @@ write_v3_item() {
   } > "$WORK_ROOT/$slug/meta.yml"
 }
 
+# A minimal completed v3 item whose only open question is its documentation-impact
+# result, written into an arbitrary work root. `--work-root` is public, so the
+# fixtures using this helper put work roots at non-default locations and depths.
+write_doc_impact_item() { # root slug documentation_impact
+  root="$1"
+  slug="$2"
+  impact="$3"
+  mkdir -p "$root/$slug"
+  printf '# Implement report\n' > "$root/$slug/implement-report.md"
+  printf '%s\n' \
+    'schema_version: work-item/v3' \
+    "slug: $slug" \
+    "title: Item $slug" \
+    'created_at: 2026-07-28T00:00:00+00:00' \
+    'updated_at: 2026-07-28T00:00:00+00:00' \
+    'execution_mode: personal-feature' \
+    'work_status: completed' \
+    'delivery_status: not_requested' \
+    'stages:' \
+    '  implement: { skill: implement, file: implement-report.md, status: done }' \
+    'inputs:' \
+    '  - request.md' \
+    "documentation_impact: $impact" \
+    > "$root/$slug/meta.yml"
+}
+
 write_item active-fresh active 2026-07-01T00:00:00+00:00 ready plan/implementation.md
 write_item active-stale active 2026-05-01T00:00:00+00:00 ready plan/implementation.md
 write_item shipped-old shipped 2026-01-02T00:00:00+00:00 done plan/implementation.md
@@ -104,6 +140,19 @@ write_v3_item v3-completed completed approved 2026-07-01T00:00:00+00:00 done pla
 write_v3_item v3-pr completed pr_created 2026-07-01T00:00:00+00:00 done plan/plan.md pr
 write_v3_item v3-merged completed merged 2026-07-01T00:00:00+00:00 done plan/plan.md merge
 write_v3_item v3-deployed completed deployed 2026-07-01T00:00:00+00:00 done plan/plan.md deploy
+# D3: a completed work item records exactly one documentation-impact result, in one of
+# two forms. The rule is forward-only from the D3 adoption boundary, so the
+# 2026-07-01 items above stay valid without the field.
+write_v3_item v3-documented completed approved 2026-07-28T00:00:00+00:00 done plan/plan.md approval
+printf '%s\n' 'documentation_impact: doc:docs/decisions.md' >> "$WORK_ROOT/v3-documented/meta.yml"
+write_v3_item v3-documented-na completed approved 2026-07-28T00:00:00+00:00 done plan/plan.md approval
+printf '%s\n' 'documentation_impact: n/a:internal test fixture, no project document changed' \
+  >> "$WORK_ROOT/v3-documented-na/meta.yml"
+# A project document may legitimately sit in a directory that happens to share the
+# work item's name. Only the work item's own directory is work-history.
+write_v3_item v3-namesake-doc completed approved 2026-07-28T00:00:00+00:00 done plan/plan.md approval
+printf '%s\n' 'documentation_impact: doc:docs/v3-namesake-doc/overview.md' \
+  >> "$WORK_ROOT/v3-namesake-doc/meta.yml"
 
 list_output="$(bash "$REPO/scripts/work-items.sh" --work-root "$WORK_ROOT" list)"
 assert_contains "$list_output" "active-fresh" "list includes active work items"
@@ -130,10 +179,44 @@ else
   fail "check accepts valid work-item metadata"
 fi
 
+# `<workspace>/docs/work` is only ARTIFACTS.md's default and `--work-root` is public, so
+# the workspace a `doc:` result resolves against cannot be a fixed number of levels
+# above the work root. Here the work root is `<workspace>/.work`, one level down, and
+# `doc:README.md` names the workspace README that exists.
+ALT_WORKSPACE="$TMP/alt-depth-ws"
+ALT_ROOT="$ALT_WORKSPACE/.work"
+mkdir -p "$ALT_ROOT"
+git init -q "$ALT_WORKSPACE" >/dev/null 2>&1
+printf '# Alt workspace\n' > "$ALT_WORKSPACE/README.md"
+write_doc_impact_item "$ALT_ROOT" alt-depth-doc doc:README.md
+set +e
+alt_output="$(bash "$REPO/scripts/work-items.sh" --work-root "$ALT_ROOT" check 2>&1)"
+alt_rc=$?
+set -e
+assert_eq "0" "$alt_rc" "a doc: result resolves against the workspace holding a non-default work root"
+assert_not_contains "$alt_output" "does not exist" "a workspace document is not reported absent because of work-root depth"
+
+# Without a Git working tree there is no workspace anchor, so existence cannot be
+# verified at all. The check fails closed rather than guessing a base directory.
+NOGIT_ROOT="$TMP/nogit/.work"
+mkdir -p "$NOGIT_ROOT"
+printf '# Readme\n' > "$TMP/nogit/README.md"
+write_doc_impact_item "$NOGIT_ROOT" nogit-doc doc:README.md
+set +e
+nogit_output="$(bash "$REPO/scripts/work-items.sh" --work-root "$NOGIT_ROOT" check 2>&1)"
+nogit_rc=$?
+set -e
+assert_neq "0" "$nogit_rc" "a doc: result outside any Git working tree fails closed"
+assert_contains "$nogit_output" "is not inside a Git working tree" "the fail-closed message names the missing workspace anchor"
+assert_contains "$nogit_output" "record doc:<project-document> or n/a:<bounded reason>" "the fail-closed message names the remedy"
+
 write_item invalid-state unknown 2026-07-01T00:00:00+00:00 ready plan/implementation.md
 write_item invalid-stage active 2026-07-01T00:00:00+00:00 imaginary plan/implementation.md
 write_item missing-file active 2026-07-01T00:00:00+00:00 ready missing.md
 write_item missing-title active 2026-07-01T00:00:00+00:00 ready plan/implementation.md
+# An Execution Mode name (team-feature) is not a skill; only real skill folders
+# may own a stage, otherwise a stage points at nothing that can produce it.
+write_item unknown-skill active 2026-07-01T00:00:00+00:00 ready plan/implementation.md team-feature
 sed -i.bak '/^title:/d' "$WORK_ROOT/missing-title/meta.yml"
 rm -f "$WORK_ROOT/missing-title/meta.yml.bak"
 
@@ -211,8 +294,55 @@ rm -f "$WORK_ROOT/invalid-approval-ref/meta.yml.bak"
 write_v3_item invalid-deployment-id completed deployed 2026-07-01T00:00:00+00:00 done plan/plan.md deploy
 sed -i.bak 's#deploy-2026-07-10-001#yes#' "$WORK_ROOT/invalid-deployment-id/meta.yml"
 rm -f "$WORK_ROOT/invalid-deployment-id/meta.yml.bak"
-write_item unstamped-post-v3 shipped 2026-07-11T00:00:00+00:00 done plan/implementation.md
-sed -i.bak 's#created_at: 2026-01-01T00:00:00+00:00#created_at: 2026-07-11T00:00:00+00:00#' "$WORK_ROOT/unstamped-post-v3/meta.yml"
+# Dated after the repository's v3 adoption boundary (see V3_ADOPTION_TIME in
+# scripts/work_items.py, moved to the reconciliation date because dev main forked
+# before v3 existed). An item created from then on must carry the stamp.
+# D3 negatives. Each item is completed after the D3 adoption boundary, so the
+# documentation-impact result is mandatory and its two legal forms are closed.
+write_v3_item missing-doc-impact completed not_requested 2026-07-28T00:00:00+00:00 done plan/plan.md
+write_v3_item untyped-doc-impact completed not_requested 2026-07-28T00:00:00+00:00 done plan/plan.md
+printf '%s\n' 'documentation_impact: docs/decisions.md' >> "$WORK_ROOT/untyped-doc-impact/meta.yml"
+write_v3_item work-history-doc-impact completed not_requested 2026-07-28T00:00:00+00:00 done plan/plan.md
+printf '%s\n' 'documentation_impact: doc:implement-report.md' >> "$WORK_ROOT/work-history-doc-impact/meta.yml"
+write_v3_item work-history-path-impact completed not_requested 2026-07-28T00:00:00+00:00 done plan/plan.md
+printf '%s\n' 'documentation_impact: doc:docs/work/work-history-path-impact/plan/plan.md' \
+  >> "$WORK_ROOT/work-history-path-impact/meta.yml"
+# A named document that does not exist proves no document was updated.
+write_v3_item absent-doc-impact completed not_requested 2026-07-28T00:00:00+00:00 done plan/plan.md
+printf '%s\n' 'documentation_impact: doc:this-file-does-not-exist-anywhere.md' \
+  >> "$WORK_ROOT/absent-doc-impact/meta.yml"
+# A `doc:` path whose resolved target leaves the workspace is not a project document:
+# the project's own documentation demonstrably was not updated. The symlink is inside
+# the workspace, so only resolving the target catches the escape.
+mkdir -p "$TMP/outside-ws"
+printf '# Outside the workspace\n' > "$TMP/outside-ws/external.md"
+ln -s "$TMP/outside-ws/external.md" "$WORKSPACE/docs/external.md"
+write_v3_item escaping-doc-impact completed not_requested 2026-07-28T00:00:00+00:00 done plan/plan.md
+printf '%s\n' 'documentation_impact: doc:docs/external.md' \
+  >> "$WORK_ROOT/escaping-doc-impact/meta.yml"
+# A symlink inside the workspace that resolves back into the work item is still
+# work-history: the lexical adjacent-pair match cannot see it, only the resolved
+# target tells the truth.
+write_v3_item history-link-doc-impact completed not_requested 2026-07-28T00:00:00+00:00 done plan/plan.md
+printf '# Work history\n' > "$WORK_ROOT/history-link-doc-impact/implement-report.md"
+ln -s "$WORK_ROOT/history-link-doc-impact/implement-report.md" "$WORKSPACE/docs/history-link.md"
+printf '%s\n' 'documentation_impact: doc:docs/history-link.md' \
+  >> "$WORK_ROOT/history-link-doc-impact/meta.yml"
+# A `doc:` value is workspace-relative, so the two syntactic ways out of the workspace
+# stay rejected before any resolution happens.
+write_v3_item traversal-doc-impact completed not_requested 2026-07-28T00:00:00+00:00 done plan/plan.md
+printf '%s\n' 'documentation_impact: doc:../../../outside-ws/external.md' \
+  >> "$WORK_ROOT/traversal-doc-impact/meta.yml"
+write_v3_item absolute-doc-impact completed not_requested 2026-07-28T00:00:00+00:00 done plan/plan.md
+printf '%s\n' "documentation_impact: doc:$TMP/outside-ws/external.md" \
+  >> "$WORK_ROOT/absolute-doc-impact/meta.yml"
+write_v3_item empty-na-doc-impact completed not_requested 2026-07-28T00:00:00+00:00 done plan/plan.md
+printf '%s\n' 'documentation_impact: n/a:' >> "$WORK_ROOT/empty-na-doc-impact/meta.yml"
+write_v3_item unbounded-na-doc-impact completed not_requested 2026-07-28T00:00:00+00:00 done plan/plan.md
+printf 'documentation_impact: n/a:%s\n' "$(printf 'reason %.0s' $(seq 1 40))" \
+  >> "$WORK_ROOT/unbounded-na-doc-impact/meta.yml"
+write_item unstamped-post-v3 shipped 2026-07-26T00:00:00+00:00 done plan/implementation.md
+sed -i.bak 's#created_at: 2026-01-01T00:00:00+00:00#created_at: 2026-07-26T00:00:00+00:00#' "$WORK_ROOT/unstamped-post-v3/meta.yml"
 rm -f "$WORK_ROOT/unstamped-post-v3/meta.yml.bak"
 
 set +e
@@ -224,6 +354,7 @@ assert_contains "$check_output" "invalid work-item status" "check reports invali
 assert_contains "$check_output" "invalid stage status" "check reports invalid stage status"
 assert_contains "$check_output" "artifact does not exist" "check reports missing artifact"
 assert_contains "$check_output" "missing required field: title" "check reports missing required fields"
+assert_contains "$check_output" "unknown skill" "check reports a stage owned by a non-skill name"
 assert_contains "$check_output" "approved requires delivery evidence: approval_ref" "approved transition requires evidence"
 assert_contains "$check_output" "pr_created requires delivery evidence: pr_url" "PR transition requires evidence"
 assert_contains "$check_output" "merged requires delivery evidence: merge_sha" "merge transition requires evidence"
@@ -255,5 +386,46 @@ assert_contains "$check_output" "required stage implement must not be superseded
 assert_contains "$check_output" "invalid delivery evidence approval_ref" "approval evidence requires a typed durable reference"
 assert_contains "$check_output" "invalid delivery evidence deployment_id" "deployment evidence requires identifier shape"
 assert_contains "$check_output" "created after work-item/v3 adoption must declare schema_version" "new metadata cannot omit the v3 stamp"
+assert_contains "$check_output" "completed work requires exactly one documentation_impact result" "completed work requires a documentation-impact result"
+assert_contains "$check_output" "invalid documentation_impact: docs/decisions.md" "documentation impact rejects an untyped value"
+assert_contains "$check_output" "documentation_impact names work-history inside the work item: implement-report.md" "work-history prose is not a documentation-impact result"
+assert_contains "$check_output" "documentation_impact names work-history inside the work item: docs/work/work-history-path-impact/plan/plan.md" "a workspace-relative path into the work item is work-history too"
+assert_contains "$check_output" "documentation_impact names a document that does not exist: this-file-does-not-exist-anywhere.md; record doc:<project-document> or n/a:<bounded reason>" "a documentation-impact result must name a document that exists"
+assert_contains "$check_output" "documentation_impact names a document outside the workspace: docs/external.md resolves to" "a doc: path that escapes the workspace is not a project document"
+assert_contains "$check_output" "; name a project document inside the workspace and record doc:<project-document> or n/a:<bounded reason>" "the escape message names the remedy"
+assert_contains "$check_output" "documentation_impact resolves to work-history inside the work item: docs/history-link.md" "a symlink resolving back into the work item is work-history too"
+assert_contains "$check_output" "documentation_impact doc must be a workspace-relative path: ../../../outside-ws/external.md" "a traversal path is not a workspace-relative document"
+assert_contains "$check_output" "documentation_impact doc must be a workspace-relative path: $TMP/outside-ws/external.md" "an absolute path is not a workspace-relative document"
+assert_contains "$check_output" "documentation_impact n/a needs a bounded reason" "an empty N/A reason is not a documentation-impact result"
+assert_contains "$check_output" "documentation_impact n/a reason must be at most 200 characters" "the N/A reason stays bounded"
+
+# J6: when the completion check fails, the machine view names the failed check and the
+# remedy, the state does not advance to complete, and an authored PASS in the work
+# item's own report cannot override the failure.
+J6_ROOT="$TMP/j6"
+mkdir -p "$J6_ROOT/blocked"
+printf '# Implement report\nVerification: PASS\nAll green, work is complete.\n' \
+  > "$J6_ROOT/blocked/implement-report.md"
+printf '%s\n' \
+  'schema_version: work-item/v3' \
+  'slug: blocked' \
+  'title: Completion claimed by an authored PASS' \
+  'created_at: 2026-07-28T00:00:00+00:00' \
+  'updated_at: 2026-07-28T00:00:00+00:00' \
+  'execution_mode: personal-feature' \
+  'work_status: completed' \
+  'delivery_status: not_requested' \
+  'stages:' \
+  '  implement: { skill: implement, file: implement-report.md, status: done }' \
+  'inputs:' \
+  '  - request.md' \
+  > "$J6_ROOT/blocked/meta.yml"
+set +e
+j6_output="$(bash "$REPO/scripts/work-items.sh" --work-root "$J6_ROOT" check 2>&1)"
+j6_rc=$?
+set -e
+assert_neq "0" "$j6_rc" "an authored PASS does not advance work to complete"
+assert_contains "$j6_output" "completed work requires exactly one documentation_impact result" "failed completion check names the failed check"
+assert_contains "$j6_output" "n/a:<bounded reason>" "failed completion check names what to do next"
 
 finish

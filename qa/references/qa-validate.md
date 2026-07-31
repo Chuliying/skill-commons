@@ -177,3 +177,31 @@ bash <qa-skill-dir>/scripts/run-qa.sh "$WORK_ROOT/$SLUG/qa-plan.md"
 |---------|-------|
 | 需要 Debug | `systematic-debugging` |
 | 需要修正程式 | `implement` |
+
+---
+
+## Execution Checklist（必填輸出）
+
+依 CHECKLIST-CONVENTION 格式：狀態只用 PASS/FAIL/N/A，不使用圖示，且引用實際命令、檔案或 Gate 證據。
+
+```
+Skill: qa validate
+Executed At: YYYY-MM-DD HH:MM
+Artifact: <work_root>/<slug>/qa-report.md
+
+Steps:
+PASS Phase 1: Pre-flight（type/compile、lint;capability false 記 N/A）
+  Evidence: <命令與結果>
+PASS Phase 2: AC 逐條核對
+  Evidence: <每個 AC 對應 TC 的通過證據>
+PASS Phase 3: 測試執行（Unit 必做;has_e2e 時 E2E）
+  Evidence: <test_cmd 輸出摘要>
+PASS Phase 4: TC-V 截圖核對（has_ui 且有 mockup 時;否則 N/A）
+  Evidence: <截圖路徑或 N/A>
+
+Result: PASS | FAIL | N/A
+Summary: <Done Definition 是否成立>
+Notes: <未通過項與後續;沒有則填「無」>
+```
+
+**未輸出 Checklist = 未完成 QA validate**

@@ -237,6 +237,65 @@ else
   fail "wrapper and direct output are identical"
 fi
 
+# A plan that declares a participant repo reports it; one that declares none is
+# unchanged. Participants come from the plan's Sources only, so status never grows
+# a second place to record where the other repo is.
+PROOT="$TMP/participants"
+PWORK="$PROOT/docs/work"
+mkdir -p "$PWORK" "$PROOT/.git"
+git init -q "$TMP/participant-repo" >/dev/null 2>&1
+onboard_stamp "$PROOT"
+make_canonical_item "$PWORK" shared
+perl -0pi -e 's#- user: project-status-fixture#- user: project-status-fixture\n- repo: sibling\@../participant-repo#' \
+  "$PWORK/shared/plan/plan.md"
+PARTICIPANTS="$(bash "$PS" --project-root "$PROOT" --work-root "$PWORK" --slug shared --json)"
+assert_contains "$PARTICIPANTS" '"participants": [' "declared participants reach the status payload"
+assert_contains "$PARTICIPANTS" '"sibling"' "the declared participant identifier is reported"
+PARTICIPANTS_TEXT="$(bash "$PS" --project-root "$PROOT" --work-root "$PWORK" --slug shared)"
+assert_contains "$PARTICIPANTS_TEXT" "participants=sibling" "text output names the participant"
+NO_PARTICIPANTS_TEXT="$(bash "$PS" --project-root "$CROOT" --work-root "$CWORK" --slug canonical)"
+assert_not_contains "$NO_PARTICIPANTS_TEXT" "participants=" "a plan with no participant is unchanged"
+
+# Finished cross-repo work stays visible in one place: a completed item still
+# reports the participants its canonical plan declares. Its plan state remains
+# unassessed, so history still cannot drive current orientation.
+FROOT="$TMP/finished-participants"
+FWORK="$FROOT/docs/work"
+mkdir -p "$FWORK" "$FROOT/.git"
+git init -q "$TMP/finished-participant-repo" >/dev/null 2>&1
+onboard_stamp "$FROOT"
+make_canonical_item "$FWORK" finished
+perl -0pi -e 's#- user: project-status-fixture#- user: project-status-fixture\n- repo: retired-sibling\@../finished-participant-repo#' \
+  "$FWORK/finished/plan/plan.md"
+perl -0pi -e 's#^work_status: active$#work_status: completed#m; s#status: in_progress \}#status: done }#' \
+  "$FWORK/finished/meta.yml"
+FINISHED="$(bash "$PS" --project-root "$FROOT" --work-root "$FWORK" --json)"
+assert_contains "$FINISHED" '"work_status": "completed"' "the finished fixture is completed work"
+assert_contains "$FINISHED" '"retired-sibling"' "a completed item still reports its declared participant"
+assert_contains "$FINISHED" '"assessed": false' "a completed item's plan state stays unassessed"
+FINISHED_TEXT="$(bash "$PS" --project-root "$FROOT" --work-root "$FWORK")"
+assert_contains "$FINISHED_TEXT" "participants=retired-sibling" "text output names a completed item's participant"
+
+# A declared participant that cannot be resolved must be reported, not dropped:
+# the identity comes from the declaration, so a missing checkout is visible in
+# both surfaces instead of collapsing to `participants: []` with no error.
+UPROOT="$TMP/unreadable-participant"
+UPWORK="$UPROOT/docs/work"
+mkdir -p "$UPWORK" "$UPROOT/.git"
+onboard_stamp "$UPROOT"
+make_canonical_item "$UPWORK" orphaned
+perl -0pi -e 's#- user: project-status-fixture#- user: project-status-fixture\n- repo: gone\@../absent-repo#' \
+  "$UPWORK/orphaned/plan/plan.md"
+perl -0pi -e 's#^work_status: active$#work_status: completed#m; s#status: in_progress \}#status: done }#' \
+  "$UPWORK/orphaned/meta.yml"
+UNREADABLE="$(bash "$PS" --project-root "$UPROOT" --work-root "$UPWORK" --json)"
+assert_contains "$UNREADABLE" '"gone"' "an unreadable participant keeps its declared identity in JSON"
+assert_contains "$UNREADABLE" "does not exist" "an unreadable participant is reported in JSON"
+UNREADABLE_TEXT="$(bash "$PS" --project-root "$UPROOT" --work-root "$UPWORK")"
+assert_contains "$UNREADABLE_TEXT" "participants=gone" "text output keeps the unreadable participant's identity"
+assert_contains "$UNREADABLE_TEXT" "does not exist" "text output reports the unreadable participant"
+assert_not_contains "$UNREADABLE" "$TMP" "unreadable-participant report leaks no host path"
+
 # The private source repo itself remains a bootstrap N/A/unknown context.
 SELF="$(python3 "$REPO/scripts/project_status.py" --project-root "$REPO" --json)"
 self_bootstrap="$(printf '%s' "$SELF" | python3 -c 'import json,sys;print(json.load(sys.stdin)["probes"]["bootstrap"]["state"])')"

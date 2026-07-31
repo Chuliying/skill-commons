@@ -3,11 +3,28 @@
 AP_START="<!-- skill-commons:start (generated, do not edit; run onboard.sh) -->"
 AP_END="<!-- skill-commons:end -->"
 
+_emit_directive() {
+  # $1 = directive file, $2 = submodule mount path (default .agent/skills/_shared).
+  # directive.md hardcodes the default mount; when a consuming repo configures a
+  # custom submodule_path we rewrite those occurrences so the injected shim points
+  # at a router path that actually exists. `.agent/project-manifest.md` never
+  # contains `.agent/skills/_shared`, so the consuming-repo manifest path is left
+  # untouched. Default path takes the verbatim branch -> byte-identical output
+  # (keeps the idempotency tests green).
+  local dir="$1" subpath="${2:-.agent/skills/_shared}"
+  if [ "$subpath" = ".agent/skills/_shared" ]; then
+    cat "$dir"
+  else
+    local content; content="$(cat "$dir")"
+    printf '%s\n' "${content//.agent\/skills\/_shared/$subpath}"
+  fi
+}
+
 render_block() {
-  # $1 = directive file, $2 = stamp ; writes block to stdout
-  local dir="$1" stamp="$2"
+  # $1 = directive file, $2 = stamp, $3 = submodule path ; writes block to stdout
+  local dir="$1" stamp="$2" subpath="${3:-.agent/skills/_shared}"
   printf '%s\n' "$AP_START"
-  cat "$dir"
+  _emit_directive "$dir" "$subpath"
   printf '\n<!-- skill-commons-stamp: %s -->\n' "$stamp"
   printf '%s\n' "$AP_END"
 }
@@ -136,9 +153,9 @@ remove_managed_block() {
 }
 
 render_cursor_rule() {
-  # $1 = directive file, $2 = stamp ; writes full .mdc to stdout
-  local dir="$1" stamp="$2"
+  # $1 = directive file, $2 = stamp, $3 = submodule path ; writes full .mdc to stdout
+  local dir="$1" stamp="$2" subpath="${3:-.agent/skills/_shared}"
   printf -- '---\nalwaysApply: true\n---\n'
-  cat "$dir"
+  _emit_directive "$dir" "$subpath"
   printf '\n<!-- skill-commons-stamp: %s -->\n' "$stamp"
 }

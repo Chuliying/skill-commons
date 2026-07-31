@@ -16,6 +16,6 @@ If a question can be answered by exploring the codebase, explore the codebase in
 ## Modes
 
 - Conversation mode: challenge the plan one decision at a time; no artifact is required.
-- Durable docs mode: when the user asks to preserve the stress test or the workflow needs a handoff, also use `domain-modeling`, then write `adr.md`, `glossary.md`, and `meta.yml` under `<work_root>/<slug>/` following [`../ARTIFACTS.md`](../ARTIFACTS.md).
+- Durable docs mode: when the user asks to preserve the stress test or the workflow needs a handoff, use `domain-modeling` only when it is available（team profile，或該 skill 已安裝）；否則直接寫 `glossary.md`，不硬性依賴 personal bundle 沒有的 `domain-modeling`。接著在 `<work_root>/<slug>/` 下寫 `adr.md`、`glossary.md` 與 `meta.yml`，following [`../ARTIFACTS.md`](../ARTIFACTS.md).
 
 In durable docs mode, `adr.md` records resolved choices, alternatives, consequences, and remaining risks. `glossary.md` records agreed domain terms. Do not manufacture decisions merely to fill either file.

@@ -128,6 +128,14 @@ def probe_plan(item_dir: Path, assess: bool = True) -> dict:
     Historical completed/abandoned items are detected but not assessed, so a
     stale historical plan cannot change current orientation. Consistent blocked
     plans contribute attention; invalid plans contribute invalid.
+
+    Participants are the one exception to "not assessed": a declared `repo:`
+    Source is the work item's identity, not its current state, so finished
+    cross-repo work stays visible in one place. An unassessed item reports its
+    participants and, when one of them cannot be resolved, why — and nothing
+    else: no plan state, no active task, no plan-consistency errors. So for an
+    unassessed item `errors` carries participant reporting only, which is what
+    lets the text renderer surface it without reviving plan assessment.
     """
     plan_dir = item_dir / "plan"
     canonical = plan_dir / "plan.md"
@@ -143,12 +151,17 @@ def probe_plan(item_dir: Path, assess: bool = True) -> dict:
         "plan_state": "unknown",
         "active_task": None,
         "next_action": None,
+        "participants": [],
         "errors": [],
         "warnings": [],
     }
     if not present:
         return empty
-    if not assess or not PLANCTL_PY.is_file():
+    if not PLANCTL_PY.is_file():
+        return empty
+    # Retired three-file plans predate the Sources contract and declare no
+    # participants, so an unassessed retired plan is not probed at all.
+    if not assess and mode != "canonical":
         return empty
     try:
         proc = subprocess.run(
@@ -164,7 +177,7 @@ def probe_plan(item_dir: Path, assess: bool = True) -> dict:
             text=True,
         )
     except OSError as exc:
-        return {**empty, "errors": [str(exc)]}
+        return {**empty, "errors": [str(exc)]} if assess else empty
 
     payload = {}
     if proc.stdout.strip():
@@ -172,6 +185,10 @@ def probe_plan(item_dir: Path, assess: bool = True) -> dict:
             payload = json.loads(proc.stdout)
         except json.JSONDecodeError:
             payload = {}
+    participants = sorted(payload.get("participants", []))
+    participant_errors = sorted(payload.get("participant_errors", []))
+    if not assess:
+        return {**empty, "participants": participants, "errors": participant_errors}
     consistency = str(payload.get("consistency", "unknown"))
     plan_state = str(payload.get("plan_state", "unknown"))
     if proc.returncode == 0 and consistency == "PASS":
@@ -189,6 +206,7 @@ def probe_plan(item_dir: Path, assess: bool = True) -> dict:
         "plan_state": plan_state,
         "active_task": payload.get("active_task"),
         "next_action": payload.get("next_action"),
+        "participants": participants,
         "errors": sorted(payload.get("validation_errors", [])),
         "warnings": sorted(payload.get("validation_warnings", [])),
     }
@@ -220,7 +238,8 @@ def collect_work_items(work_root: Path) -> list[dict]:
         ]
         meta_valid = not errors
         # Only assess plans for active items — historical plans must not affect
-        # current orientation.
+        # current orientation. A historical canonical plan still yields its
+        # declared participants (see probe_plan).
         plan = probe_plan(item.path.parent, assess=is_active)
         next_stg = next_stage(stages)
         # Active with no pending stage: meta has no stage that needs work.
@@ -439,11 +458,21 @@ def render_text(payload: dict) -> str:
             stage_note = "no-pending-stage"
         else:
             stage_note = "-"
+        participants = plan.get("participants") or []
+        participant_note = (
+            f" participants={','.join(participants)}" if participants else ""
+        )
         lines.append(
             f"  - {entry['slug']} [work={entry['work_status']} delivery={entry['delivery_status']}] "
             f"state={entry['state']} "
-            f"plan={plan_note} next_stage={stage_note}"
+            f"plan={plan_note} next_stage={stage_note}{participant_note}"
         )
+        # An unassessed item's errors are participant reporting only (see
+        # probe_plan), so surfacing them here cannot leak plan assessment into
+        # history. Assessed items already report through state and next_action.
+        if not plan.get("assessed"):
+            for message in plan.get("errors") or []:
+                lines.append(f"    attention: {message}")
     lines.append(f"next_action: {payload['next_action']}")
     return "\n".join(lines)
 

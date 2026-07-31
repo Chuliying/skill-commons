@@ -64,7 +64,7 @@ stage: infra
 2. Implementer 實作：
    └─ TDD（RED → GREEN → REFACTOR）
    └─ 自我 review
-   └─ Commit
+   └─ 先不 commit（commit 移到雙 review Gate + secret scan 全 PASS 之後）
 
 3. 分派 Spec Compliance Reviewer Subagent
    提供給 Reviewer 的 Deterministic Gate：
@@ -121,10 +121,25 @@ stage: infra
    | lint | 0 errors |
 
    ❌ 任一項 FAIL → Implementer 修復 → 重新跑完整 Gate
-   ✅ 全部 PASS → 標記任務完成
+   ✅ 全部 PASS → 進到 Secret Scan Gate
 
-5. 標記任務完成（TodoWrite）
-6. 繼續下一個任務
+5. Secret Scan Gate（必須 PASS）
+
+   commit 一律交給 `sync-work` Save：它先 stage 本批檔案，再對 staged 內容跑 secret 掃描，
+   最後才 commit。因此 secret 掃描涵蓋 source_roots 範圍外的 staged 檔（direct scan 只掃
+   source_roots，會漏範圍外檔）。掃描以 consuming-repo canonical 路徑
+   `<shared_skills_root>/security/scripts/scan-secrets.sh` 執行，不寫死 dev-repo 路徑。
+
+   ❌ FAIL → Implementer 修復 → 重新跑完整 Gate
+   ✅ PASS → sync-work Save 完成 commit
+
+6. Commit（由 `sync-work` Save 執行；僅在雙 review Gate + Secret Scan 全 PASS 後）
+
+   commit 一律位於雙 Gate 與 secret 掃描之後，對齊 `sync-work` Hard Rule 5（commit 前必須有
+   verification 與安全檢查）。SDD 不自行 `git commit`，避免範圍外 secret 在 staged scan 前就被提交。
+
+7. 標記任務完成（TodoWrite）
+8. 繼續下一個任務
 ```
 
 ### Step 2: 最終 Review

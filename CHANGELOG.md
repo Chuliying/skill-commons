@@ -4,6 +4,32 @@
 
 ## [Unreleased]
 
+### Changed
+
+- `tests/verify.sh` 改為從樹上動態探索 suites，不再讀硬編清單；也補上先前未被
+  執行的 top-level、bootstrap 與 Python 分層。`tests/run-all.sh` 降為相容
+  shim；它原本是 CI 的入口，而它從不執行 Python 分層。
+- 公開/私有測試邊界改為只宣告在 `.gitattributes`，不再由 runner 重算。
+- secret 掃描的發現改為只輸出 `path:line` 與類別，不再輸出比對到的內容。
+- 掃描結果結尾改為 scoped preflight 敘述，不再宣稱 comprehensive PASS。
+
+### Fixed
+
+- secret 偵測漏判：含 `os.environ` / `process.env` 的行整行被抑制，正好漏掉
+  hard-coded fallback 這個最常見的實際洩漏形態；`# type: ignore` 也會使該行被抑制。
+- secret 掃描在 scope 為空時於 bash 3.2 崩潰（未保護的空陣列展開）。
+- log 衛生規則把 `key` 當子字串比對，使每個 `sort_keys=True` 都產生警告。
+- `implement`、`verification-before-completion`、`systematic-debugging` 的
+  obra/superpowers MIT 標註被遺漏，已在 `SOURCES.md` 與 frontmatter 補回。
+- 產物比對把 `__pycache__` 計入受管檔案集，使 source 與 fan-out 的一致性
+  取決於執行順序。
+
+### Added
+
+- [`docs/cross-repo-contract.md`](docs/cross-repo-contract.md)：說明機器契約
+  （`protocol-registry.json`）、八項檢查各自保證什麼、以及執行方式。
+- work-item stage 的 `skill` 必須是真實技能資料夾，roster 由樹上推導。
+
 ## [0.9.0] - 2026-07-15
 
 ### Added

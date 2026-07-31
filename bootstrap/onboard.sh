@@ -16,6 +16,40 @@ error() {
 . "$HERE/lib/manifest.sh"
 . "$HERE/lib/ownership.sh"
 
+usage() {
+  cat <<'EOF'
+usage: bootstrap/onboard.sh [PROJECT_ROOT]
+
+Install the shared skill bundle into a consuming repository. PROJECT_ROOT defaults
+to the current directory.
+
+  -h, --help    print this message and exit without touching the filesystem
+
+Environment:
+  DELIVERY_MODE      personal (default) | team-sprint
+  CAPABILITY_PACKS   space-separated: frontend, optional
+EOF
+}
+
+# Options are handled BEFORE anything is resolved or created. `--help` was previously
+# taken as a positional target: onboard created a directory literally named `--help`,
+# fanned skills into it, wrote root files, and reported success. Typing --help at an
+# unfamiliar script is the most likely first thing a new consumer does, so answering it
+# with a silent real installation is the worst available behavior.
+case "${1:-}" in
+  -h|--help)
+    usage
+    exit 0
+    ;;
+  -*)
+    # Mirrors security/scripts/scan-secrets.sh, which already refuses option-shaped
+    # targets. Creating a directory out of a mistyped flag is never the intent.
+    echo "ERROR: unsafe target: $1 looks like an option, not a project root" >&2
+    echo "       run 'bootstrap/onboard.sh --help' for usage" >&2
+    exit 1
+    ;;
+esac
+
 PROJECT_ROOT="${1:-$(pwd)}"
 if [ -e "$PROJECT_ROOT" ] && [ ! -d "$PROJECT_ROOT" ]; then
   echo "ERROR: project root is not a directory: $PROJECT_ROOT" >&2

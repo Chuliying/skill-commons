@@ -36,13 +36,20 @@ Write `<work_root>/<slug>/plan/plan.md` from `templates/plan.md`. Record:
   older plans default to `1`).
 - `Sources`: one typed durable reference per entry:
   `- local: <relative-path>[#<literal-stable-id>]`,
-  `- user: <durable-opaque-reference>`, or
-  `- external: <URL-or-durable-opaque-ID>`.
+  `- user: <durable-opaque-reference>`,
+  `- external: <URL-or-durable-opaque-ID>`, or
+  `- repo: <identifier>@<path-relative-to-workspace-root>`.
 - `Tasks`: authored execution contracts; `Change Log`: short structural history.
 
 Reference upstream IDs instead of copying PRD, Spec, or QA prose. Every task has stable
 `Txx`, title, `Status`, `Depends On`, `Intent`, `Expected Result`, `Definition of Done`,
 and replayable `Verification` with an exact command when available.
+
+While authoring a task, check that everything it depends on is reachable in this repo.
+When it is not, stop and ask the user where the other repo is, then record the answer as
+a `repo:` Source before continuing. Never guess a participant path, and never silently
+narrow the task to the part this repo can reach — a task quietly cut down to one repo is
+the failure this check exists to prevent.
 
 ## Task decomposition
 
@@ -109,7 +116,10 @@ python <plan-sync-dir>/scripts/planctl.py status --plan-dir <plan-dir> --goal-st
 
 `check` covers format, tasks, references, dependencies, cycles, sibling plan stage, and
 journal. Local Sources resolve from `plan.md`, stay inside the Git workspace through
-symlinks, exist, and use exact literal-ID anchors; directories cannot use anchors.
+symlinks, exist, and use exact literal-ID anchors; directories cannot use anchors. A
+local Source may leave this repo only into a repo declared as a `repo:` participant,
+and it must stay inside that participant through symlinks. Verification evidence may
+never leave this repo: the repo making a claim holds the proof.
 `status` derives ready work, blockers, concurrency, counts, next action, and consistency.
 
 In Goal Mode the host owns lifecycle and budget; Plan Sync owns repository state. Surface

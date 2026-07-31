@@ -12,6 +12,7 @@
 
 - user: {durable-user-reference}
 - local: {relative-path}#{literal-stable-id}
+- repo: {participant-id}@{path-relative-to-workspace-root}
 
 ## Tasks
 

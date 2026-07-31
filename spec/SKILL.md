@@ -86,7 +86,7 @@ git rev-list --left-right --count HEAD...<remote>/<base>
 | **System Context** | **必須讀取** manifest 中 `system_context` | 執行 `/init` 或 `codebase-understanding` |
 | **System Map** | 依 Step 0 決策樹確認 manifest 中 `architecture_map` 已讀取，或已標記 risk | 未處理 decision → 停止 |
 | API Reference | `has_api: true` 時確認 `api_reference` 存在；false 為 N/A | 執行 `markdown` |
-| PRD 完整（機器檢查） | 執行 `python3 <shared_skills_root>/scripts/check-prd.py --prd <PRD 路徑> --tier team`：同一份 producer 契約當 input 前置，驗證 FR/AC/ERR、FU 段存在、AC 為 GWT、無殘留 placeholder | 退出非 0 → 停止並要求修正 PRD，不得開始設計 |
+| PRD 完整（機器檢查） | 執行 `python3 <shared_skills_root>/scripts/check-prd.py --prd <PRD 路徑> --tier <mode-tier>`，tier 依 Execution Mode 解析：`team-feature` 用 `--tier team`；`refactor` 的 optional spec 用 `--tier core`（`to-prd` 只產 core PRD 時走此路，避免固定 `--tier team` 造成契約死路）。驗證 FR/AC/ERR、FU 段存在、AC 為 GWT、無殘留 placeholder | 退出非 0 → 停止並要求修正 PRD，不得開始設計 |
 | **UI Token 規範** | `has_ui: true` 時讀取 `design_tokens` 與 UI domain skill；false 為 N/A | 補齊 manifest 或 domain skill |
 | **系統型別/契約** | `typed_contracts: true` 時讀取 `types_entry`；false 為 N/A | 補齊 manifest 或 validator |
 | **UI Mockup** | `has_ui: true` 且存在 `mockup_root` 時讀取所有適用圖檔；false 為 N/A | 存在但未讀時停止 |

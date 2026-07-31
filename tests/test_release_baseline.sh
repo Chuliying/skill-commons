@@ -57,8 +57,18 @@ assert_file "plan-sync/scripts/planctl.py" "canonical-v2 planctl is present"
 assert_file "scripts/check-prd.py" "v0.6+ canonical PRD gate is preserved"
 assert_contains "ARTIFACTS.md" "work-item/v3" "work-item/v3 is the durable lifecycle contract"
 assert_contains "plan-sync/SKILL.md" "canonical-v2" "plan-sync documents canonical-v2"
-assert_contains "tests/run-all.sh" "tests/test_release_baseline.sh" "root verification runs the release baseline contract"
-assert_contains "tests/run-all.sh" "tests/test_project_status.sh" "root verification runs project-status in private and public payloads"
+# The roster is discovered, not listed, so assert against the resolved roster
+# rather than a runner's source text. This is strictly stronger: it fails if a
+# suite is missing from what actually runs, not merely absent from one file.
+VERIFY_ROSTER="$(cd "$REPO" && bash tests/verify.sh --list)"
+assert_roster() {
+  if printf '%s\n' "$VERIFY_ROSTER" | grep -Fq -- "$1"; then pass "$2"; else fail "$2"; fi
+}
+assert_roster "tests/test_release_baseline.sh" "root verification runs the release baseline contract"
+assert_roster "tests/test_project_status.sh" "root verification runs project-status in private and public payloads"
+assert_roster "layer unit" "root verification runs the python unit layer"
+assert_roster "layer integration" "root verification runs the python integration layer"
+assert_roster "layer e2e" "root verification runs the python e2e layer"
 assert_contains "qa/SKILL.md" "不得假設固定 fan-out 或 submodule mount" "QA commands define runtime path resolution"
 assert_contains "security/SKILL.md" "不得假設固定 fan-out 或 submodule mount" "security commands define runtime path resolution"
 assert_contains "verification-before-completion/SKILL.md" "不得假設固定 fan-out 或 submodule mount" "verification commands define runtime path resolution"

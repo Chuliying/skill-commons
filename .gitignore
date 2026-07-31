@@ -31,5 +31,8 @@ __pycache__/
 # Real-agent eval workspaces and model logs
 journey-evals/runs/
 
+# test-harness contract-test sandbox layers (uuid-suffixed; cleaned up per test)
+tests/py/_sbx_*/
+
 # Separately managed explainer-site repository; never stage it as a gitlink.
 /website/

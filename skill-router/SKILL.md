@@ -98,7 +98,7 @@ Execution Mode: `refactor`。
 
 ### Micro-task 直達（相容別名：Flow A-P micro）
 
-以下三項全部成立才可 `implement → verification-before-completion`：
+以下三項全部成立才可 native 直達：
 
 | 條件 | 客觀邊界 |
 |---|---|
@@ -106,10 +106,11 @@ Execution Mode: `refactor`。
 | 無新依賴 | 不新增 package、plugin、service 或 dependency graph |
 | 無 schema/API 變更 | 不改持久化格式、公開 API、event 或跨服務 contract |
 
-任一條件不成立或不確定，就走 personal feature。直達路徑為
-`implement（帶 failing test）→ verification-before-completion`。
+任一條件不成立或不確定就走 personal feature。直達是 native 實作（先寫 failing
+test）→ `verification-before-completion`；不建立 work item 與 plan，
+不派發 `implement`。
 
-Plan selection：micro-task 不建立 plan；其他需要多步、handoff、resume 或
+Plan selection：需要多步、handoff、resume 或
 drift tracking 的工作使用 canonical `plan/plan.md`。v0.7 不載入舊三件式
 plan；消費端需先遷移到 canonical-v2，或在遷移前 pin v0.6。
 
@@ -167,5 +168,5 @@ codebase-understanding → architecture map / domain candidates
 □ 已實際讀取所有派發 skills
 □ 條件式 artifact 沒有被補造
 □ 人工 Gate 只停在 PRD、team 設計、發布
-□ 完成宣稱有 fresh evidence
+□ 完成宣稱有 fresh test report 與一筆 documentation impact
 ```

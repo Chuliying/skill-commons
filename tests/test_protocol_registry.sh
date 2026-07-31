@@ -142,9 +142,16 @@ for name, text in (("router", router), ("implement", implement)):
 if re.search(r"(?m)^\| `(?:team-feature|personal-feature|bug-fix|refactor)` \|", implement):
     errors.append("implement duplicates the execution-mode matrix")
 
+# ADR-R3 I-M1: consumers reach the registry through scripts/execution_modes.py. This
+# used to require work_items.py to load the registry itself, which is now the thing to
+# forbid -- a second loader is a second place the contract can be read differently.
 work_items = (repo / "scripts/work_items.py").read_text(encoding="utf-8")
-if "load_protocol_registry" not in work_items:
-    errors.append("work-item validator does not consume registry constraints")
+grader = (repo / "journey-evals/scripts/grade_journey.py").read_text(encoding="utf-8")
+for name, text in (("work-item validator", work_items), ("journey grader", grader)):
+    if "execution_modes" not in text:
+        errors.append(f"{name} does not consume the shared execution-mode accessor")
+    if "json.loads" in text and "protocol-registry.json" in text:
+        errors.append(f"{name} loads the registry directly instead of via the accessor")
 
 if errors:
     print("\n".join(errors))
@@ -235,6 +242,168 @@ if PROFILE=all bash "$REPO/bootstrap/generate.sh" "$TMP/.claude/skills" "$TMP/.c
   TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: fan-out publishes the protocol registry"
 else
   fail "fan-out publishes the protocol registry"
+fi
+
+# ADR-R3 I-M1: exactly one stage-requirement source. Both work_items.py and
+# grade_journey.py must reach the contract through the shared accessor rather than
+# carrying their own per-mode artifact lists -- a second list is how the grader and
+# the validator drift apart while both look correct.
+assert_file "$REPO/scripts/execution_modes.py" "execution-mode accessor module exists"
+modes_source="$(cat "$REPO/scripts/execution_modes.py" 2>/dev/null || true)"
+assert_contains "$modes_source" "protocol-registry.json" "accessor derives modes from the registry, not its own table"
+
+work_items_source="$(cat "$REPO/scripts/work_items.py")"
+grader_source="$(cat "$REPO/journey-evals/scripts/grade_journey.py")"
+assert_contains "$work_items_source" "execution_modes" "work-item validator imports the shared accessor"
+assert_contains "$grader_source" "execution_modes" "journey grader imports the shared accessor"
+
+# I-M1: no hardcoded per-mode artifact list anywhere in the grader. An earlier version
+# of this gate grepped for the exact string '"qa-plan.md",' WITH a trailing comma, so it
+# matched only the one historical spelling and missed three surviving tuples written
+# without it. Match the filename in any quoted form instead, and allow only the lines
+# that define the registry-derived helper.
+if python3 - "$REPO/journey-evals/scripts/grade_journey.py" <<'PY'; then
+import re, sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+offenders = []
+for number, line in enumerate(source.splitlines(), 1):
+    if "execution_modes" in line or "canonical_file" in line:
+        continue          # the derivation itself, not a restatement
+    if line.lstrip().startswith("#"):
+        continue
+    # A violation is a LITERAL COLLECTION of artifact names -- two quoted names with
+    # only a comma between them, as in `for name in ("prd.md", "spec.md")`. Passing two
+    # separate paths as arguments (`f(work / "prd.md", work / "qa-plan.md")`) is not a
+    # per-mode list, so requiring adjacency keeps the gate precise instead of noisy.
+    pairs = re.findall(
+        r'"(?:prd|spec|qa-plan|qa-report|plan)\.md"\s*,\s*"(?:prd|spec|qa-plan|qa-report|plan)\.md"',
+        line,
+    )
+    if pairs:
+        offenders.append("line %d: %s" % (number, line.strip()[:80]))
+if offenders:
+    print("\n".join(offenders))
+    raise SystemExit(1)
+print("no hardcoded per-mode artifact list")
+PY
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: grader carries no hardcoded per-mode artifact list"
+else
+  fail "grader carries no hardcoded per-mode artifact list"
+fi
+
+# I-M2: the accessor and the registry must agree on the mode roster, checked by
+# machine rather than by two documents being edited together.
+if python3 - "$REPO" <<'PY'; then
+import json, sys
+from pathlib import Path
+repo = Path(sys.argv[1])
+sys.path.insert(0, str(repo / "scripts"))
+import execution_modes
+registry = json.loads((repo / "protocol-registry.json").read_text(encoding="utf-8"))
+if set(execution_modes.mode_names()) != set(registry["execution_modes"]):
+    raise SystemExit("accessor mode roster diverges from the registry")
+for mode in registry["execution_modes"]:
+    declared = {
+        name: spec["requirement"]
+        for name, spec in registry["execution_modes"][mode]["artifacts"].items()
+    }
+    if execution_modes.stage_requirements(mode) != declared:
+        raise SystemExit(f"accessor requirements diverge for {mode}")
+PY
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: accessor and registry agree on every mode contract"
+else
+  fail "accessor and registry agree on every mode contract"
+fi
+
+# T04 Foundation consumer drift-check, kept as an invariant rather than a one-time
+# cleanup. Foundation owns the Artifact Ref shape; a consumer PRD that restates the
+# field list will drift from it silently, because both documents keep reading
+# plausibly. The consumer must reference foundation/schema.py instead.
+orchestration_prd="$REPO/docs/work/cross-repo-task-orchestration/prd.md"
+if [ -f "$orchestration_prd" ]; then
+  if python3 - "$REPO" "$orchestration_prd" <<'PY'; then
+import re, sys
+from pathlib import Path
+
+repo, prd_path = Path(sys.argv[1]), Path(sys.argv[2])
+sys.path.insert(0, str(repo))
+from foundation import schema
+
+prd = prd_path.read_text(encoding="utf-8")
+errors = []
+
+# The consumer must point at the owner of the shape.
+for marker in ("foundation/schema.py", "validate_artifact_ref"):
+    if marker not in prd:
+        errors.append(f"consumer PRD does not reference {marker}")
+
+# A restatement is a line that enumerates most of the owned field set in prose. Two
+# or more field names outside a reference line is how the previous duplication read.
+owned = [f for f in schema.ARTIFACT_REF_FIELDS if f not in ("repo_id",)]
+prose_names = {"commit OID": "commit_oid", "content digest": "digest",
+               "artifact kind": "artifact_kind", "repo-relative path": "path"}
+for line_number, line in enumerate(prd.splitlines(), 1):
+    if "foundation/schema.py" in line or "ARTIFACT_REF_FIELDS" in line:
+        continue
+    hits = [prose for prose in prose_names if prose in line]
+    if len(hits) >= 2:
+        errors.append(
+            f"line {line_number}: restates Foundation-owned Artifact Ref fields {hits}"
+        )
+
+if errors:
+    print("\n".join(errors))
+    raise SystemExit(1)
+print(f"consumer drift-check ok (owned fields: {', '.join(owned)})")
+PY
+    TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: orchestration PRD references Foundation instead of restating it"
+  else
+    fail "orchestration PRD references Foundation instead of restating it"
+  fi
+fi
+
+# Program T06 system convergence, as an invariant. Two consumers sit on Foundation and
+# meet at exactly one contract: ADR-004 makes InitiativeScope the only integration
+# point between Product Scope and Orchestration. Convergence found them disagreeing --
+# the orchestration PRD did not mention InitiativeScope at all, so a projected scope
+# had no declared consumer. This keeps both ends naming the same contract, with the
+# producer owning its shape.
+product_prd="$REPO/docs/work/product-scope-graph/prd.md"
+if [ -f "$orchestration_prd" ] && [ -f "$product_prd" ]; then
+  if python3 - "$orchestration_prd" "$product_prd" <<'PY'; then
+import sys
+from pathlib import Path
+
+orch = Path(sys.argv[1]).read_text(encoding="utf-8")
+prod = Path(sys.argv[2]).read_text(encoding="utf-8")
+errors = []
+
+for name, text in (("orchestration", orch), ("product-scope", prod)):
+    if "InitiativeScope" not in text:
+        errors.append(f"{name} PRD does not name the InitiativeScope integration contract")
+
+# Both source kinds must be declared on both ends, otherwise one side silently
+# supports a path the other never produces.
+for kind in ("accepted-scope-delta", "manual-initiative-scope"):
+    for name, text in (("orchestration", orch), ("product-scope", prod)):
+        if kind not in text:
+            errors.append(f"{name} PRD does not declare source_kind {kind}")
+
+# The producer owns the field list; the consumer must reference it rather than restate.
+if "requirement_topology" in orch and "product-scope-graph/prd.md" not in orch:
+    errors.append("orchestration restates InitiativeScope fields without referencing the owner")
+
+if errors:
+    print("\n".join(errors))
+    raise SystemExit(1)
+print("consumer convergence ok (single integration contract: InitiativeScope v1)")
+PY
+    TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: both consumers converge on one integration contract"
+  else
+    fail "both consumers converge on one integration contract"
+  fi
 fi
 
 finish

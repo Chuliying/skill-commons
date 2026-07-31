@@ -8,6 +8,9 @@ vendored 更新流程：`npx skills update <skill>` → 重新 vendor → 重套
 | skill-creator | `anthropics/skills@skill-creator` | `9d2f1ae18723` | adapted | skill | — | Apache-2.0 |
 | brainstorming | `obra/superpowers@brainstorming` | `d884ae04edeb` | adapted | docs | — | MIT |
 | subagent-driven-development | `obra/superpowers@subagent-driven-development` | `d884ae04edeb` | adapted | infra | — | MIT |
+| implement | `obra/superpowers@test-driven-development` | `d884ae04edeb` | adapted | implement | — | MIT |
+| verification-before-completion | `obra/superpowers@verification-before-completion` | `d884ae04edeb` | adapted | infra | — | MIT |
+| systematic-debugging | `obra/superpowers@systematic-debugging` | `d884ae04edeb` | adapted | infra | — | MIT |
 | grilling _(dep)_ | `mattpocock/skills@grilling` | `2454c95dc305` | vendored | plan | — | MIT |
 | domain-modeling _(dep)_ | `mattpocock/skills@domain-modeling` | `2454c95dc305` | vendored | plan | — | MIT |
 | to-prd | `mattpocock/skills@to-prd` | `2454c95dc305` | vendored | docs | 241K | MIT |
@@ -61,7 +64,9 @@ MIT 授權要求重製時保留原始版權聲明，完整列在這裡（依來�
 - **juliusbrussee/caveman**（`caveman-review`）— Copyright (c) 2026 Julius Brussee
 - **blader/humanizer**（`humanizer`）— Copyright (c) 2025 Siqi Chen
 - **anthropics/skills**（`skill-creator`）— Apache-2.0；完整授權文字保留於 `skill-creator/LICENSE.txt`
-- **obra/superpowers**（`brainstorming`, `finishing-a-development-branch`, `subagent-driven-development`）— Copyright (c) 2025 Jesse Vincent，MIT
+- **obra/superpowers**（`brainstorming`, `subagent-driven-development`, `implement`,
+  `verification-before-completion`, `systematic-debugging`;已退役的
+  `finishing-a-development-branch` 保留歷史 credit）— Copyright (c) 2025 Jesse Vincent，MIT
 
 ## 安裝指令（重現用）
 

@@ -17,7 +17,11 @@ from planning_lib import (
     read_text,
     render_json,
 )
-from validate_consistency import validate_plan_dir
+from validate_consistency import (
+    declared_participant_errors,
+    declared_participant_ids,
+    validate_plan_dir,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -43,10 +47,28 @@ def plan_status(plan_dir: Path) -> tuple[dict[str, object], int]:
     tasks: list[object] = []
     next_action = "None"
     concurrency_limit = 1
-    if validation.get("pass") and (plan_dir / "plan.md").is_file():
-        plan = parse_unified_plan(read_text(plan_dir / "plan.md"))
-        tasks = list(plan.tasks)
-        concurrency_limit = canonical_concurrency_limit(plan)
+    participants: list[str] = []
+    participant_errors: list[str] = []
+    plan_path = plan_dir / "plan.md"
+    if plan_path.is_file():
+        try:
+            plan_text: str | None = read_text(plan_path)
+        except (OSError, UnicodeError):
+            # An unreadable plan is already reported by validation; status stays
+            # compact and fails closed rather than raising.
+            plan_text = None
+        if plan_text is not None:
+            plan = parse_unified_plan(plan_text)
+            # Declared participants are the work item's identity, not its state, so
+            # they are reported whether or not the plan validates. A participant that
+            # cannot be resolved is named as an error instead of being dropped.
+            participants = declared_participant_ids(list(plan.sources))
+            participant_errors = declared_participant_errors(
+                plan_dir, list(plan.sources)
+            )
+            if validation.get("pass"):
+                tasks = list(plan.tasks)
+                concurrency_limit = canonical_concurrency_limit(plan)
 
     state = derive_task_state(tasks, concurrency_limit)
     active_task = state["active_task"]
@@ -76,6 +98,8 @@ def plan_status(plan_dir: Path) -> tuple[dict[str, object], int]:
         "host_goal": "unmanaged",
         "active_task": active_task,
         "next_action": next_action,
+        "participants": participants,
+        "participant_errors": participant_errors,
         "ready_tasks": state["ready_tasks"],
         "in_progress_tasks": state["in_progress_tasks"],
         "dispatchable_tasks": state["dispatchable_tasks"],
