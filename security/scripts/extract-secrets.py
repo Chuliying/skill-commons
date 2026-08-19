@@ -9,8 +9,13 @@ Input: one candidate line per stdin line, either `path:line:content` (grep -n) o
 to THAT keyword and decides whether it is a real secret:
 
 - value forms: single/double/backtick quoted literal (>= 6 chars), or a long unquoted
-  token (>= 16 chars) after `=`. A type annotation is tolerated
+  token (>= 16 chars) after `=` that is not a callee. A type annotation is tolerated
   (`const password: string = "..."` -> the quoted value is still found).
+  A quoted literal passed directly to a security-sensitive transformer (`decrypt`,
+  `unseal`, or `unwrap`) is also treated as the assigned secret material.
+  `let token = load_global_token()` reads a secret through a named accessor -- the
+  shape to encourage -- and the function name is not the value assigned, so a long
+  identifier followed by `(` is not a candidate.
 - matching is case-insensitive (`PASSWORD="..."` is caught).
 - suppression (placeholder / example / env-ref words) is evaluated PER keyword+value
   token -- never against the whole line, a comment, or an unrelated identifier.
@@ -51,8 +56,20 @@ ASSIGN = re.compile(
     r""":\s*(["'`])([^"'`]{6,})\1"""            # `:` (JSON) -> value MUST be quoted
     r"""|"""
     r"""(?::\s*[A-Za-z_][\w.\[\]<>,| ]*)?\s*=\s*"""   # optional type annotation, then `=`
-    r"""(?:(["'`])([^"'`]{6,})\3|([A-Za-z0-9_+/.=-]{16,}))"""  # quoted or long unquoted
+    r"""(?:(["'`])([^"'`]{6,})\3|([A-Za-z0-9_+/.=-]{16,})(?![A-Za-z0-9_+/.=-])(?!\s*\())"""  # quoted, or whole unquoted non-callee
     r""")"""
+)
+# A literal can be hidden one syntactic step behind an assigned decrypt/unseal/unwrap
+# call. Keep this deliberately narrower than "any call with a string argument":
+# `token = format("Bearer {}")` and named accessors are normal code, while embedding
+# the protected payload directly in a secret transformer is still hard-coded secret
+# material. Optional module/object prefixes and snake_case suffixes are accepted.
+SENSITIVE_CALL_LITERAL = re.compile(
+    r"""^\s*["'`]?\s*"""
+    r"""(?::\s*[A-Za-z_][\w.\[\]<>,| ]*)?\s*=\s*(?:await\s+)?"""
+    r"""(?:[A-Za-z_]\w*\.)*(?:decrypt|unseal|unwrap)(?:_[A-Za-z0-9_]+)?"""
+    r"""\s*\(\s*(["'`])([^"'`]{6,})\1""",
+    re.IGNORECASE,
 )
 SUPPRESS = re.compile(
     r"(?:^|[^a-z0-9_])(?:placeholder|example|test|mock|fake)(?:[^a-z0-9_]|$)"
@@ -87,14 +104,19 @@ def evaluate(content: str) -> tuple[bool, int]:
         rest = content[km.end():]
         m = ASSIGN.match(rest)
         if m is None:
-            # The assigned expression is an env lookup, so there is no literal for
-            # ASSIGN to capture; a quoted fallback on the same line still is one.
-            if ASSIGN_ENV.match(rest) is None:
-                continue
-            fb = FALLBACK.search(rest)
-            if fb is None:
-                continue
-            value = fb.group(2)
+            sensitive_call = SENSITIVE_CALL_LITERAL.match(rest)
+            if sensitive_call is not None:
+                value = sensitive_call.group(2)
+            else:
+                # The assigned expression is an env lookup, so there is no literal
+                # for ASSIGN to capture; a quoted fallback on the same line still is
+                # one.
+                if ASSIGN_ENV.match(rest) is None:
+                    continue
+                fb = FALLBACK.search(rest)
+                if fb is None:
+                    continue
+                value = fb.group(2)
         else:
             # group 2 = JSON-quoted value, group 4 = `=` quoted value, group 5 = unquoted.
             value = m.group(2) or m.group(4) or m.group(5)

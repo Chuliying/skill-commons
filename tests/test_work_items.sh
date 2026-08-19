@@ -307,6 +307,19 @@ printf '%s\n' 'documentation_impact: doc:implement-report.md' >> "$WORK_ROOT/wor
 write_v3_item work-history-path-impact completed not_requested 2026-07-28T00:00:00+00:00 done plan/plan.md
 printf '%s\n' 'documentation_impact: doc:docs/work/work-history-path-impact/plan/plan.md' \
   >> "$WORK_ROOT/work-history-path-impact/meta.yml"
+# D3 says work-history prose does not count as integrated project documentation.
+# Another work item's report is work-history too, so the rule is bounded by the work
+# root, not by the item's own directory: "legal" is a project document outside the
+# work root, not "anything that is not mine".
+write_v3_item cross-item-doc-impact completed not_requested 2026-07-28T00:00:00+00:00 done plan/plan.md
+printf '%s\n' 'documentation_impact: doc:docs/work/work-history-path-impact/plan/plan.md' \
+  >> "$WORK_ROOT/cross-item-doc-impact/meta.yml"
+# The same escape through a symlink: lexically the path is an ordinary project
+# document, and only the resolved target shows it is another item's work-history.
+ln -s "$WORK_ROOT/work-history-path-impact/plan/plan.md" "$WORKSPACE/docs/cross-item-link.md"
+write_v3_item cross-item-link-doc-impact completed not_requested 2026-07-28T00:00:00+00:00 done plan/plan.md
+printf '%s\n' 'documentation_impact: doc:docs/cross-item-link.md' \
+  >> "$WORK_ROOT/cross-item-link-doc-impact/meta.yml"
 # A named document that does not exist proves no document was updated.
 write_v3_item absent-doc-impact completed not_requested 2026-07-28T00:00:00+00:00 done plan/plan.md
 printf '%s\n' 'documentation_impact: doc:this-file-does-not-exist-anywhere.md' \
@@ -388,12 +401,14 @@ assert_contains "$check_output" "invalid delivery evidence deployment_id" "deplo
 assert_contains "$check_output" "created after work-item/v3 adoption must declare schema_version" "new metadata cannot omit the v3 stamp"
 assert_contains "$check_output" "completed work requires exactly one documentation_impact result" "completed work requires a documentation-impact result"
 assert_contains "$check_output" "invalid documentation_impact: docs/decisions.md" "documentation impact rejects an untyped value"
-assert_contains "$check_output" "documentation_impact names work-history inside the work item: implement-report.md" "work-history prose is not a documentation-impact result"
-assert_contains "$check_output" "documentation_impact names work-history inside the work item: docs/work/work-history-path-impact/plan/plan.md" "a workspace-relative path into the work item is work-history too"
+assert_contains "$check_output" "documentation_impact names work-history under the work root: implement-report.md" "work-history prose is not a documentation-impact result"
+assert_contains "$check_output" "documentation_impact names work-history under the work root: docs/work/work-history-path-impact/plan/plan.md" "a workspace-relative path into the work item is work-history too"
+assert_contains "$check_output" "cross-item-doc-impact/meta.yml: documentation_impact names work-history under the work root" "another work item's history is work-history too"
+assert_contains "$check_output" "documentation_impact resolves to work-history under the work root: docs/cross-item-link.md" "a symlink resolving into another work item is work-history too"
 assert_contains "$check_output" "documentation_impact names a document that does not exist: this-file-does-not-exist-anywhere.md; record doc:<project-document> or n/a:<bounded reason>" "a documentation-impact result must name a document that exists"
 assert_contains "$check_output" "documentation_impact names a document outside the workspace: docs/external.md resolves to" "a doc: path that escapes the workspace is not a project document"
 assert_contains "$check_output" "; name a project document inside the workspace and record doc:<project-document> or n/a:<bounded reason>" "the escape message names the remedy"
-assert_contains "$check_output" "documentation_impact resolves to work-history inside the work item: docs/history-link.md" "a symlink resolving back into the work item is work-history too"
+assert_contains "$check_output" "documentation_impact resolves to work-history under the work root: docs/history-link.md" "a symlink resolving back into the work item is work-history too"
 assert_contains "$check_output" "documentation_impact doc must be a workspace-relative path: ../../../outside-ws/external.md" "a traversal path is not a workspace-relative document"
 assert_contains "$check_output" "documentation_impact doc must be a workspace-relative path: $TMP/outside-ws/external.md" "an absolute path is not a workspace-relative document"
 assert_contains "$check_output" "documentation_impact n/a needs a bounded reason" "an empty N/A reason is not a documentation-impact result"

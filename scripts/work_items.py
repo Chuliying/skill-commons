@@ -414,6 +414,7 @@ def workspace_root(work_root: Path) -> Path | None:
     return Path(top).resolve() if top else None
 
 
+
 def validate_documentation_impact(
     item: WorkItem, work_status: str, timestamps: dict[str, datetime]
 ) -> list[str]:
@@ -423,9 +424,11 @@ def validate_documentation_impact(
     bounded N/A reason. The field is a scalar, so "exactly one" needs no counting -- a
     second line is already rejected as a duplicate field.
 
-    A path inside the work item is refused: reports, journals, and plans record what
-    happened, and treating them as the documentation-impact result would let every item
-    satisfy the rule with the artifact it was going to write anyway.
+    Work-history prose is refused: reports, journals, and plans record what happened,
+    and treating them as the documentation-impact result would let every item satisfy
+    the rule with the artifact it was going to write anyway. The boundary is the work
+    root, not the item's own directory -- another item's report is work-history too, so
+    the legal result is stated positively: a project document outside the work root.
 
     A named document must also exist, because a path that resolves to nothing proves no
     document was updated. Existence is the whole bound: content is never inspected and
@@ -477,24 +480,22 @@ def validate_documentation_impact(
             f"documentation_impact doc must be a workspace-relative path: {detail}"
         )
         return errors
-    # Two ways to name the work item's own history: relative to the item
-    # (`implement-report.md`) or from the workspace (`docs/work/<slug>/plan/plan.md`).
-    # The workspace form is matched on the adjacent pair <work-root>/<slug> rather than
-    # on the slug alone, so a project document that merely sits in a directory sharing
-    # the item's name stays a legal result.
+    # Work-history is bounded by the work root, not by this item's directory. Stating
+    # the rule as "not mine" let another item's report pass as a project document,
+    # which is a plausible thing to record by mistake; the positive form -- a project
+    # document outside the work root -- has no such gap.
     item_root = item.path.parent
-    location = (item_root.parent.name, item_root.name)
-    parts = document.parts
-    inside_work_item = any(parts[index : index + 2] == location for index in range(len(parts)))
-    if (item_root / document).exists() or inside_work_item:
+    work_root = item_root.parent
+    work_history_hint = "; name a canonical project document outside the work root"
+    # `implement-report.md` names history relative to the item rather than the workspace.
+    if (item_root / document).exists():
         errors.append(
-            f"documentation_impact names work-history inside the work item: {detail}; "
-            "name a canonical project document outside it"
+            "documentation_impact names work-history under the work root: "
+            f"{detail}{work_history_hint}"
         )
         return errors
     # `doc:` is workspace-relative (ARTIFACTS.md), so the result is resolved against the
     # workspace holding the work root at whatever depth `--work-root` puts it.
-    work_root = item_root.parent
     workspace = workspace_root(work_root)
     if workspace is None:
         errors.append(
@@ -502,6 +503,19 @@ def validate_documentation_impact(
             "inside a Git working tree, so there is no workspace to resolve "
             f"{detail} against; run the check inside a Git working tree and "
             f"record {DOCUMENTATION_IMPACT_FORMS}"
+        )
+        return errors
+    # The workspace-relative form of any path under the work root. Matching the work
+    # root's own prefix keeps a project document that merely sits in a directory sharing
+    # a work item's name legal, because that directory is not under the work root.
+    try:
+        work_root_parts = work_root.resolve().relative_to(workspace).parts
+    except ValueError:
+        work_root_parts = None
+    if work_root_parts and document.parts[: len(work_root_parts)] == work_root_parts:
+        errors.append(
+            "documentation_impact names work-history under the work root: "
+            f"{detail}{work_history_hint}"
         )
         return errors
     # The resolved target has to stay in the workspace, not just be reachable from it: a
@@ -516,13 +530,12 @@ def validate_documentation_impact(
             f"record {DOCUMENTATION_IMPACT_FORMS}"
         )
         return errors
-    # The lexical work-history match above cannot see a symlink whose target is the
-    # work item itself, so the resolved target is held to the same rule.
-    if resolved.is_relative_to(item_root.resolve()):
+    # The lexical matches above cannot see a symlink whose target is under the work
+    # root, so the resolved target is held to the same rule.
+    if resolved.is_relative_to(work_root.resolve()):
         errors.append(
-            f"documentation_impact resolves to work-history inside the work item: "
-            f"{detail} resolves to {resolved}; name a canonical project document "
-            "outside it"
+            "documentation_impact resolves to work-history under the work root: "
+            f"{detail} resolves to {resolved}{work_history_hint}"
         )
         return errors
     if not resolved.is_file():

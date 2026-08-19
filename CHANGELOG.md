@@ -4,7 +4,34 @@
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-08-19
+
+> **升級前先讀本節的 Breaking changes。** 相對公開的 0.9.0，這個版本有一項
+> 新的 fail-closed 變更；觸發條件與處理方式如下。
+
+### Breaking changes
+
+- **2026-07-27 起更新並完成的 `work-item/v3` 必須宣告 `documentation_impact`。** 形式為
+  `doc:<workspace 相對路徑>` 或 `n/a:<200 字以內理由>`；`doc:` 指向的檔案必須
+  存在，且不得是 work root 底下任何一個 work item 的歷史檔（report、journal、plan）。
+  規則是 forward-only；legacy metadata 仍維持 legacy schema，除非另行執行完整遷移。
+
+### Known issues
+
+- dev/public payload 目前仍含 `foundation/`、`orchestration/` 與 `productscope/`，
+  但三者都不在 retained-roots 產品白名單內。它們留在樹上是因為已核可契約的
+  刪除／relocate 半部尚未另行授權；消費端不應建立相依。
+
+### Added
+
+- [`docs/cross-repo-contract.md`](docs/cross-repo-contract.md)：說明機器契約
+  （`protocol-registry.json`）、八項檢查各自保證什麼、以及執行方式。
+- work-item stage 的 `skill` 必須是真實技能資料夾，roster 由樹上推導。
+
 ### Changed
+
+- 13 支技能實質改寫，淨減約 450 行技能文字（`codebase-understanding`、`plan-sync`、
+  `security`、`brainstorming`、`skill-router`、`sync-work` 幅度最大）。載入成本下降。
 
 - `tests/verify.sh` 改為從樹上動態探索 suites，不再讀硬編清單；也補上先前未被
   執行的 top-level、bootstrap 與 Python 分層。`tests/run-all.sh` 降為相容
@@ -15,20 +42,23 @@
 
 ### Fixed
 
+- 未宣告 `source_roots` 的 repository 現在以整個 worktree（`.`）為保守 fallback；
+  root-level 或非 `src/` layout 不再因虛構的缺失目錄而失敗，manifest/CLI 明確宣告的
+  targets 仍逐一做存在性與 worktree boundary 驗證。
+- secret assignment 會辨識直接傳給 `decrypt`、`unseal`、`unwrap` 的 quoted literal；
+  placeholder suppression 與 `load_global_token()` 這類具名 accessor 的低誤報邊界維持不變。
 - secret 偵測漏判：含 `os.environ` / `process.env` 的行整行被抑制，正好漏掉
   hard-coded fallback 這個最常見的實際洩漏形態；`# type: ignore` 也會使該行被抑制。
+- secret 掃描把「用具名函式取得 secret」誤判為硬編值：`let token = load_global_token()?;`
+  這類寫法中，長度 16 字元以上的函式名會被當成賦值過來的未引號 secret。誤判只在
+  callee 名稱夠長時出現，因此同樣的寫法時報時不報，比穩定誤報更難建立對 gate 的信任。
+  未引號值現在必須是完整 token 且後面不接 `(`。
 - secret 掃描在 scope 為空時於 bash 3.2 崩潰（未保護的空陣列展開）。
 - log 衛生規則把 `key` 當子字串比對，使每個 `sort_keys=True` 都產生警告。
 - `implement`、`verification-before-completion`、`systematic-debugging` 的
   obra/superpowers MIT 標註被遺漏，已在 `SOURCES.md` 與 frontmatter 補回。
 - 產物比對把 `__pycache__` 計入受管檔案集，使 source 與 fan-out 的一致性
   取決於執行順序。
-
-### Added
-
-- [`docs/cross-repo-contract.md`](docs/cross-repo-contract.md)：說明機器契約
-  （`protocol-registry.json`）、八項檢查各自保證什麼、以及執行方式。
-- work-item stage 的 `skill` 必須是真實技能資料夾，roster 由樹上推導。
 
 ## [0.9.0] - 2026-07-15
 

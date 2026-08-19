@@ -128,12 +128,14 @@ scalar `documentation_impact` field, in one of two forms:
 - `n/a:<bounded reason>` — one line of at most 200 characters saying why no
   project document changed.
 
-Work-history prose does not count: a path inside the work item — report, journal,
-plan — is rejected, because those record what happened instead of integrating the
-result into the project's documentation. A named document must also exist: a
-`doc:` path that resolves to nothing proves no document was updated and is
-rejected. The field is a shape, location, and existence check. It records which
-document was named; it never proves that document's content changed.
+Work-history prose does not count: a path under the work root — any item's report,
+journal, or plan, not only this item's — is rejected, because those record what
+happened instead of integrating the result into the project's documentation. The
+legal result is stated positively: a project document outside the work root.
+A named document must also exist: a `doc:` path that resolves to nothing proves
+no document was updated and is rejected. The field is a shape, location, and
+existence check. It records which document was named; it never proves that
+document's content changed.
 
 Completion is a state a re-runnable check accepted, not a claim a report made. A
 Plan state, an implementation report, a diff, a hash, or an authored PASS line is
@@ -203,12 +205,26 @@ individual files from an otherwise active work item.
 
 Shape gates (for example `scripts/check-prd.py`) apply forward, not retroactively:
 
-1. Unstamped artifacts created before `2026-07-10T00:00:00+08:00` are
+1. Unstamped artifacts created before this repository's v3 reconciliation are
    grandfathered as legacy v1 metadata. Their
    `status: shipped` is displayed as completed work with `legacy_shipped`
    delivery; it is not treated as proof of a PR, merge, or deployment. Metadata
-   created on or after that cutoff must declare `work-item/v3`; new or edited
-   work items use that schema.
+   created on or after that date must declare `work-item/v3`. Editing an older
+   item does not move it: pre-reconciliation items stay valid under the legacy
+   schema, which is still fully validated, until each is migrated on purpose.
+   Migration updates both metadata and planning documents: v3 adds lifecycle fields,
+   while canonical-v2 replaces the three-file plan and changes the stage path. It is
+   deliberate work rather than a side effect of touching a file.
+
+   The date is **`2026-07-25T00:00:00+08:00`**, and it is enforced at
+   `scripts/work_items.py` (`V3_ADOPTION_TIME`). The release lineage cut over on
+   `2026-07-10T00:00:00+08:00`, but development main forked before v3 existed and
+   kept creating items on the legacy schema until the two lines were reconciled on
+   07-25. Items authored in a lineage that had no v3 could not have declared it, so
+   holding them to 07-10 would report a defect that was never possible to avoid, and
+   the only fix would be to backfill a `schema_version` onto metadata never written
+   against that contract. The contract text and the checker name the same date, so a
+   reader does not have to open the code to learn which one applies.
 2. An artifact without a schema stamp is treated as schema version 1. When a
    canonical shape changes in a breaking way, stamp newly written artifacts with
    the new version and leave grandfathered artifacts unstamped.

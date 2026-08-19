@@ -280,8 +280,9 @@ CANARY_LEFT="publish"
 CANARY_RIGHT="Canary123456"
 CANARY_VALUE="${CANARY_LEFT}${CANARY_RIGHT}"
 
-# Negative fixture: secret outside the default scan root, .gitignore lists only
-# .env.example, and a real unignored .env. The old scanner reported all-PASS/exit 0.
+# Negative fixture: with no manifest, a root-level fallback must cover a secret in a
+# non-src directory. Its .gitignore lists only .env.example, and a real .env remains
+# unignored, so both independent findings must fail the scan.
 SCAN_FIX="$TMP/scan-fixture"
 mkdir -p "$SCAN_FIX/scripts"
 ( cd "$SCAN_FIX" && git init -q && git checkout -q -b main ) >/dev/null 2>&1
@@ -292,13 +293,10 @@ set +e
 scan_out="$(cd "$SCAN_FIX" && bash "$SCAN" 2>&1)"
 scan_rc=$?
 set -e
-assert_neq "0" "$scan_rc" "scan-secrets fails when scope is empty and .env is unignored"
+assert_neq "0" "$scan_rc" "scan-secrets fails on a root-fallback secret and unignored .env"
 assert_contains "$scan_out" ".env is not git-ignored" "scan-secrets reports .env is not ignored (git check-ignore)"
-if printf '%s' "$scan_out" | grep -qiE "0 file|does not exist|scope is empty"; then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: scan-secrets warns on an empty scan scope"
-else
-  fail "scan-secrets warns on an empty scan scope"
-fi
+assert_contains "$scan_out" "Secret scan targets: ." "scan-secrets records the root fallback scope"
+assert_contains "$scan_out" "FAIL: hard-coded secrets found" "root fallback catches a secret outside src"
 
 # P1-D: a real secret carrying a harmless comment word must still be reported
 # (suppression must not match the trailing comment).
@@ -544,8 +542,15 @@ scan_case "catches an UPPERCASE keyword secret" "$(printf 'const PASSWORD = \"%s
 scan_case "catches an unquoted env-style secret" "$(printf 'token=%s\\n' "$CANARY_VALUE")" FAIL
 scan_case "catches a typed-assignment secret" "$(printf 'const password: string = \"%s\"\\n' "$CANARY_VALUE")" FAIL
 scan_case "catches a backtick-literal secret" "$(printf 'const password = `%s`\\n' "$CANARY_VALUE")" FAIL
+scan_case "catches a secret literal passed to decrypt" "$(printf 'let token = decrypt(\"%s\");\\n' "$CANARY_VALUE")" FAIL
+scan_case "suppresses an example literal passed to decrypt" 'let token = decrypt("example-token");\n' PASS
 scan_case "does not flag a bare type annotation" 'interface C { refresh_token: ReadonlyRecordName }\n' PASS
 scan_case "does not flag a keyword loop variable" 'for token in ("PROTOTYPE_MAP", "FRAME"):\n' PASS
+# Reading a secret through a named accessor is the shape the scanner should encourage.
+# The callee is not a value, so a long function name must not be read as an unquoted
+# secret -- a false positive here trains consumers to ignore a commit gate.
+scan_case "does not flag a secret read through a named function" 'let token = load_global_token()?;\n' PASS
+scan_case "does not flag a long callee at the 16-char boundary" 'let api_key = fetch_api_key_now();\n' PASS
 
 # --- I-S1 containment: engine/helper failure must fail the scan (fault injection). ---
 # Owner-mandated matrix: engine absent; exit 2; exit 42; stdout+non-zero; empty

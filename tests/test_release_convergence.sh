@@ -61,9 +61,9 @@ assert_contains "$(cat "$REPO/SOURCES.md")" 'T05 closeout handoff 改為 `sync-w
 
 core_count="$(sed 's/#.*//' "$REPO/profiles/core" | tr -d ' \t' | grep -vcE '^(@.*)?$')"
 if [ "$core_count" -eq 7 ]; then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: core profile is the released v0.9.0 seven-owner set"
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: core profile is the released v0.10.0 seven-owner set"
 else
-  fail "core profile is the released v0.9.0 seven-owner set"
+  fail "core profile is the released v0.10.0 seven-owner set"
 fi
 assert_file "$REPO/profiles/optional" "optional utility profile exists"
 readme_text="$(cat "$REPO/README.md")"
@@ -75,7 +75,10 @@ evaluation_text="$(cat "$REPO/docs/evaluation.md")"
 bootstrap_text="$(cat "$REPO/bootstrap/README.md")"
 security_text="$(cat "$REPO/security/SKILL.md")"
 changelog_text="$(cat "$REPO/CHANGELOG.md")"
+contributing_text="$(cat "$REPO/CONTRIBUTING.md")"
+artifacts_text="$(cat "$REPO/ARTIFACTS.md")"
 unreleased_text="$(awk '/^## \[Unreleased\]/{p=1;next} p && /^## \[/{exit} p' "$REPO/CHANGELOG.md")"
+release_010_text="$(awk '/^## \[0\.10\.0\]/{p=1;next} p && /^## \[/{exit} p' "$REPO/CHANGELOG.md")"
 release_090_text="$(awk '/^## \[0\.9\.0\]/{p=1;next} p && /^## \[/{exit} p' "$REPO/CHANGELOG.md")"
 release_080_text="$(awk '/^## \[0\.8\.0\]/{p=1;next} p && /^## \[/{exit} p' "$REPO/CHANGELOG.md")"
 gitattributes_text="$(cat "$REPO/.gitattributes")"
@@ -95,18 +98,45 @@ fi
 
 assert_contains "$readme_text" "delivery_mode: personal" "README shows an explicit delivery mode before onboarding"
 assert_contains "$readme_text" "capability_packs:" "README documents composable capability packs"
-assert_contains "$readme_text" "checkout v0.9.0" "README pins the v0.9.0 release"
-assert_contains "$readme_en_text" "checkout v0.9.0" "English summary pins the v0.9.0 release"
-assert_contains "$bridge_text" "checkout v0.9.0" "submodule bridge pins v0.9.0"
+assert_contains "$readme_text" "checkout v0.10.0" "README pins the v0.10.0 release"
+assert_contains "$readme_en_text" "checkout v0.10.0" "English summary pins the v0.10.0 release"
+assert_contains "$bridge_text" "checkout v0.10.0" "submodule bridge pins v0.10.0"
 for entrypoint_text in "$readme_text" "$readme_en_text"; do
   assert_contains "$entrypoint_text" ".agent/skills/_shared/scripts/project-status.sh" "README documents the v0.9.0 project-status entry"
   assert_contains "$entrypoint_text" "--json" "README documents project-status machine output"
 done
 assert_contains "$changelog_text" "## [Unreleased]" "changelog keeps an Unreleased section after the release cut"
+assert_contains "$changelog_text" "## [0.10.0] - 2026-08-19" "changelog records the v0.10.0 release date"
 assert_contains "$changelog_text" "## [0.9.0] - 2026-07-15" "changelog records the v0.9.0 release date"
 assert_contains "$changelog_text" "## [0.8.0] - 2026-07-14" "changelog records the v0.8.0 release date"
 assert_contains "$changelog_text" "## [0.7.1] - 2026-07-11" "changelog records the v0.7.1 release date"
 assert_contains "$changelog_text" "## [0.7.0] - 2026-07-11" "changelog records the v0.7.0 release date"
+if [ -z "$(printf '%s' "$unreleased_text" | tr -d '[:space:]')" ]; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: the v0.10.0 cut resets Unreleased"
+else
+  fail "the v0.10.0 cut resets Unreleased"
+fi
+for already_released in \
+  'DELIVERY_MODE' \
+  'v0.7 起只接受 canonical-v2 Plan' \
+  'finishing-a-development-branch' \
+  'ponytail'; do
+  assert_not_contains "$release_010_text" "$already_released" "v0.10.0 excludes behavior already shipped by v0.9.0: $already_released"
+done
+assert_contains "$release_010_text" 'work-item/v3' "v0.10.0 scopes documentation_impact to the schema that enforces it"
+assert_not_contains "$release_010_text" '直到它被再次編輯' "v0.10.0 does not claim legacy edits trigger documentation_impact"
+if [ -n "$(printf '%s' "$release_010_text" | tr -d '[:space:]')" ]; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: the v0.10.0 cut moves entries into the released section"
+else
+  fail "the v0.10.0 cut moves entries into the released section"
+fi
+assert_contains "$contributing_text" 'prerelease' "release checklist distinguishes prerelease tags"
+assert_contains "$contributing_text" 'final release' "release checklist distinguishes the final version cut"
+assert_contains "$contributing_text" 'git status --short' "release checklist requires a clean candidate tree"
+assert_contains "$contributing_text" 'git grep -n' "release checklist discovers version pins instead of trusting a hand count"
+assert_not_contains "$contributing_text" '目前散在五處' "release checklist does not preserve a stale version-pin count"
+assert_contains "$contributing_text" '0.x' "release checklist defines the pre-1.0 breaking-change convention"
+assert_contains "$artifacts_text" 'metadata and planning documents' "legacy migration names both metadata and planning-document work"
 # What the cut must guarantee is that entries MOVED into the versioned section, not
 # that Unreleased stays empty forever. Development after the cut legitimately refills
 # it -- that is what the section is for, and leaving user-visible changes unrecorded to
@@ -158,7 +188,7 @@ assert_contains "$gitattributes_text" "**/.env.example -export-ignore" "archive 
 assert_contains "$export_script_text" '"website"' "public export forbidden list rejects the website"
 assert_contains "$export_script_text" "public export contains environment file" "public export rejects environment files after extraction"
 
-for stale_version in "v0.5.0" "v0.6.0" "v0.8.0"; do
+for stale_version in "v0.5.0" "v0.6.0" "v0.8.0" "v0.9.0"; do
   assert_not_contains "$readme_text" "$stale_version" "README has no stale $stale_version pin"
   assert_not_contains "$readme_en_text" "$stale_version" "English summary has no stale $stale_version pin"
   assert_not_contains "$bridge_text" "$stale_version" "submodule bridge has no stale $stale_version pin"
@@ -318,7 +348,7 @@ for name in sys.argv[1:]:
     section = text[start:] if start >= 0 else ""
     positions = [
         section.find("fetch --tags"),
-        section.find("checkout v0.9.0"),
+        section.find("checkout v0.10.0"),
         section.find("bootstrap/manage.sh update"),
     ]
     if not section or any(position < 0 for position in positions) or positions != sorted(positions):

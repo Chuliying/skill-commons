@@ -456,7 +456,11 @@ load_manifest_value has_ui manifest_has_ui manifest_has_ui || {
 record_check manifest_config VERIFIED
 
 source_roots_text="${manifest_source_roots//,/ }"
-[[ -z "$source_roots_text" ]] && source_roots_text="src"
+# A missing source_roots declaration means the scanner has no narrower trustworthy
+# boundary. Cover the worktree rather than inventing a conventional `src` directory:
+# repositories with root-level sources remain usable, and repositories with an
+# explicit declaration still receive the strict target validation below.
+[[ -z "$source_roots_text" ]] && source_roots_text="."
 source_extensions_text="${manifest_source_extensions//,/ }"
 [[ -z "$source_extensions_text" ]] && source_extensions_text="ts tsx js jsx json py"
 

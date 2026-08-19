@@ -35,10 +35,11 @@ bash <security-skill-dir>/scripts/scan-secrets.sh
 bash <security-skill-dir>/scripts/scan-secrets.sh <target-dir>
 ```
 
-指令最多接受一個 target directory。執行前必須位於 Git worktree；所有 manifest
-預設或明確指定的 target 都要存在、可讀、可 traverse、不是 symlink，且 canonical
-path 位於目前 Git worktree 內。任一 precondition 失敗時，scanner 會在輸出任何
-`CLEAR` 前停止。
+指令接受一個以上的 target；未提供時使用 manifest 的 `source_roots`，未宣告
+`source_roots` 則掃描整個 worktree（`.`）。執行前必須位於 Git worktree；所有
+manifest 或 CLI 明確指定的 target 都要存在、可讀、可 traverse、不是 symlink，且
+canonical path 位於目前 Git worktree 內。任一 precondition 失敗時，scanner 會在
+輸出任何 `CLEAR` 前停止。
 
 Scanner 檢查範圍：
 

@@ -47,7 +47,7 @@ bash tests/verify.sh
 
 ```bash
 git submodule add git@github.com:Chuliying/skill-commons.git .agent/skills/_shared
-git -C .agent/skills/_shared checkout v0.9.0
+git -C .agent/skills/_shared checkout v0.10.0
 mkdir -p .agent
 cp .agent/skills/_shared/shared-skill-onboarder/templates/project-manifest.md \
   .agent/project-manifest.md
@@ -82,7 +82,7 @@ Submodule 缺失、selection 錯誤、doctor drift、uninstall 與 legacy adopti
 ## References
 
 - 使用：[Bootstrap](bootstrap/README.md) · [Submodule bridge](docs/skill-commons-submodule-bridge.md) · [Platform support](docs/profile-platform-support.md) · [Skill index](INDEX.md)
-- 契約：[Spec-state protocol](docs/spec-state-protocol.md) · [Artifacts](ARTIFACTS.md) · [Cross-repo contract](docs/cross-repo-contract.md) · [Discovery/plan](docs/discovery-and-planning.md)
+- 契約：[Spec-state protocol](docs/spec-state-protocol.md) · [Artifacts](ARTIFACTS.md) · [Protocol registry](protocol-registry.json) · [Cross-repo contract](docs/cross-repo-contract.md) · [Discovery/plan](docs/discovery-and-planning.md)
 - 證據：[Evaluation](docs/evaluation.md) · [Journey evals](journey-evals/README.md)
 - 來源：[SOURCES](SOURCES.md) · [Agent Skills spec](https://agentskills.io/specification) · [Superpowers](https://github.com/obra/superpowers)
 - 維護：[CONTRIBUTING](CONTRIBUTING.md) · [CHANGELOG](CHANGELOG.md) · [STYLE](STYLE.md) · [Gate package](GATE-PACKAGE.md) · [Decisions](docs/skills-reorg/decisions.md)

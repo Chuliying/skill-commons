@@ -69,7 +69,7 @@ verification uses Python 3.10+; the onboarding scan uses Node.js 18+.
 
 ```bash
 git submodule add git@github.com:Chuliying/skill-commons.git .agent/skills/_shared
-git -C .agent/skills/_shared checkout v0.9.0
+git -C .agent/skills/_shared checkout v0.10.0
 mkdir -p .agent
 cp .agent/skills/_shared/shared-skill-onboarder/templates/project-manifest.md \
   .agent/project-manifest.md
@@ -110,7 +110,7 @@ legacy adoption — live in the
 ## References
 
 - Use: [Bootstrap](bootstrap/README.md) · [Submodule bridge](docs/skill-commons-submodule-bridge.md) · [Platform support](docs/profile-platform-support.md) · [Skill index](INDEX.md)
-- Contract: [Spec-state protocol](docs/spec-state-protocol.md) · [Artifacts](ARTIFACTS.md) · [Cross-repo contract](docs/cross-repo-contract.md) · [Discovery/plan](docs/discovery-and-planning.md)
+- Contract: [Spec-state protocol](docs/spec-state-protocol.md) · [Artifacts](ARTIFACTS.md) · [Protocol registry](protocol-registry.json) · [Cross-repo contract](docs/cross-repo-contract.md) · [Discovery/plan](docs/discovery-and-planning.md)
 - Evidence: [Evaluation](docs/evaluation.md) · [Journey evals](journey-evals/README.md)
 - Sources: [SOURCES](SOURCES.md) · [Agent Skills spec](https://agentskills.io/specification) · [Superpowers](https://github.com/obra/superpowers)
 - Maintenance: [CONTRIBUTING](CONTRIBUTING.md) · [CHANGELOG](CHANGELOG.md) · [STYLE](STYLE.md) · [Gate package](GATE-PACKAGE.md) · [Decisions](docs/skills-reorg/decisions.md)

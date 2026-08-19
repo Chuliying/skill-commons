@@ -386,6 +386,27 @@ set -e
 assert_neq "0" "$missing_default_rc" "secret scanner rejects a missing default target"
 assert_not_contains "$missing_default_output" "CLEAR:" "target validation completes before any CLEAR result"
 
+# A repository that omits source_roots may not use a conventional src/ directory.
+# The fallback must cover the worktree instead of inventing a missing target and
+# turning an otherwise auditable repository into a permanent false failure.
+root_fallback="$TMP/scanner/root-fallback"
+mkdir -p "$root_fallback"
+printf '.env\n' > "$root_fallback/.gitignore"
+printf 'def greet():\n    return "hello"\n' > "$root_fallback/app.py"
+git -C "$root_fallback" init -q
+git -C "$root_fallback" checkout -q -b main
+git -C "$root_fallback" config core.excludesFile /dev/null
+git -C "$root_fallback" add -A
+git -C "$root_fallback" -c user.name='Scanner Test' -c user.email=scanner@example.com \
+  commit -qm 'root fallback baseline'
+set +e
+root_fallback_output="$(cd "$root_fallback" && bash "$REPO/security/scripts/scan-secrets.sh" 2>&1)"
+root_fallback_rc=$?
+set -e
+assert_eq "0" "$root_fallback_rc" "secret scanner falls back to the whole worktree when source_roots is absent"
+assert_contains "$root_fallback_output" "Secret scan targets: ." "root fallback is explicit in scanner evidence"
+assert_contains "$root_fallback_output" "Secret scan files scanned: 1" "root fallback enumerates the repository source file"
+
 make_scanner_fixture untraversable-target '.env'
 mkdir -p "$SCANNER_FIXTURE/locked"
 chmod 600 "$SCANNER_FIXTURE/locked"
