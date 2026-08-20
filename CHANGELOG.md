@@ -8,6 +8,10 @@
 
 - 由 [`flows.json`](flows.json) 與 repository 機器來源生成的離線
   [`repo visual map`](docs/repo-visual.html)，包含產生器、可重現輸出與 drift gate。
+- repo visual map 的公開部署 repo
+  [`Chuliying/skill-commons-map`](https://github.com/Chuliying/skill-commons-map)
+  與 [Vercel production 站](https://skill-commons-map.vercel.app)；部署頁沿用相同 model，
+  source 出口指向公開 `skill-commons` repo。
 - 本機 `payload-check` 通過結果可依 public payload 與 toolchain digest 快取；只改
   export-ignored 內容時可重用，相同 payload／toolchain 以外一律 miss。目錄不可讀、
   digest 為空或 suite 失敗都不留下有效 verdict；CI 以
@@ -18,6 +22,11 @@
 - repo map 的 profile 控制升為頁面級 sticky「以安裝內容檢視」lens；不在 bundle 的
   skill 以降低強調、虛線與「未安裝」第三態呈現，hero、flow 與技能目錄仍保留完整
   形狀，也仍可開啟細節。personal 因此會明確標示未安裝的 `spec` owner。
+- delivery-mode lens 會依已安裝 producer 與 execution mode 的 required artifact 契約
+  推導人工 Gate 適用性；personal 的 PRD／team 設計 Gate 以「不適用」第三態保留，
+  發布 Gate 仍適用，team-sprint 則維持三個 Gate。capability pack 不被誤當完整執行模式。
+- repo map 生成器可用 `render --source-base` 產生完整公開網站，沿用相同 model、CSS 與
+  互動，並把細節出口改為 HTTPS 公開來源連結，而不是部署後失效的 checkout 相對路徑。
 - repo map 細節改用 native modal dialog，並建立四級字體、雙主題對比與 reduced-motion
   邊界；頁首改放採用判斷，schema/build metadata 移到所屬契約區與頁尾。
 - repo map 的「怎麼用」直接指出 `.agent/project-manifest.md`、`delivery_mode`、
@@ -33,11 +42,6 @@
 - repo map 的測試 roster 依 `.gitattributes` `export-ignore` 邊界生成，使 private source
   與 public checkout 產生相同 model；drift gate 也會在測試寫入前先檢查 frozen page，
   不再以重新生成掩蓋 public export 漂移。
-
-### Known issues
-
-- personal lens 目前仍把「PRD 核可」與「team 設計核可」畫成一般 gate；personal bundle
-  沒有 `prd-interview`、`spec`、`qa` producer，因此這兩個 gate 的不適用狀態仍待推導。
 
 ## [0.10.0] - 2026-08-20
 

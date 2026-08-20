@@ -91,6 +91,29 @@ print(",".join(m["execution_modes"]["team-feature"]["human_gates"]))
 ' "$model_a")"
 assert_eq "prd,team-design,release" "$gates" "team-feature human gates preserved"
 
+# A delivery-mode lens must show which human decisions can actually occur with
+# that installed bundle.  The model derives this from required artifact
+# producers; the renderer only presents the result.  Capability packs are not
+# complete delivery modes, so they intentionally carry no gate verdict.
+probe 'import json,sys
+m=json.load(open(sys.argv[1]))
+print(",".join(m["profiles"]["personal"]["applicable_gates"]))' \
+  "personal gate applicability is present"
+assert_eq "release" "$PROBE_OUT" "personal bundle only applies the release gate"
+
+probe 'import json,sys
+m=json.load(open(sys.argv[1]))
+print(",".join(m["profiles"]["team-sprint"]["applicable_gates"]))' \
+  "team-sprint gate applicability is present"
+assert_eq "prd,release,team-design" "$PROBE_OUT" "team-sprint bundle applies all three gates"
+
+probe 'import json,sys
+m=json.load(open(sys.argv[1]))
+print(" ".join(sorted(name for name,p in m["profiles"].items()
+                      if p["kind"] != "delivery-mode" and "applicable_gates" in p)))' \
+  "capability packs do not claim gate applicability"
+assert_eq "" "$PROBE_OUT" "only delivery-mode profiles carry gate applicability"
+
 # The page is public payload, so its roster must describe that same surface.
 # Derive the boundary from .gitattributes rather than repeating a private-suite
 # list here; an exported checkout must render the same model as the source tree.
@@ -307,6 +330,24 @@ EOF
 )"
   assert_eq "" "$probe_lens" "profile lens is page-level and marks instead of removing"
 
+  probe_gate_lens="$(cd "$REPO/docs" && python3 - <<'EOF'
+import re
+from pathlib import Path
+text = Path("repo-visual.html").read_text(encoding="utf-8")
+problems = []
+if 'data-na' not in text:
+    problems.append("no-not-applicable-state")
+if 'gate-na-label' not in text:
+    problems.append("hero-has-no-not-applicable-label")
+if not re.search(r'\[data-gate\]\[data-na=true\]', text):
+    problems.append("gate-state-not-styled")
+if 'applicable_gates' not in text:
+    problems.append("lens-does-not-read-derived-gates")
+print(" ".join(problems))
+EOF
+)"
+  assert_eq "" "$probe_gate_lens" "profile lens marks inapplicable gates without removing them"
+
   # Detail view is a modal dialog, not a side drawer.
   assert_contains "$page" "<dialog" "detail view uses a native dialog element"
   assert_contains "$page" "showModal" "dialog opens as a modal"
@@ -506,6 +547,35 @@ EOF
       assert_eq ok ok "hosted fragment carries the same model as the repo page"
     else
       fail "hosted fragment carries the same model as the repo page"
+    fi
+  fi
+
+  # Public-site variant: unlike the host-supplied Artifact fragment, this is a
+  # complete document.  Its detail exits must resolve to the public source repo
+  # instead of retaining checkout-relative links that would break on Vercel.
+  site="$TMP/site.html"
+  source_base="https://github.com/Chuliying/skill-commons/blob/main/"
+  (cd "$REPO" && python3 "$TOOL" render --source-base "$source_base" --out "$site" >/dev/null 2>&1); rc_site=$?
+  assert_eq 0 "$rc_site" "render --source-base exits 0"
+  if [ "$rc_site" -eq 0 ]; then
+    site_page="$(cat "$site")"
+    assert_contains "$site_page" "<!DOCTYPE html>" "public-site render carries a document shell"
+    assert_contains "$site_page" "$source_base" "public-site detail exits use the public source repo"
+    assert_contains "$site_page" 'target="_blank"' "public-site source links declare a new browsing context"
+    assert_contains "$site_page" 'rel="noreferrer"' "public-site source links suppress referrer data"
+    assert_not_contains "$site_page" 'href="../' "public-site render has no checkout-relative links"
+    site_payload="$(python3 - "$site" <<'EOF'
+import json, re, sys
+from pathlib import Path
+raw = re.search(r'<script id="model" type="application/json">(.*?)</script>',
+                Path(sys.argv[1]).read_text(encoding="utf-8"), re.DOTALL).group(1)
+print(json.dumps(json.loads(raw.replace("\\u003c", "<")), sort_keys=True, ensure_ascii=False))
+EOF
+)"
+    if [ "$site_payload" = "$cli_model" ]; then
+      assert_eq ok ok "public-site render carries the same model as the repo page"
+    else
+      fail "public-site render carries the same model as the repo page"
     fi
   fi
 fi

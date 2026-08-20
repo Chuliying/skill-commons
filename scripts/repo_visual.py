@@ -187,6 +187,30 @@ def content_digest(payload: dict) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
 
 
+def applicable_gates(registry: dict, installed: set[str]) -> list[str]:
+    """Derive the human decisions that can occur with one delivery bundle.
+
+    An execution mode is available only when every required artifact has at
+    least one installed producer.  Optional and absent artifacts do not make a
+    mode unavailable.  Gate applicability is the union across the modes that
+    remain possible; this keeps profile semantics in the machine model instead
+    of teaching the renderer special cases such as ``personal``.
+    """
+    gates: set[str] = set()
+    for mode in registry.get("execution_modes", {}).values():
+        required = (
+            artifact
+            for artifact in mode.get("artifacts", {}).values()
+            if artifact.get("requirement") == "required"
+        )
+        if all(
+            any(producer in installed for producer in artifact.get("producers", []))
+            for artifact in required
+        ):
+            gates.update(mode.get("human_gates", []))
+    return sorted(gates)
+
+
 def build_model(root: Path) -> dict:
     registry = json.loads(read(root / "protocol-registry.json"))
     profiles_config = json.loads(read(root / "profiles.json"))
@@ -239,6 +263,24 @@ def build_model(root: Path) -> dict:
     ]
 
     evidence = evidence_map(root)
+    profiles = {}
+    for name in profile_names:
+        kind = registry["profiles"][name].get("kind", "")
+        profile = {
+            "kind": kind,
+            "requires": registry["profiles"][name].get("requires", []),
+            "conflicts": registry["profiles"][name].get("conflicts", []),
+            "file": f"profiles/{name}",
+            "skills": membership[name],
+        }
+        # A capability pack is not an executable bundle on its own, so applying
+        # a gate verdict to it would invent semantics the registry does not own.
+        if kind == "delivery-mode":
+            profile["applicable_gates"] = applicable_gates(
+                registry, set(membership[name])
+            )
+        profiles[name] = profile
+
     model = {
         "schema_version": MODEL_SCHEMA,
         "identity": {
@@ -250,16 +292,7 @@ def build_model(root: Path) -> dict:
         "non_goals": registry.get("non_goals", []),
         "skills": skills,
         "packages": packages,
-        "profiles": {
-            name: {
-                "kind": registry["profiles"][name].get("kind", ""),
-                "requires": registry["profiles"][name].get("requires", []),
-                "conflicts": registry["profiles"][name].get("conflicts", []),
-                "file": f"profiles/{name}",
-                "skills": membership[name],
-            }
-            for name in profile_names
-        },
+        "profiles": profiles,
         "platforms": profiles_config.get("platforms", {}),
         "execution_modes": registry.get("execution_modes", {}),
         "work_item": registry.get("work_item", {}),
@@ -384,10 +417,12 @@ def hero_svg() -> str:
                 f"{centre_x},{top + height} {x},{centre_y}"
             )
             shapes.append(
-                f'<g class="node gate" data-gate="{target}" role="button" tabindex="0">'
+                f'<g class="node gate" data-gate="{target}" role="button" tabindex="0" '
+                f'aria-label="{escape(label)}">'
                 f'<polygon points="{points}"/>'
                 f'<text class="glyph" x="{centre_x}" y="{centre_y + 5}">人</text>'
                 f'<text class="cap" x="{centre_x}" y="{top + height + 23}">{escape(label)}</text>'
+                f'<text class="gate-na-label" x="{centre_x}" y="{top + height + 42}">不適用</text>'
                 f"</g>"
             )
             del half
@@ -403,7 +438,7 @@ def hero_svg() -> str:
         x += width + gap
     total = x - gap + pad
     return (
-        f'<svg class="hero" viewBox="0 0 {total} 130" role="img" '
+        f'<svg class="hero" viewBox="0 0 {total} 150" role="img" '
         f'aria-label="交付流水線與三個人工判斷點">'
         '<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" '
         'markerWidth="6" markerHeight="6" orient="auto-start-reverse">'
@@ -468,6 +503,10 @@ svg.hero .lbl{font-size:var(--fs-body);fill:var(--ink)}
 svg.hero .sub{font-size:var(--fs-note);fill:var(--muted)}
 svg.hero .glyph{font-size:var(--fs-title);fill:var(--human);font-weight:700}
 svg.hero .cap{font-size:var(--fs-note);fill:var(--human);font-weight:600}
+svg.hero .gate-na-label{display:none;font-size:var(--fs-note);fill:var(--muted);font-weight:650}
+svg.hero .gate[data-na=true] polygon{fill:var(--panel-2);stroke:var(--muted);stroke-dasharray:4 3}
+svg.hero .gate[data-na=true] .glyph,svg.hero .gate[data-na=true] .cap{fill:var(--muted)}
+svg.hero .gate[data-na=true] .gate-na-label{display:block}
 .legend{display:flex;gap:22px;flex-wrap:wrap;font-size:var(--fs-note);color:var(--ink);
   margin:13px 2px 0}
 .legend i{display:inline-block;width:12px;height:12px;margin-right:7px;vertical-align:-1px}
@@ -503,6 +542,12 @@ svg.hero .cap{font-size:var(--fs-note);fill:var(--human);font-weight:600}
 [data-out=true]:not(.chip.gate){border-style:dashed}
 .stage [data-out=true]::after{content:"·未安裝";color:var(--muted);font-size:var(--fs-note)}
 svg.hero .node[data-out=true] rect{stroke-dasharray:4 3}
+/* Human decisions remain visible and clickable even when no execution mode in
+   the selected delivery bundle can reach them.  This is a separate state from
+   an uninstalled skill: the gate is part of the protocol, but not this route. */
+[data-gate][data-na=true]{opacity:.5}
+.chip.gate[data-na=true]{border-style:dashed;background:var(--panel-2);color:var(--muted)}
+.chip.gate[data-na=true]::after{content:" · 不適用";font-size:var(--fs-note)}
 .stagegrid{display:grid;gap:11px;grid-template-columns:repeat(auto-fit,minmax(284px,1fr))}
 .stage{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 15px}
 .stage h4{margin:0 0 10px;font-size:var(--fs-note);text-transform:uppercase;
@@ -596,11 +641,14 @@ function skillPanel(name){
   );
 }
 
-function gatePanel(id){
+function gatePanel(id, handle){
   const g = gateById[id];
   if (!g) return;
   const modes = Object.keys(MODEL.execution_modes).sort()
     .filter(m => MODEL.execution_modes[m].human_gates.indexOf(id) !== -1);
+  const lensNote = handle && handle.dataset.na === 'true'
+    ? '<p class="note">目前選定的 delivery bundle 不會觸發這個判斷點；保留節點是為了讓流程邊界可見。</p>'
+    : '';
   openDetail(
     '<h3>' + esc(g.label) + '</h3>' +
     '<div class="kind">human decision · gate ' + esc(g.id) + '</div>' +
@@ -609,6 +657,7 @@ function gatePanel(id){
       row('router 呈現', '<code>' + esc(g.router_label) + '</code>') +
       row('適用模式', modes.map(m => '<code>' + esc(m) + '</code>').join(' ')) +
     '</dl>' +
+    lensNote +
     '<details><summary>細節</summary><p class="note" style="margin-top:12px">' +
       '人工判斷點恰好三個，其餘一律機器檢查。核可是檔案上的狀態轉移（awaiting-approval → approved），不是對話裡的承諾。' +
     '</p></details>' +
@@ -646,7 +695,7 @@ document.addEventListener('click', event => {
   if (!target) return;
   if (target.classList.contains('close')) { closeDetail(); return; }
   if (target.dataset.skill) { skillPanel(target.dataset.skill); return; }
-  if (target.dataset.gate) { gatePanel(target.dataset.gate); return; }
+  if (target.dataset.gate) { gatePanel(target.dataset.gate, target); return; }
   if (target.dataset.mode) { modePanel(target.dataset.mode); return; }
 });
 
@@ -660,6 +709,22 @@ buttons.forEach(button => button.addEventListener('click', () => {
     if (inBundle) handle.removeAttribute('data-out');
     else handle.setAttribute('data-out', 'true');
   });
+  const profile = MODEL.profiles[wanted];
+  const applicable = wanted === 'all' || !profile || profile.kind !== 'delivery-mode'
+    ? null
+    : profile.applicable_gates;
+  document.querySelectorAll('[data-gate]').forEach(handle => {
+    const applies = applicable === null || applicable.indexOf(handle.dataset.gate) !== -1;
+    const gate = gateById[handle.dataset.gate];
+    if (applies) handle.removeAttribute('data-na');
+    else handle.setAttribute('data-na', 'true');
+    if (gate) {
+      handle.setAttribute(
+        'aria-label',
+        gate.label + (applies ? '' : '，目前選定的 bundle 不適用')
+      );
+    }
+  });
 }));
 """
 
@@ -672,6 +737,20 @@ SOURCE_FN_HOSTED = (
     "function source(path){ return '<div class=\"src\" style=\"color:var(--dim)\">"
     "權威來源 <code>' + esc(path) + '</code>（在 repo checkout 內開啟）</div>'; }"
 )
+
+
+def remote_source_fn(source_base: str) -> str:
+    """Build the source-link function for a standalone public site."""
+    if not source_base.startswith("https://"):
+        raise SystemExit("--source-base must be an https:// URL")
+    base = source_base.rstrip("/") + "/"
+    encoded_base = json.dumps(base, ensure_ascii=False)
+    return (
+        f"const SOURCE_BASE = {encoded_base};\n"
+        "function source(path){ const href = SOURCE_BASE + encodeURI(path); "
+        "return '<a class=\"src\" href=\"' + esc(href) + "
+        "'\" target=\"_blank\" rel=\"noreferrer\">開啟 ' + esc(path) + ' →</a>'; }"
+    )
 
 
 def skill_chip(skill: dict) -> str:
@@ -890,8 +969,8 @@ def render_inner(model: dict, source_fn: str) -> str:
 """
 
 
-def render_page(model: dict) -> str:
-    """Standalone document for the repository copy."""
+def render_document(model: dict, source_fn: str) -> str:
+    """Complete standalone document with one chosen source-link policy."""
     return (
         "<!DOCTYPE html>\n"
         '<html lang="zh-Hant">\n'
@@ -902,10 +981,20 @@ def render_page(model: dict) -> str:
         f"<style>{CSS}</style>\n"
         "</head>\n"
         "<body>\n"
-        f"{render_inner(model, SOURCE_FN_LOCAL)}"
+        f"{render_inner(model, source_fn)}"
         "</body>\n"
         "</html>\n"
     )
+
+
+def render_page(model: dict) -> str:
+    """Standalone document for the repository copy."""
+    return render_document(model, SOURCE_FN_LOCAL)
+
+
+def render_site(model: dict, source_base: str) -> str:
+    """Standalone public site whose detail exits resolve to the source repo."""
+    return render_document(model, remote_source_fn(source_base))
 
 
 def render_artifact(model: dict) -> str:
@@ -928,10 +1017,16 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="compare the committed page against a fresh render instead of writing",
     )
-    render_parser.add_argument(
+    render_kind = render_parser.add_mutually_exclusive_group()
+    render_kind.add_argument(
         "--artifact",
         action="store_true",
         help="emit the hosted fragment instead of the standalone repository page",
+    )
+    render_kind.add_argument(
+        "--source-base",
+        default=None,
+        help="emit a standalone public site whose detail links use this https URL base",
     )
     render_parser.add_argument("--out", default=None, help="write to this path instead of the default")
     flows_parser = subparsers.add_parser("check-flows")
@@ -952,7 +1047,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "render":
         model = build_model(root)
-        page = render_artifact(model) if args.artifact else render_page(model)
+        if args.artifact:
+            page = render_artifact(model)
+        elif args.source_base:
+            page = render_site(model, args.source_base)
+        else:
+            page = render_page(model)
         for marker in PRIVATE_MARKERS:
             if marker in page:
                 print(f"page carries private reference `{marker}`", file=sys.stderr)
