@@ -7,6 +7,56 @@ HASH2="$(mktemp)"
 trap 'rm -rf "$TMP"; rm -f "$HASH1" "$HASH2"' EXIT
 . "$REPO/tests/bootstrap/lib/assert.sh"
 
+# Identity of an exported payload: every file path, its content, its exec bit,
+# and the toolchain that would run the suite. The nested payload check's verdict
+# is a function of exactly that pair, so a recorded pass stays valid until one of
+# them moves. Any read failure prints nothing, and callers treat empty as a miss,
+# so the cache can only ever skip work it has positive evidence for.
+toolchain_identity() {
+  if [ -n "${TOOLCHAIN_ID_OVERRIDE:-}" ]; then
+    printf '%s' "$TOOLCHAIN_ID_OVERRIDE"
+    return 0
+  fi
+  printf 'bash=%s python3=%s uname=%s' \
+    "${BASH_VERSION:-none}" \
+    "$(python3 --version 2>&1 || echo none)" \
+    "$(uname -sm 2>/dev/null || echo none)"
+}
+
+payload_identity() { # <dir> -> digest on stdout, empty when unreadable
+  [ -d "${1:-}" ] || return 0
+  (
+    cd "$1" 2>/dev/null || exit 0
+    {
+      find . -path ./.git -prune -o -type f -exec shasum -a 256 {} + 2>/dev/null \
+        | LC_ALL=C sort
+      echo "--exec--"
+      find . -path ./.git -prune -o -type f -perm -u+x -print 2>/dev/null \
+        | LC_ALL=C sort
+      echo "--toolchain--"
+      toolchain_identity
+    } | shasum -a 256 | cut -d' ' -f1
+  )
+}
+
+payload_cache_state() { # <dir> <cache-file> -> hit|miss
+  if [ "${SKILL_COMMONS_VERIFY_NO_CACHE:-0}" = "1" ]; then
+    echo miss
+    return 0
+  fi
+  cache_probe_id="$(payload_identity "${1:-}")"
+  if [ -z "$cache_probe_id" ] || [ ! -f "${2:-}" ]; then
+    echo miss
+    return 0
+  fi
+  cache_probe_recorded="$(tr -d '[:space:]' <"$2" 2>/dev/null || true)"
+  if [ "$cache_probe_recorded" = "$cache_probe_id" ]; then
+    echo hit
+  else
+    echo miss
+  fi
+}
+
 active_names() {
   find "$REPO" -mindepth 2 -maxdepth 2 -type f -name SKILL.md \
     -not -path "$REPO/_archive/*" \
@@ -674,6 +724,73 @@ fi
 # repository test suites advertised to public users must pass without any
 # private-only file. SKILL_COMMONS_PAYLOAD_CHECK=1 marks the nested run and
 # stops the recursion at depth one.
+# --- content-addressed payload-check cache ---------------------------------
+# The nested payload suite is ~486s of a ~970s run. Its verdict is a function of
+# the exported tree plus the toolchain that runs it, so an unchanged pair cannot
+# produce a different verdict. These assertions pin the identity function and the
+# fail-closed cache decision BEFORE either is relied on. Every comparison below
+# is guarded on a non-empty identity: comparing "" with "" would report ok and
+# hide a broken or missing function.
+CACHE_FIXTURE="$TMP/cache-fixture"
+CACHE_FILE="$TMP/cache-fixture.digest"
+mkdir -p "$CACHE_FIXTURE/sub"
+printf 'alpha\n' >"$CACHE_FIXTURE/a.txt"
+printf 'beta\n' >"$CACHE_FIXTURE/sub/b.sh"
+chmod +x "$CACHE_FIXTURE/sub/b.sh"
+
+id_a="$(payload_identity "$CACHE_FIXTURE" 2>/dev/null || true)"
+if [ -z "$id_a" ]; then
+  fail "payload identity returns a value (got empty; every downstream comparison skipped)"
+else
+  assert_eq "$id_a" "$(payload_identity "$CACHE_FIXTURE")" \
+    "payload identity is stable on an unchanged tree"
+
+  assert_eq "miss" \
+    "$(SKILL_COMMONS_VERIFY_NO_CACHE=0 payload_cache_state "$CACHE_FIXTURE" "$CACHE_FILE")" \
+    "absent cache is a miss, so the check runs"
+
+  printf '%s\n' "$id_a" >"$CACHE_FILE"
+  assert_eq "hit" \
+    "$(SKILL_COMMONS_VERIFY_NO_CACHE=0 payload_cache_state "$CACHE_FIXTURE" "$CACHE_FILE")" \
+    "recorded identity for the same tree is a hit"
+
+  printf 'alpha changed\n' >"$CACHE_FIXTURE/a.txt"
+  id_mut="$(payload_identity "$CACHE_FIXTURE")"
+  assert_neq "" "$id_mut" "identity stays non-empty after a content change"
+  assert_neq "$id_a" "$id_mut" "identity changes when a file's content changes"
+  assert_eq "miss" \
+    "$(SKILL_COMMONS_VERIFY_NO_CACHE=0 payload_cache_state "$CACHE_FIXTURE" "$CACHE_FILE")" \
+    "content change invalidates the cache"
+
+  printf 'alpha\n' >"$CACHE_FIXTURE/a.txt"
+  assert_eq "$id_a" "$(payload_identity "$CACHE_FIXTURE")" \
+    "identity returns to the recorded value once content is restored"
+
+  printf 'gamma\n' >"$CACHE_FIXTURE/sub/c.txt"
+  id_add="$(payload_identity "$CACHE_FIXTURE")"
+  assert_neq "" "$id_add" "identity stays non-empty after an addition"
+  assert_neq "$id_a" "$id_add" "identity changes when a file is added"
+  rm -f "$CACHE_FIXTURE/sub/c.txt"
+
+  chmod -x "$CACHE_FIXTURE/sub/b.sh"
+  id_mode="$(payload_identity "$CACHE_FIXTURE")"
+  assert_neq "" "$id_mode" "identity stays non-empty after an exec-bit change"
+  assert_neq "$id_a" "$id_mode" "identity changes when an exec bit changes"
+  chmod +x "$CACHE_FIXTURE/sub/b.sh"
+
+  assert_eq "miss" \
+    "$(SKILL_COMMONS_VERIFY_NO_CACHE=1 payload_cache_state "$CACHE_FIXTURE" "$CACHE_FILE")" \
+    "SKILL_COMMONS_VERIFY_NO_CACHE=1 forces the check to run"
+
+  assert_eq "miss" \
+    "$(SKILL_COMMONS_VERIFY_NO_CACHE=0 payload_cache_state "$TMP/does-not-exist" "$CACHE_FILE")" \
+    "an unreadable payload directory is a miss, not a hit"
+
+  assert_neq "$id_a" "$(TOOLCHAIN_ID_OVERRIDE=pretend-other-toolchain \
+    payload_identity "$CACHE_FIXTURE")" \
+    "identity changes when the toolchain changes"
+fi
+
 if [ "${SKILL_COMMONS_PAYLOAD_CHECK:-0}" != "1" ]; then
   PAYLOAD_HOME="$TMP/payload-home"
   mkdir -p "$PAYLOAD_HOME"
@@ -698,17 +815,32 @@ EOF
     fail "payload commit keeps ignore files under hostile global excludes"
   fi
   PAYLOAD_LOG="$TMP/payload-suite.log"
+  PAYLOAD_CACHE_FILE="$REPO/.verify-cache/payload-check.digest"
+  # Read the identity BEFORE generate.sh writes the fan-out into the payload, so
+  # what gets recorded describes the exported tree and not the run's leftovers.
+  payload_id="$(payload_identity "$EXPORT_TMP")"
+  if [ "$(payload_cache_state "$EXPORT_TMP" "$PAYLOAD_CACHE_FILE")" = "hit" ]; then
+    # Deliberately not phrased as "passes": the suite did not run in this
+    # process. The claim is narrower and exactly what the digest supports.
+    TESTS_PASS=$((TESTS_PASS+1))
+    echo "  ok: payload suite verdict reused - identical payload and toolchain already passed (digest $(printf '%.12s' "$payload_id"); SKILL_COMMONS_VERIFY_NO_CACHE=1 forces a rerun)"
   # VERIFY_ACTIVE must not leak into the payload run. The canonical runner has a
   # re-entrancy guard for accidental nesting inside ONE tree; the payload is a
   # separate exported tree whose suite legitimately runs its own full gate, so
   # inheriting the flag would abort it as a false positive.
-  if (cd "$EXPORT_TMP" &&
+  elif (cd "$EXPORT_TMP" &&
       unset VERIFY_ACTIVE &&
       PROFILE=all bash bootstrap/generate.sh &&
       SKILL_COMMONS_PAYLOAD_CHECK=1 bash tests/run-all.sh) >"$PAYLOAD_LOG" 2>&1; then
     TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: payload passes its complete public test suite without private files"
+    if [ -n "$payload_id" ]; then
+      mkdir -p "$(dirname "$PAYLOAD_CACHE_FILE")" &&
+        printf '%s\n' "$payload_id" >"$PAYLOAD_CACHE_FILE"
+    fi
   else
     fail "payload passes its complete public test suite without private files"
+    # A failure must never leave a hit behind for the next run to trust.
+    rm -f "$PAYLOAD_CACHE_FILE"
     grep -vE '^  ok:' "$PAYLOAD_LOG" | tail -20
   fi
 fi

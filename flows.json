@@ -1,0 +1,186 @@
+{
+  "schema_version": "skill-commons/flows/v1",
+  "note": "Declarative flow surface for presentation. Router prose stays the human source; protocol-registry.json stays the contract source. Consistency between the three is checked by scripts/repo_visual.py check-flows.",
+  "human_gates": [
+    {
+      "id": "prd",
+      "label": "PRD 核可",
+      "router_label": "人工：PRD 核可",
+      "decides": "需求範圍是否可以進入設計"
+    },
+    {
+      "id": "team-design",
+      "label": "team 設計核可",
+      "router_label": "人工：team 設計核可",
+      "decides": "技術方案取捨是否可以進入實作"
+    },
+    {
+      "id": "release",
+      "label": "發布核可",
+      "router_label": "人工：發布核可",
+      "decides": "證據是否足以對外交付"
+    }
+  ],
+  "flows": [
+    {
+      "id": "explore",
+      "router_heading": "探索",
+      "intent": "釐清會改變實作的 material ambiguity，或壓測高風險方案",
+      "variants": [
+        {
+          "id": "default",
+          "execution_mode": null,
+          "nodes": [
+            { "id": "brainstorming", "kind": "skill", "ref": "brainstorming" },
+            { "id": "to-prd", "kind": "skill", "ref": "to-prd" },
+            { "id": "prd-interview", "kind": "skill", "ref": "prd-interview" },
+            { "id": "grilling", "kind": "skill", "ref": "grilling" }
+          ],
+          "edges": [
+            { "from": "brainstorming", "to": "to-prd", "condition": "personal 需要持久共識" },
+            { "from": "brainstorming", "to": "prd-interview", "condition": "team 正式訪談" },
+            { "from": "to-prd", "to": "grilling", "condition": "高風險才壓測" },
+            { "from": "prd-interview", "to": "grilling", "condition": "高風險才壓測" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "build",
+      "router_heading": "建造",
+      "intent": "新功能、需求變更、重構或開始實作",
+      "variants": [
+        {
+          "id": "team-feature",
+          "execution_mode": "team-feature",
+          "nodes": [
+            { "id": "prd-interview", "kind": "skill", "ref": "prd-interview" },
+            { "id": "gate-prd", "kind": "gate", "ref": "prd" },
+            { "id": "spec", "kind": "skill", "ref": "spec" },
+            { "id": "gate-design", "kind": "gate", "ref": "team-design" },
+            { "id": "qa-plan", "kind": "skill", "ref": "qa" },
+            { "id": "plan-sync", "kind": "skill", "ref": "plan-sync" },
+            { "id": "implement", "kind": "skill", "ref": "implement" },
+            { "id": "qa-validate", "kind": "skill", "ref": "qa" },
+            { "id": "verify", "kind": "skill", "ref": "verification-before-completion" }
+          ],
+          "edges": [
+            { "from": "prd-interview", "to": "gate-prd", "condition": null },
+            { "from": "gate-prd", "to": "spec", "condition": null },
+            { "from": "spec", "to": "gate-design", "condition": null },
+            { "from": "gate-design", "to": "qa-plan", "condition": null },
+            { "from": "qa-plan", "to": "plan-sync", "condition": null },
+            { "from": "plan-sync", "to": "implement", "condition": null },
+            { "from": "implement", "to": "qa-validate", "condition": null },
+            { "from": "qa-validate", "to": "verify", "condition": null }
+          ]
+        },
+        {
+          "id": "personal-feature",
+          "execution_mode": "personal-feature",
+          "nodes": [
+            { "id": "to-prd", "kind": "skill", "ref": "to-prd" },
+            { "id": "plan-sync", "kind": "skill", "ref": "plan-sync" },
+            { "id": "implement", "kind": "skill", "ref": "implement" },
+            { "id": "verify", "kind": "skill", "ref": "verification-before-completion" }
+          ],
+          "edges": [
+            { "from": "to-prd", "to": "plan-sync", "condition": "需要持久共識時才產 PRD" },
+            { "from": "plan-sync", "to": "implement", "condition": "多步或跨 session 才開 plan" },
+            { "from": "implement", "to": "verify", "condition": null }
+          ]
+        },
+        {
+          "id": "refactor",
+          "execution_mode": "refactor",
+          "nodes": [
+            { "id": "to-prd", "kind": "skill", "ref": "to-prd" },
+            { "id": "spec", "kind": "skill", "ref": "spec" },
+            { "id": "implement", "kind": "skill", "ref": "implement" },
+            { "id": "verify", "kind": "skill", "ref": "verification-before-completion" }
+          ],
+          "edges": [
+            { "from": "to-prd", "to": "spec", "condition": "team 或設計風險高時" },
+            { "from": "to-prd", "to": "implement", "condition": "設計風險低時直接實作" },
+            { "from": "spec", "to": "implement", "condition": null },
+            { "from": "implement", "to": "verify", "condition": null }
+          ]
+        },
+        {
+          "id": "micro-task",
+          "execution_mode": null,
+          "nodes": [
+            { "id": "native-red", "kind": "handoff", "ref": "native failing test" },
+            { "id": "verify", "kind": "skill", "ref": "verification-before-completion" }
+          ],
+          "edges": [
+            { "from": "native-red", "to": "verify", "condition": "三條客觀邊界全部成立才可直達" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fix",
+      "router_heading": "修錯",
+      "intent": "bug、測試失敗或行為異常，先取得 root cause",
+      "variants": [
+        {
+          "id": "bug-fix",
+          "execution_mode": "bug-fix",
+          "nodes": [
+            { "id": "systematic-debugging", "kind": "skill", "ref": "systematic-debugging" },
+            { "id": "implement", "kind": "skill", "ref": "implement" },
+            { "id": "verify", "kind": "skill", "ref": "verification-before-completion" }
+          ],
+          "edges": [
+            { "from": "systematic-debugging", "to": "implement", "condition": "observed failing test" },
+            { "from": "implement", "to": "verify", "condition": null }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "release",
+      "router_heading": "發布",
+      "intent": "review、commit、PR、merge 與 branch 恢復",
+      "variants": [
+        {
+          "id": "default",
+          "execution_mode": null,
+          "nodes": [
+            { "id": "verify", "kind": "skill", "ref": "verification-before-completion" },
+            { "id": "caveman-review", "kind": "skill", "ref": "caveman-review" },
+            { "id": "security", "kind": "skill", "ref": "security" },
+            { "id": "gate-release", "kind": "gate", "ref": "release" },
+            { "id": "sync-work", "kind": "skill", "ref": "sync-work" }
+          ],
+          "edges": [
+            { "from": "verify", "to": "caveman-review", "condition": "需要且已安裝 optional 時" },
+            { "from": "verify", "to": "security", "condition": "未派 review 時直接進安全檢查" },
+            { "from": "caveman-review", "to": "security", "condition": null },
+            { "from": "security", "to": "gate-release", "condition": null },
+            { "from": "gate-release", "to": "sync-work", "condition": null }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "understand",
+      "router_heading": "理解",
+      "intent": "codebase、架構、依賴與 domain 探索；read-only",
+      "variants": [
+        {
+          "id": "default",
+          "execution_mode": null,
+          "nodes": [
+            { "id": "codebase-understanding", "kind": "skill", "ref": "codebase-understanding" },
+            { "id": "manifest-update", "kind": "handoff", "ref": "manifest 指標更新" }
+          ],
+          "edges": [
+            { "from": "codebase-understanding", "to": "manifest-update", "condition": "必要時" }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -106,16 +106,17 @@ for entrypoint_text in "$readme_text" "$readme_en_text"; do
   assert_contains "$entrypoint_text" "--json" "README documents project-status machine output"
 done
 assert_contains "$changelog_text" "## [Unreleased]" "changelog keeps an Unreleased section after the release cut"
-assert_contains "$changelog_text" "## [0.10.0] - 2026-08-19" "changelog records the v0.10.0 release date"
+assert_contains "$changelog_text" "## [0.10.0] - 2026-08-20" "changelog records the v0.10.0 public release date"
 assert_contains "$changelog_text" "## [0.9.0] - 2026-07-15" "changelog records the v0.9.0 release date"
 assert_contains "$changelog_text" "## [0.8.0] - 2026-07-14" "changelog records the v0.8.0 release date"
 assert_contains "$changelog_text" "## [0.7.1] - 2026-07-11" "changelog records the v0.7.1 release date"
 assert_contains "$changelog_text" "## [0.7.0] - 2026-07-11" "changelog records the v0.7.0 release date"
-if [ -z "$(printf '%s' "$unreleased_text" | tr -d '[:space:]')" ]; then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: the v0.10.0 cut resets Unreleased"
-else
-  fail "the v0.10.0 cut resets Unreleased"
-fi
+for current_change in \
+  'repo visual map' \
+  '以安裝內容檢視' \
+  'payload-check'; do
+  assert_contains "$unreleased_text" "$current_change" "Unreleased records current work: $current_change"
+done
 for already_released in \
   'DELIVERY_MODE' \
   'v0.7 起只接受 canonical-v2 Plan' \
@@ -125,6 +126,11 @@ for already_released in \
 done
 assert_contains "$release_010_text" 'work-item/v3' "v0.10.0 scopes documentation_impact to the schema that enforces it"
 assert_not_contains "$release_010_text" '直到它被再次編輯' "v0.10.0 does not claim legacy edits trigger documentation_impact"
+assert_contains "$release_010_text" '兩項' "v0.10.0 counts both new fail-closed changes"
+assert_contains "$release_010_text" 'repo:' "v0.10.0 records participant-aware cross-repo sources"
+assert_contains "$release_010_text" '七項檢查' "v0.10.0 matches the cross-repo contract table"
+assert_contains "$release_010_text" '11 支技能' "v0.10.0 uses tag-derived skill-file statistics"
+assert_not_contains "$release_010_text" '淨減約 450 行' "v0.10.0 drops the disproven skill-reduction claim"
 if [ -n "$(printf '%s' "$release_010_text" | tr -d '[:space:]')" ]; then
   TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: the v0.10.0 cut moves entries into the released section"
 else

@@ -4,9 +4,44 @@
 
 ## [Unreleased]
 
-## [0.10.0] - 2026-08-19
+### Added
 
-> **升級前先讀本節的 Breaking changes。** 相對公開的 0.9.0，這個版本有一項
+- 由 [`flows.json`](flows.json) 與 repository 機器來源生成的離線
+  [`repo visual map`](docs/repo-visual.html)，包含產生器、可重現輸出與 drift gate。
+- 本機 `payload-check` 通過結果可依 public payload 與 toolchain digest 快取；只改
+  export-ignored 內容時可重用，相同 payload／toolchain 以外一律 miss。目錄不可讀、
+  digest 為空或 suite 失敗都不留下有效 verdict；CI 以
+  `SKILL_COMMONS_VERIFY_NO_CACHE=1` 強制重跑，快取不作為發布證據。
+
+### Changed
+
+- repo map 的 profile 控制升為頁面級 sticky「以安裝內容檢視」lens；不在 bundle 的
+  skill 以降低強調、虛線與「未安裝」第三態呈現，hero、flow 與技能目錄仍保留完整
+  形狀，也仍可開啟細節。personal 因此會明確標示未安裝的 `spec` owner。
+- repo map 細節改用 native modal dialog，並建立四級字體、雙主題對比與 reduced-motion
+  邊界；頁首改放採用判斷，schema/build metadata 移到所屬契約區與頁尾。
+- repo map 的「怎麼用」直接指出 `.agent/project-manifest.md`、`delivery_mode`、
+  `capability_packs` 與 `bootstrap/onboard.sh`，讓安裝步驟可直接操作。
+
+### Fixed
+
+- clean checkout 的 CI 會先生成受管 fan-out，再執行 canonical Verify chain。
+- repo map hero 的意圖、設計、計畫、驗證與交付節點現在都連到真實 owner；移除測試的
+  dead-handle 白名單，並要求每個 pointer-styled hero 節點都有可解析 handle。
+- profile lens 不再以 `display:none` 移除所有 `[data-skill]` 命中項目，避免 flow 留下
+  懸空箭頭或 hero 缺角。
+- repo map 的測試 roster 依 `.gitattributes` `export-ignore` 邊界生成，使 private source
+  與 public checkout 產生相同 model；drift gate 也會在測試寫入前先檢查 frozen page，
+  不再以重新生成掩蓋 public export 漂移。
+
+### Known issues
+
+- personal lens 目前仍把「PRD 核可」與「team 設計核可」畫成一般 gate；personal bundle
+  沒有 `prd-interview`、`spec`、`qa` producer，因此這兩個 gate 的不適用狀態仍待推導。
+
+## [0.10.0] - 2026-08-20
+
+> **升級前先讀本節的 Breaking changes。** 相對公開的 0.9.0，這個版本有兩項
 > 新的 fail-closed 變更；觸發條件與處理方式如下。
 
 ### Breaking changes
@@ -15,6 +50,9 @@
   `doc:<workspace 相對路徑>` 或 `n/a:<200 字以內理由>`；`doc:` 指向的檔案必須
   存在，且不得是 work root 底下任何一個 work item 的歷史檔（report、journal、plan）。
   規則是 forward-only；legacy metadata 仍維持 legacy schema，除非另行執行完整遷移。
+- **每個 work-item stage 的 `skill` 必須對應樹上真實的技能目錄。** 未知 owner 在
+  0.9.0 可通過基本 metadata 解析，0.10.0 起會 fail closed；升級時應改用現有技能名稱，
+  或先移除／遷移無效 stage。
 
 ### Known issues
 
@@ -24,24 +62,27 @@
 
 ### Added
 
+- canonical-v2 Plan 新增 `- repo: <identifier>@<workspace 相對路徑>` participant source；
+  後續 `local:` source 會在宣告的 participant 中解析，驗證證據仍留在 owning repo，
+  `planctl status` 與 project status 會回報 participant identifier 與錯誤。
 - [`docs/cross-repo-contract.md`](docs/cross-repo-contract.md)：說明機器契約
-  （`protocol-registry.json`）、八項檢查各自保證什麼、以及執行方式。
-- work-item stage 的 `skill` 必須是真實技能資料夾，roster 由樹上推導。
+  （`protocol-registry.json`）、七項檢查各自保證什麼、以及執行方式。
 
 ### Changed
 
-- 13 支技能實質改寫，淨減約 450 行技能文字（`codebase-understanding`、`plan-sync`、
-  `security`、`brainstorming`、`skill-router`、`sync-work` 幅度最大）。載入成本下降。
+- 相對公開 v0.9.0，11 支技能的 `SKILL.md` 有變更（83 行新增、23 行刪除，淨增
+  60 行）；不再宣稱未經量測的載入成本改善。
 
-- `tests/verify.sh` 改為從樹上動態探索 suites，不再讀硬編清單；也補上先前未被
-  執行的 top-level、bootstrap 與 Python 分層。`tests/run-all.sh` 降為相容
-  shim；它原本是 CI 的入口，而它從不執行 Python 分層。
+- 新增 canonical `tests/verify.sh`，從樹上動態探索既有 top-level 與 bootstrap suites，
+  並納入新的 Python unit、integration、e2e 分層；`tests/run-all.sh` 降為相容 shim。
 - 公開/私有測試邊界改為只宣告在 `.gitattributes`，不再由 runner 重算。
 - secret 掃描的發現改為只輸出 `path:line` 與類別，不再輸出比對到的內容。
 - 掃描結果結尾改為 scoped preflight 敘述，不再宣稱 comprehensive PASS。
 
 ### Fixed
 
+- `bootstrap/onboard.sh --help` 不再把 `--help` 當成安裝目標並在其下寫入檔案。
+- custom `submodule_path` 產生的 shim 會使用實際 mount，不再保留硬編的預設路徑。
 - 未宣告 `source_roots` 的 repository 現在以整個 worktree（`.`）為保守 fallback；
   root-level 或非 `src/` layout 不再因虛構的缺失目錄而失敗，manifest/CLI 明確宣告的
   targets 仍逐一做存在性與 worktree boundary 驗證。

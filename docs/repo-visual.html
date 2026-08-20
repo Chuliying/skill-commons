@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>skill-commons Repo Map</title>
+<style>
+:root{
+  /* Four steps, nothing else: page title, section/card title, body, note. */
+  --fs-h1:28px; --fs-title:18px; --fs-body:16px; --fs-note:14px;
+  --bg:#fbfbf9; --panel:#ffffff; --panel-2:#f0f0ea; --line:#c6c6b9;
+  --ink:#0b0c06; --muted:#2b2e24; --dim:#43463b;
+  --accent:#1f4527; --accent-soft:#e2ece3;
+  --human:#6b3708; --human-soft:#f4e5d4;
+  --warn:#6e2020; --warn-soft:#f6e0dd;
+  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:system-ui,-apple-system,"Helvetica Neue",sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0f1110; --panel:#181b19; --panel-2:#212621; --line:#454d46;
+    --ink:#f8faf6; --muted:#e0e5db; --dim:#bcc2b6;
+    --accent:#a6e0b5; --accent-soft:#1d2c22;
+    --human:#f4c286; --human-soft:#33281a;
+    --warn:#f5a79e; --warn-soft:#33201f;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+  font-size:var(--fs-body);line-height:1.65;-webkit-font-smoothing:antialiased}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+code,.mono{font-family:var(--mono);font-size:.92em}
+.wrap{max-width:1180px;margin:0 auto;padding:40px 22px 100px}
+header h1{margin:0 0 10px;font-size:var(--fs-h1);letter-spacing:-.012em}
+header p.lede{margin:0 0 14px;color:var(--ink);max-width:66ch}
+header p.lede.stance{color:var(--muted);margin-bottom:34px;
+  border-left:3px solid var(--accent);padding-left:13px}
+h2{font-size:var(--fs-title);letter-spacing:.01em;color:var(--ink);
+  margin:48px 0 16px;font-weight:650}
+h2:first-of-type{margin-top:0}
+.cards{display:grid;gap:13px;grid-template-columns:repeat(auto-fit,minmax(252px,1fr))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 17px}
+.card h3{margin:0 0 7px;font-size:var(--fs-title)}
+.card p{margin:0;color:var(--ink)}
+.scroll{overflow-x:auto;background:var(--panel);border:1px solid var(--line);
+  border-radius:10px;padding:10px 4px 4px}
+svg.hero{display:block;min-width:1240px;width:100%;height:auto}
+svg.hero .edge{stroke:var(--dim);stroke-width:1.5}
+svg.hero marker path{fill:var(--dim)}
+svg.hero .node{cursor:pointer}
+svg.hero .step rect{fill:var(--panel-2);stroke:var(--line);stroke-width:1.4}
+svg.hero .node:hover rect,svg.hero .node:focus rect{stroke:var(--accent);stroke-width:2.2}
+svg.hero .gate polygon{fill:var(--human-soft);stroke:var(--human);stroke-width:2}
+svg.hero .node:hover polygon,svg.hero .node:focus polygon{stroke-width:3}
+svg.hero text{text-anchor:middle;font-family:var(--sans)}
+svg.hero .lbl{font-size:var(--fs-body);fill:var(--ink)}
+svg.hero .sub{font-size:var(--fs-note);fill:var(--muted)}
+svg.hero .glyph{font-size:var(--fs-title);fill:var(--human);font-weight:700}
+svg.hero .cap{font-size:var(--fs-note);fill:var(--human);font-weight:600}
+.legend{display:flex;gap:22px;flex-wrap:wrap;font-size:var(--fs-note);color:var(--ink);
+  margin:13px 2px 0}
+.legend i{display:inline-block;width:12px;height:12px;margin-right:7px;vertical-align:-1px}
+.legend i.m{background:var(--panel-2);border:1px solid var(--line)}
+.legend i.h{background:var(--human-soft);border:1px solid var(--human);transform:rotate(45deg)}
+.flow{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  padding:15px 17px;margin-bottom:11px}
+.flow h3{margin:0 0 4px;font-size:var(--fs-title)}
+.flow p.intent{margin:0 0 12px;color:var(--muted);font-size:var(--fs-note)}
+.variant{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:9px 0}
+.variant .vname{font-family:var(--mono);font-size:var(--fs-note);color:var(--muted);
+  min-width:152px;flex-shrink:0}
+.chip{border:1px solid var(--line);background:var(--panel-2);border-radius:6px;
+  padding:4px 10px;font-size:var(--fs-body);cursor:pointer;color:var(--ink)}
+.chip:hover{border-color:var(--accent)}
+.chip.gate{background:var(--human-soft);border-color:var(--human);color:var(--human);
+  font-weight:600}
+.chip.handoff{background:transparent;border-style:dashed;color:var(--muted);cursor:default}
+.arrow{color:var(--muted)}
+.filters{position:sticky;top:0;z-index:5;display:flex;gap:8px;flex-wrap:wrap;
+  align-items:center;background:var(--bg);border-bottom:1px solid var(--line);
+  padding:11px 0;margin:0 0 30px}
+.filters .lenslabel{font-size:var(--fs-note);color:var(--muted);margin-right:2px}
+.filters button{border:1px solid var(--line);background:var(--panel);color:var(--ink);
+  border-radius:999px;padding:5px 14px;font-size:var(--fs-note);cursor:pointer;
+  font-family:var(--sans)}
+.filters button[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent);
+  color:var(--accent);font-weight:650}
+/* Out of the selected bundle. Marked, never removed: dropping a chip out of a
+   flow chain would leave dangling arrows and misreport the flow, and hiding it
+   from the catalogue hides exactly the boundary the reader needs to learn. */
+[data-out=true]{opacity:.42}
+[data-out=true]:not(.chip.gate){border-style:dashed}
+.stage [data-out=true]::after{content:"·未安裝";color:var(--muted);font-size:var(--fs-note)}
+svg.hero .node[data-out=true] rect{stroke-dasharray:4 3}
+.stagegrid{display:grid;gap:11px;grid-template-columns:repeat(auto-fit,minmax(284px,1fr))}
+.stage{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 15px}
+.stage h4{margin:0 0 10px;font-size:var(--fs-note);text-transform:uppercase;
+  letter-spacing:.07em;color:var(--muted)}
+.stage .chip{margin:0 5px 5px 0;display:inline-block}
+.chip .ext{color:var(--muted);font-size:var(--fs-note);margin-left:4px}
+table{border-collapse:collapse;width:100%;font-size:var(--fs-body);background:var(--panel);
+  font-variant-numeric:tabular-nums}
+th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
+th{background:var(--panel-2);color:var(--ink);font-weight:650;font-size:var(--fs-note)}
+td.req{font-family:var(--mono)}
+td.req[data-v=required]{color:var(--accent);font-weight:650}
+td.req[data-v=optional]{color:var(--ink)}
+td.req[data-v=absent]{color:var(--muted);background:var(--panel-2)}
+tr.limit td{background:var(--warn-soft)}
+tr.limit td:last-child{color:var(--warn);font-weight:650}
+.note{color:var(--muted);font-size:var(--fs-note);margin:12px 0 0;max-width:82ch}
+.rosterwrap{display:grid;gap:11px;grid-template-columns:repeat(auto-fit,minmax(272px,1fr))}
+dialog.detail{max-width:700px;width:calc(100% - 40px);max-height:82vh;overflow-y:auto;
+  background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:12px;
+  padding:28px 28px 34px;box-shadow:0 24px 60px rgba(0,0,0,.24)}
+dialog.detail::backdrop{background:rgba(8,10,8,.58)}
+dialog.detail .close{position:absolute;top:15px;right:17px;border:1px solid var(--line);
+  background:var(--panel-2);color:var(--ink);border-radius:6px;cursor:pointer;
+  font-size:var(--fs-note);padding:4px 11px;font-family:var(--sans)}
+dialog.detail h3{margin:0 78px 5px 0;font-size:var(--fs-title)}
+dialog.detail .kind{font-family:var(--mono);font-size:var(--fs-note);color:var(--muted);
+  margin-bottom:15px}
+dialog.detail p{margin:0 0 15px}
+dialog.detail dl{margin:0 0 16px;display:grid;grid-template-columns:116px 1fr;gap:9px 13px}
+dialog.detail dt{color:var(--muted);font-size:var(--fs-note);padding-top:2px}
+dialog.detail dd{margin:0}
+dialog.detail details{border-top:1px solid var(--line);padding-top:14px;margin-top:6px}
+dialog.detail summary{cursor:pointer;color:var(--accent);font-weight:600}
+dialog.detail table{margin-top:12px}
+dialog.detail .src{display:inline-block;margin-top:15px}
+footer{margin-top:56px;border-top:1px solid var(--line);padding-top:18px;
+  color:var(--muted);font-size:var(--fs-note)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>skill-commons</h1>
+  <p class="lede">把交付流程的形狀固定下來：每一步產出形體一致、可續跑、可被 script 驗證的 artifact。
+  這頁由 repo 的機器來源生成，權威在 repo，此頁只是索引——每個細節都以一個檔案連結收尾。</p>
+  <p class="lede stance">它是宣告式契約加一致性檢查，不是 runtime engine、不是 state machine、不是 scheduler。</p>
+</header>
+
+<div class="filters">
+  <span class="lenslabel">以安裝內容檢視</span>
+  <button data-profile="all" aria-pressed="true">全部 24</button>
+  <button data-profile="core" aria-pressed="false">core <span style="color:var(--dim)">7</span></button><button data-profile="frontend" aria-pressed="false">frontend <span style="color:var(--dim)">1</span></button><button data-profile="optional" aria-pressed="false">optional <span style="color:var(--dim)">10</span></button><button data-profile="personal" aria-pressed="false">personal <span style="color:var(--dim)">7</span></button><button data-profile="team-sprint" aria-pressed="false">team-sprint <span style="color:var(--dim)">12</span></button>
+</div>
+
+<h2>一眼看懂</h2>
+<div class="cards">
+<div class="card"><h3>為什麼是這個形狀</h3><p>人只停在三個判斷點：需求、設計取捨、發布。其餘一律機器檢查，缺件與無法界定時停下來，不猜測後繼續。</p></div><div class="card"><h3>怎麼運作</h3><p>24 個技能依 flow 派發，artifact 契約由 protocol registry 宣告，狀態落在檔案而非對話。</p></div><div class="card"><h3>怎麼用</h3><p>在 .agent/project-manifest.md 設 delivery_mode（personal 或 team-sprint）與選用的 capability_packs（frontend、optional），再跑 bootstrap/onboard.sh 重新 fan-out。execution mode 由 router 依單一任務決定，不必手動設定。</p></div><div class="card"><h3>怎麼驗</h3><p>26 條確定性 suite 加真 agent journey；完成宣稱必須附當次證據。</p></div>
+</div>
+
+<h2>交付流水線</h2>
+<div class="scroll"><svg class="hero" viewBox="0 0 1434 130" role="img" aria-label="交付流水線與三個人工判斷點"><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z"/></marker></defs><line class="edge" x1="170" y1="62.0" x2="194" y2="62.0" marker-end="url(#arrow)"/><line class="edge" x1="282" y1="62.0" x2="306" y2="62.0" marker-end="url(#arrow)"/><line class="edge" x1="464" y1="62.0" x2="488" y2="62.0" marker-end="url(#arrow)"/><line class="edge" x1="576" y1="62.0" x2="600" y2="62.0" marker-end="url(#arrow)"/><line class="edge" x1="758" y1="62.0" x2="782" y2="62.0" marker-end="url(#arrow)"/><line class="edge" x1="940" y1="62.0" x2="964" y2="62.0" marker-end="url(#arrow)"/><line class="edge" x1="1122" y1="62.0" x2="1146" y2="62.0" marker-end="url(#arrow)"/><line class="edge" x1="1234" y1="62.0" x2="1258" y2="62.0" marker-end="url(#arrow)"/><g class="node step" data-skill="skill-router" role="button" tabindex="0"><rect x="18" y="34" width="152" height="56" rx="7"/><text class="lbl" x="94.0" y="58.0">意圖</text><text class="sub" x="94.0" y="78.0">router 選最短路徑</text></g><g class="node gate" data-gate="prd" role="button" tabindex="0"><polygon points="241.0,34 282,62.0 241.0,90 200,62.0"/><text class="glyph" x="241.0" y="67.0">人</text><text class="cap" x="241.0" y="113">PRD 核可</text></g><g class="node step" data-skill="spec" role="button" tabindex="0"><rect x="312" y="34" width="152" height="56" rx="7"/><text class="lbl" x="388.0" y="58.0">設計</text><text class="sub" x="388.0" y="78.0">spec / prototype</text></g><g class="node gate" data-gate="team-design" role="button" tabindex="0"><polygon points="535.0,34 576,62.0 535.0,90 494,62.0"/><text class="glyph" x="535.0" y="67.0">人</text><text class="cap" x="535.0" y="113">team 設計核可</text></g><g class="node step" data-skill="plan-sync" role="button" tabindex="0"><rect x="606" y="34" width="152" height="56" rx="7"/><text class="lbl" x="682.0" y="58.0">計畫</text><text class="sub" x="682.0" y="78.0">canonical plan</text></g><g class="node step" data-skill="implement" role="button" tabindex="0"><rect x="788" y="34" width="152" height="56" rx="7"/><text class="lbl" x="864.0" y="58.0">實作</text><text class="sub" x="864.0" y="78.0">RED → GREEN</text></g><g class="node step" data-skill="verification-before-completion" role="button" tabindex="0"><rect x="970" y="34" width="152" height="56" rx="7"/><text class="lbl" x="1046.0" y="58.0">驗證</text><text class="sub" x="1046.0" y="78.0">機器 Gate + 證據</text></g><g class="node gate" data-gate="release" role="button" tabindex="0"><polygon points="1193.0,34 1234,62.0 1193.0,90 1152,62.0"/><text class="glyph" x="1193.0" y="67.0">人</text><text class="cap" x="1193.0" y="113">發布核可</text></g><g class="node step" data-skill="sync-work" role="button" tabindex="0"><rect x="1264" y="34" width="152" height="56" rx="7"/><text class="lbl" x="1340.0" y="58.0">交付</text><text class="sub" x="1340.0" y="78.0">授權後才動 Git</text></g></svg></div>
+<div class="legend">
+  <span><i class="m"></i>機器檢查的步驟</span>
+  <span><i class="h"></i>人工判斷點（恰好三個）</span>
+  <span style="color:var(--dim)">點任一節點看細節</span>
+</div>
+
+<h2>五條 flow</h2>
+<div class="flow"><h3>探索</h3><p class="intent">釐清會改變實作的 material ambiguity，或壓測高風險方案</p><div class="variant"><span class="vname">default</span><span class="chip" data-skill="brainstorming" role="button" tabindex="0">brainstorming</span><span class="arrow">→</span><span class="chip" data-skill="to-prd" role="button" tabindex="0">to-prd</span><span class="arrow">→</span><span class="chip" data-skill="prd-interview" role="button" tabindex="0">prd-interview</span><span class="arrow">→</span><span class="chip" data-skill="grilling" role="button" tabindex="0">grilling</span></div></div><div class="flow"><h3>建造</h3><p class="intent">新功能、需求變更、重構或開始實作</p><div class="variant"><span class="vname chip" data-mode="team-feature" role="button" tabindex="0">team-feature</span><span class="chip" data-skill="prd-interview" role="button" tabindex="0">prd-interview</span><span class="arrow">→</span><span class="chip gate" data-gate="prd" role="button" tabindex="0">PRD 核可</span><span class="arrow">→</span><span class="chip" data-skill="spec" role="button" tabindex="0">spec</span><span class="arrow">→</span><span class="chip gate" data-gate="team-design" role="button" tabindex="0">team 設計核可</span><span class="arrow">→</span><span class="chip" data-skill="qa" role="button" tabindex="0">qa</span><span class="arrow">→</span><span class="chip" data-skill="plan-sync" role="button" tabindex="0">plan-sync</span><span class="arrow">→</span><span class="chip" data-skill="implement" role="button" tabindex="0">implement</span><span class="arrow">→</span><span class="chip" data-skill="qa" role="button" tabindex="0">qa</span><span class="arrow">→</span><span class="chip" data-skill="verification-before-completion" role="button" tabindex="0">verification-before-completion</span></div><div class="variant"><span class="vname chip" data-mode="personal-feature" role="button" tabindex="0">personal-feature</span><span class="chip" data-skill="to-prd" role="button" tabindex="0">to-prd</span><span class="arrow">→</span><span class="chip" data-skill="plan-sync" role="button" tabindex="0">plan-sync</span><span class="arrow">→</span><span class="chip" data-skill="implement" role="button" tabindex="0">implement</span><span class="arrow">→</span><span class="chip" data-skill="verification-before-completion" role="button" tabindex="0">verification-before-completion</span></div><div class="variant"><span class="vname chip" data-mode="refactor" role="button" tabindex="0">refactor</span><span class="chip" data-skill="to-prd" role="button" tabindex="0">to-prd</span><span class="arrow">→</span><span class="chip" data-skill="spec" role="button" tabindex="0">spec</span><span class="arrow">→</span><span class="chip" data-skill="implement" role="button" tabindex="0">implement</span><span class="arrow">→</span><span class="chip" data-skill="verification-before-completion" role="button" tabindex="0">verification-before-completion</span></div><div class="variant"><span class="vname">micro-task</span><span class="chip handoff">native failing test</span><span class="arrow">→</span><span class="chip" data-skill="verification-before-completion" role="button" tabindex="0">verification-before-completion</span></div></div><div class="flow"><h3>修錯</h3><p class="intent">bug、測試失敗或行為異常，先取得 root cause</p><div class="variant"><span class="vname chip" data-mode="bug-fix" role="button" tabindex="0">bug-fix</span><span class="chip" data-skill="systematic-debugging" role="button" tabindex="0">systematic-debugging</span><span class="arrow">→</span><span class="chip" data-skill="implement" role="button" tabindex="0">implement</span><span class="arrow">→</span><span class="chip" data-skill="verification-before-completion" role="button" tabindex="0">verification-before-completion</span></div></div><div class="flow"><h3>發布</h3><p class="intent">review、commit、PR、merge 與 branch 恢復</p><div class="variant"><span class="vname">default</span><span class="chip" data-skill="verification-before-completion" role="button" tabindex="0">verification-before-completion</span><span class="arrow">→</span><span class="chip" data-skill="caveman-review" role="button" tabindex="0">caveman-review</span><span class="arrow">→</span><span class="chip" data-skill="security" role="button" tabindex="0">security</span><span class="arrow">→</span><span class="chip gate" data-gate="release" role="button" tabindex="0">發布核可</span><span class="arrow">→</span><span class="chip" data-skill="sync-work" role="button" tabindex="0">sync-work</span></div></div><div class="flow"><h3>理解</h3><p class="intent">codebase、架構、依賴與 domain 探索；read-only</p><div class="variant"><span class="vname">default</span><span class="chip" data-skill="codebase-understanding" role="button" tabindex="0">codebase-understanding</span><span class="arrow">→</span><span class="chip handoff">manifest 指標更新</span></div></div>
+<p class="note">flow 由 <code>flows.json</code> 宣告，並與 router 散文、protocol registry 雙向綁定：
+任一方單獨改動，<code>tests/test_repo_visual.sh</code> 就會變紅。</p>
+
+<h2>24 個技能</h2>
+<div class="stagegrid">
+<div class="stage"><h4>design</h4><span class="chip" data-skill="design-taste-frontend" role="button" tabindex="0">design-taste-frontend <span class="ext">ext</span></span><span class="chip" data-skill="prototype" role="button" tabindex="0">prototype</span></div><div class="stage"><h4>docs</h4><span class="chip" data-skill="brainstorming" role="button" tabindex="0">brainstorming <span class="ext">ext</span></span><span class="chip" data-skill="humanizer" role="button" tabindex="0">humanizer <span class="ext">ext</span></span><span class="chip" data-skill="markdown" role="button" tabindex="0">markdown</span><span class="chip" data-skill="prd-interview" role="button" tabindex="0">prd-interview</span><span class="chip" data-skill="spec" role="button" tabindex="0">spec</span><span class="chip" data-skill="to-prd" role="button" tabindex="0">to-prd <span class="ext">ext</span></span></div><div class="stage"><h4>implement</h4><span class="chip" data-skill="implement" role="button" tabindex="0">implement <span class="ext">ext</span></span><span class="chip" data-skill="reducing-entropy" role="button" tabindex="0">reducing-entropy <span class="ext">ext</span></span></div><div class="stage"><h4>infra</h4><span class="chip" data-skill="codebase-understanding" role="button" tabindex="0">codebase-understanding</span><span class="chip" data-skill="security" role="button" tabindex="0">security</span><span class="chip" data-skill="shared-skill-onboarder" role="button" tabindex="0">shared-skill-onboarder</span><span class="chip" data-skill="subagent-driven-development" role="button" tabindex="0">subagent-driven-development <span class="ext">ext</span></span><span class="chip" data-skill="sync-work" role="button" tabindex="0">sync-work</span><span class="chip" data-skill="systematic-debugging" role="button" tabindex="0">systematic-debugging <span class="ext">ext</span></span><span class="chip" data-skill="verification-before-completion" role="button" tabindex="0">verification-before-completion <span class="ext">ext</span></span></div><div class="stage"><h4>plan</h4><span class="chip" data-skill="domain-modeling" role="button" tabindex="0">domain-modeling <span class="ext">ext</span></span><span class="chip" data-skill="grilling" role="button" tabindex="0">grilling <span class="ext">ext</span></span><span class="chip" data-skill="plan-sync" role="button" tabindex="0">plan-sync</span></div><div class="stage"><h4>qa</h4><span class="chip" data-skill="qa" role="button" tabindex="0">qa</span></div><div class="stage"><h4>review</h4><span class="chip" data-skill="caveman-review" role="button" tabindex="0">caveman-review <span class="ext">ext</span></span></div><div class="stage"><h4>skill</h4><span class="chip" data-skill="skill-creator" role="button" tabindex="0">skill-creator <span class="ext">ext</span></span><span class="chip" data-skill="skill-router" role="button" tabindex="0">skill-router</span></div>
+</div>
+<p class="note">profile 歸屬讀自 <code>profiles/</code>，不在此頁重新輸入。
+不要從技能數量推論成本或品質。</p>
+
+<h2>Artifact 契約</h2>
+<p class="note" style="margin:0 0 12px">契約版本 <code>work-item/v3</code>——
+消費端 repo 的 work item 必須符合這一版；舊版 work item 過不了檢查。</p>
+<div class="scroll" style="padding:0">
+<table><thead><tr><th>artifact</th><th>bug-fix</th><th>personal-feature</th><th>refactor</th><th>team-feature</th></tr></thead>
+<tbody><tr><td><code>implement-report</code></td><td class="req" data-v="required">required</td><td class="req" data-v="required">required</td><td class="req" data-v="required">required</td><td class="req" data-v="required">required</td></tr><tr><td><code>plan</code></td><td class="req" data-v="optional">optional</td><td class="req" data-v="optional">optional</td><td class="req" data-v="optional">optional</td><td class="req" data-v="required">required</td></tr><tr><td><code>prd</code></td><td class="req" data-v="absent">absent</td><td class="req" data-v="optional">optional</td><td class="req" data-v="required">required</td><td class="req" data-v="required">required</td></tr><tr><td><code>qa-plan</code></td><td class="req" data-v="absent">absent</td><td class="req" data-v="absent">absent</td><td class="req" data-v="absent">absent</td><td class="req" data-v="required">required</td></tr><tr><td><code>qa-report</code></td><td class="req" data-v="absent">absent</td><td class="req" data-v="absent">absent</td><td class="req" data-v="absent">absent</td><td class="req" data-v="required">required</td></tr><tr><td><code>spec</code></td><td class="req" data-v="absent">absent</td><td class="req" data-v="absent">absent</td><td class="req" data-v="optional">optional</td><td class="req" data-v="required">required</td></tr></tbody></table>
+</div>
+<p class="note"><code>required</code> 缺件就停止；<code>optional</code> 存在就讀；
+<code>absent</code> 是這條路徑不產該 artifact——補造它就是違約。點欄位標題看單一 mode 的完整契約。</p>
+
+<h2>交付狀態</h2>
+<div class="scroll" style="padding:0">
+<table><thead><tr><th>delivery_status</th><th>允許的 work_status</th><th>必要證據</th></tr></thead>
+<tbody><tr><td><code>not_requested</code></td><td>active, completed, abandoned</td><td>—</td></tr><tr><td><code>awaiting_approval</code></td><td>completed</td><td>—</td></tr><tr><td><code>approved</code></td><td>completed</td><td>approval_ref</td></tr><tr><td><code>pr_created</code></td><td>completed</td><td>approval_ref, pr_url</td></tr><tr><td><code>merged</code></td><td>completed</td><td>approval_ref, merge_sha</td></tr><tr><td><code>deployed</code></td><td>completed</td><td>approval_ref, merge_sha, deployment_id</td></tr></tbody></table>
+</div>
+<p class="note">工作完成不等於已交付。每個狀態要求對應形狀的證據；形狀檢查不證明外部核可或部署真的發生過。</p>
+
+<h2>驗證</h2>
+<div class="rosterwrap">
+<div class="stage"><h4>bootstrap suites · 9</h4><div class="mono" style="color:var(--ink)">tests/bootstrap/test_check.sh</div><div class="mono" style="color:var(--ink)">tests/bootstrap/test_e2e.sh</div><div class="mono" style="color:var(--ink)">tests/bootstrap/test_generate_safety.sh</div><div class="mono" style="color:var(--ink)">tests/bootstrap/test_manage.sh</div><div class="mono" style="color:var(--ink)">tests/bootstrap/test_manifest.sh</div><div class="mono" style="color:var(--ink)">tests/bootstrap/test_onboard.sh</div><div class="mono" style="color:var(--ink)">tests/bootstrap/test_platform.sh</div><div class="mono" style="color:var(--ink)">tests/bootstrap/test_render.sh</div><div class="mono" style="color:var(--ink)">tests/bootstrap/test_stamp.sh</div></div><div class="stage"><h4>python 分層 · 3</h4><div class="mono" style="color:var(--ink)">e2e</div><div class="mono" style="color:var(--ink)">integration</div><div class="mono" style="color:var(--ink)">unit</div></div><div class="stage"><h4>top-level suites · 14</h4><div class="mono" style="color:var(--ink)">tests/test_artifact_contract.sh</div><div class="mono" style="color:var(--ink)">tests/test_brainstorming.sh</div><div class="mono" style="color:var(--ink)">tests/test_gate_automation.sh</div><div class="mono" style="color:var(--ink)">tests/test_journey_evals.sh</div><div class="mono" style="color:var(--ink)">tests/test_plan_sync.sh</div><div class="mono" style="color:var(--ink)">tests/test_profiles.sh</div><div class="mono" style="color:var(--ink)">tests/test_project_status.sh</div><div class="mono" style="color:var(--ink)">tests/test_protocol_registry.sh</div><div class="mono" style="color:var(--ink)">tests/test_release_baseline.sh</div><div class="mono" style="color:var(--ink)">tests/test_release_convergence.sh</div><div class="mono" style="color:var(--ink)">tests/test_repo_map.sh</div><div class="mono" style="color:var(--ink)">tests/test_repo_visual.sh</div><div class="mono" style="color:var(--ink)">tests/test_skills_reorg.sh</div><div class="mono" style="color:var(--ink)">tests/test_work_items.sh</div></div>
+</div>
+<p class="note">單一入口 <code>bash tests/verify.sh</code>，共 26 條。
+空 roster、空 layer 與缺檔都算錯誤而非通過。真 agent journey 另行執行，不佔確定性 Verify。</p>
+
+<h2>還沒被證明的事</h2>
+<div class="scroll" style="padding:0">
+<table><thead><tr><th>問題</th><th>目前證據</th><th>狀態</th></tr></thead>
+<tbody><tr class=""><td>Do artifact, Plan, profile, adapter, and release contracts agree?</td><td>Deterministic repository suites</td><td>Supported for the tested revision</td></tr><tr class="limit"><td>What is the input-token cost of loading workflow guidance?</td><td>Historical eight-case A/B/C narrative; raw private run artifacts unavailable</td><td>Unverified until original evidence is recovered or rerun</td></tr><tr class="limit"><td>Did the historical blind scorer establish quality or usability gains?</td><td>Packets leaked arm identity</td><td>Unsupported; scores compromised</td></tr><tr class="limit"><td>Did the repaired Luna-high blind scoring establish a quality winner?</td><td>Historical audit/scoring narrative; raw private run artifacts unavailable</td><td>No; the narrative is mixed and cannot be independently replayed</td></tr><tr class="limit"><td>Can another tool cold-start and continue with less rework?</td><td>No matched handoff experiment yet</td><td>Unmeasured</td></tr><tr class="limit"><td>Does the bundle improve team throughput or human usability?</td><td>No matched team study</td><td>Unmeasured</td></tr></tbody></table>
+</div>
+<p class="note">5 項未達 supported。確定性 gate 只證明被測 revision 的契約一致，
+不證明團隊速度、模型品質或跨工具接手成效。</p>
+
+<footer>
+  生成自 <code>scripts/repo_visual.py render</code>，資料來自
+  <code>protocol-registry.json</code>、<code>profiles.json</code>、<code>flows.json</code>、
+  <code>skills-lock.json</code>、各 <code>SKILL.md</code> frontmatter、
+  <code>tests/verify.sh --list</code> 與 <code>docs/evaluation.md</code>。
+  不含 wall-clock，因此可與自身重生成逐位元比對。
+  <br>生成資訊：契約摘要 <code>7367ed2ab17ff036</code> ·
+  registry <code>skill-commons/protocol-registry/v1</code> ·
+  flows <code>skill-commons/flows/v1</code>。摘要只在被描述的事實改變時變動，與 commit 無關。
+</footer>
+</div>
+
+<dialog class="detail" aria-label="細節">
+  <button class="close" autofocus>關閉</button>
+  <div id="detail-body"></div>
+</dialog>
+
+<script id="model" type="application/json">{"claim_limits": [{"evidence": "Historical eight-case A/B/C narrative; raw private run artifacts unavailable", "question": "What is the input-token cost of loading workflow guidance?", "status": "Unverified until original evidence is recovered or rerun"}, {"evidence": "Packets leaked arm identity", "question": "Did the historical blind scorer establish quality or usability gains?", "status": "Unsupported; scores compromised"}, {"evidence": "Historical audit/scoring narrative; raw private run artifacts unavailable", "question": "Did the repaired Luna-high blind scoring establish a quality winner?", "status": "No; the narrative is mixed and cannot be independently replayed"}, {"evidence": "No matched handoff experiment yet", "question": "Can another tool cold-start and continue with less rework?", "status": "Unmeasured"}, {"evidence": "No matched team study", "question": "Does the bundle improve team throughput or human usability?", "status": "Unmeasured"}], "evidence_map": [{"evidence": "Deterministic repository suites", "question": "Do artifact, Plan, profile, adapter, and release contracts agree?", "status": "Supported for the tested revision"}, {"evidence": "Historical eight-case A/B/C narrative; raw private run artifacts unavailable", "question": "What is the input-token cost of loading workflow guidance?", "status": "Unverified until original evidence is recovered or rerun"}, {"evidence": "Packets leaked arm identity", "question": "Did the historical blind scorer establish quality or usability gains?", "status": "Unsupported; scores compromised"}, {"evidence": "Historical audit/scoring narrative; raw private run artifacts unavailable", "question": "Did the repaired Luna-high blind scoring establish a quality winner?", "status": "No; the narrative is mixed and cannot be independently replayed"}, {"evidence": "No matched handoff experiment yet", "question": "Can another tool cold-start and continue with less rework?", "status": "Unmeasured"}, {"evidence": "No matched team study", "question": "Does the bundle improve team throughput or human usability?", "status": "Unmeasured"}], "execution_modes": {"bug-fix": {"artifacts": {"implement-report": {"producers": ["implement"], "requirement": "required"}, "plan": {"producers": ["plan-sync"], "requirement": "optional"}, "prd": {"producers": [], "requirement": "absent"}, "qa-plan": {"producers": [], "requirement": "absent"}, "qa-report": {"producers": [], "requirement": "absent"}, "spec": {"producers": [], "requirement": "absent"}}, "flow": "fix", "handoff": "verification-before-completion", "human_gates": ["release"]}, "personal-feature": {"artifacts": {"implement-report": {"producers": ["implement"], "requirement": "required"}, "plan": {"producers": ["plan-sync"], "requirement": "optional"}, "prd": {"producers": ["to-prd"], "requirement": "optional"}, "qa-plan": {"producers": [], "requirement": "absent"}, "qa-report": {"producers": [], "requirement": "absent"}, "spec": {"producers": [], "requirement": "absent"}}, "flow": "build", "handoff": "verification-before-completion", "human_gates": ["release"]}, "refactor": {"artifacts": {"implement-report": {"producers": ["implement"], "requirement": "required"}, "plan": {"producers": ["plan-sync"], "requirement": "optional"}, "prd": {"producers": ["to-prd"], "requirement": "required"}, "qa-plan": {"producers": [], "requirement": "absent"}, "qa-report": {"producers": [], "requirement": "absent"}, "spec": {"producers": ["spec"], "requirement": "optional"}}, "flow": "build", "handoff": "verification-before-completion", "human_gates": ["release"]}, "team-feature": {"artifacts": {"implement-report": {"producers": ["implement"], "requirement": "required"}, "plan": {"producers": ["plan-sync"], "requirement": "required"}, "prd": {"producers": ["prd-interview", "to-prd"], "requirement": "required"}, "qa-plan": {"producers": ["qa"], "requirement": "required"}, "qa-report": {"producers": ["qa"], "requirement": "required"}, "spec": {"producers": ["spec"], "requirement": "required"}}, "flow": "build", "handoff": "qa-validate", "human_gates": ["prd", "team-design", "release"]}}, "flows": [{"id": "explore", "intent": "釐清會改變實作的 material ambiguity，或壓測高風險方案", "router_heading": "探索", "variants": [{"edges": [{"condition": "personal 需要持久共識", "from": "brainstorming", "to": "to-prd"}, {"condition": "team 正式訪談", "from": "brainstorming", "to": "prd-interview"}, {"condition": "高風險才壓測", "from": "to-prd", "to": "grilling"}, {"condition": "高風險才壓測", "from": "prd-interview", "to": "grilling"}], "execution_mode": null, "id": "default", "nodes": [{"id": "brainstorming", "kind": "skill", "ref": "brainstorming"}, {"id": "to-prd", "kind": "skill", "ref": "to-prd"}, {"id": "prd-interview", "kind": "skill", "ref": "prd-interview"}, {"id": "grilling", "kind": "skill", "ref": "grilling"}]}]}, {"id": "build", "intent": "新功能、需求變更、重構或開始實作", "router_heading": "建造", "variants": [{"edges": [{"condition": null, "from": "prd-interview", "to": "gate-prd"}, {"condition": null, "from": "gate-prd", "to": "spec"}, {"condition": null, "from": "spec", "to": "gate-design"}, {"condition": null, "from": "gate-design", "to": "qa-plan"}, {"condition": null, "from": "qa-plan", "to": "plan-sync"}, {"condition": null, "from": "plan-sync", "to": "implement"}, {"condition": null, "from": "implement", "to": "qa-validate"}, {"condition": null, "from": "qa-validate", "to": "verify"}], "execution_mode": "team-feature", "id": "team-feature", "nodes": [{"id": "prd-interview", "kind": "skill", "ref": "prd-interview"}, {"id": "gate-prd", "kind": "gate", "ref": "prd"}, {"id": "spec", "kind": "skill", "ref": "spec"}, {"id": "gate-design", "kind": "gate", "ref": "team-design"}, {"id": "qa-plan", "kind": "skill", "ref": "qa"}, {"id": "plan-sync", "kind": "skill", "ref": "plan-sync"}, {"id": "implement", "kind": "skill", "ref": "implement"}, {"id": "qa-validate", "kind": "skill", "ref": "qa"}, {"id": "verify", "kind": "skill", "ref": "verification-before-completion"}]}, {"edges": [{"condition": "需要持久共識時才產 PRD", "from": "to-prd", "to": "plan-sync"}, {"condition": "多步或跨 session 才開 plan", "from": "plan-sync", "to": "implement"}, {"condition": null, "from": "implement", "to": "verify"}], "execution_mode": "personal-feature", "id": "personal-feature", "nodes": [{"id": "to-prd", "kind": "skill", "ref": "to-prd"}, {"id": "plan-sync", "kind": "skill", "ref": "plan-sync"}, {"id": "implement", "kind": "skill", "ref": "implement"}, {"id": "verify", "kind": "skill", "ref": "verification-before-completion"}]}, {"edges": [{"condition": "team 或設計風險高時", "from": "to-prd", "to": "spec"}, {"condition": "設計風險低時直接實作", "from": "to-prd", "to": "implement"}, {"condition": null, "from": "spec", "to": "implement"}, {"condition": null, "from": "implement", "to": "verify"}], "execution_mode": "refactor", "id": "refactor", "nodes": [{"id": "to-prd", "kind": "skill", "ref": "to-prd"}, {"id": "spec", "kind": "skill", "ref": "spec"}, {"id": "implement", "kind": "skill", "ref": "implement"}, {"id": "verify", "kind": "skill", "ref": "verification-before-completion"}]}, {"edges": [{"condition": "三條客觀邊界全部成立才可直達", "from": "native-red", "to": "verify"}], "execution_mode": null, "id": "micro-task", "nodes": [{"id": "native-red", "kind": "handoff", "ref": "native failing test"}, {"id": "verify", "kind": "skill", "ref": "verification-before-completion"}]}]}, {"id": "fix", "intent": "bug、測試失敗或行為異常，先取得 root cause", "router_heading": "修錯", "variants": [{"edges": [{"condition": "observed failing test", "from": "systematic-debugging", "to": "implement"}, {"condition": null, "from": "implement", "to": "verify"}], "execution_mode": "bug-fix", "id": "bug-fix", "nodes": [{"id": "systematic-debugging", "kind": "skill", "ref": "systematic-debugging"}, {"id": "implement", "kind": "skill", "ref": "implement"}, {"id": "verify", "kind": "skill", "ref": "verification-before-completion"}]}]}, {"id": "release", "intent": "review、commit、PR、merge 與 branch 恢復", "router_heading": "發布", "variants": [{"edges": [{"condition": "需要且已安裝 optional 時", "from": "verify", "to": "caveman-review"}, {"condition": "未派 review 時直接進安全檢查", "from": "verify", "to": "security"}, {"condition": null, "from": "caveman-review", "to": "security"}, {"condition": null, "from": "security", "to": "gate-release"}, {"condition": null, "from": "gate-release", "to": "sync-work"}], "execution_mode": null, "id": "default", "nodes": [{"id": "verify", "kind": "skill", "ref": "verification-before-completion"}, {"id": "caveman-review", "kind": "skill", "ref": "caveman-review"}, {"id": "security", "kind": "skill", "ref": "security"}, {"id": "gate-release", "kind": "gate", "ref": "release"}, {"id": "sync-work", "kind": "skill", "ref": "sync-work"}]}]}, {"id": "understand", "intent": "codebase、架構、依賴與 domain 探索；read-only", "router_heading": "理解", "variants": [{"edges": [{"condition": "必要時", "from": "codebase-understanding", "to": "manifest-update"}], "execution_mode": null, "id": "default", "nodes": [{"id": "codebase-understanding", "kind": "skill", "ref": "codebase-understanding"}, {"id": "manifest-update", "kind": "handoff", "ref": "manifest 指標更新"}]}]}], "human_gates": [{"decides": "需求範圍是否可以進入設計", "id": "prd", "label": "PRD 核可", "router_label": "人工：PRD 核可"}, {"decides": "技術方案取捨是否可以進入實作", "id": "team-design", "label": "team 設計核可", "router_label": "人工：team 設計核可"}, {"decides": "證據是否足以對外交付", "id": "release", "label": "發布核可", "router_label": "人工：發布核可"}], "identity": {"content_digest": "7367ed2ab17ff036", "flows_schema": "skill-commons/flows/v1", "profiles_schema": "skill-commons/profiles/v1", "registry_schema": "skill-commons/protocol-registry/v1", "work_item_schema": "work-item/v3"}, "non_goals": ["runtime-engine", "state-machine", "scheduler"], "packages": [{"modules": 9, "name": "foundation", "path": "foundation/__init__.py"}, {"modules": 9, "name": "orchestration", "path": "orchestration/__init__.py"}, {"modules": 4, "name": "productscope", "path": "productscope/__init__.py"}], "platforms": {"claude-code": {"adapter": "skill-fan-out", "skill_fan_out": true}, "codex": {"adapter": "skill-fan-out", "skill_fan_out": true}, "cursor": {"adapter": "rule-and-agents", "skill_fan_out": false}}, "profiles": {"core": {"conflicts": [], "file": "profiles/core", "kind": "base", "requires": [], "skills": ["implement", "plan-sync", "security", "skill-router", "sync-work", "systematic-debugging", "verification-before-completion"]}, "frontend": {"conflicts": [], "file": "profiles/frontend", "kind": "capability-pack", "requires": ["core"], "skills": ["design-taste-frontend"]}, "optional": {"conflicts": [], "file": "profiles/optional", "kind": "capability-pack", "requires": ["core"], "skills": ["brainstorming", "caveman-review", "codebase-understanding", "grilling", "humanizer", "markdown", "reducing-entropy", "shared-skill-onboarder", "subagent-driven-development", "to-prd"]}, "personal": {"conflicts": ["team-sprint"], "file": "profiles/personal", "kind": "delivery-mode", "requires": ["core"], "skills": ["implement", "plan-sync", "security", "skill-router", "sync-work", "systematic-debugging", "verification-before-completion"]}, "team-sprint": {"conflicts": ["personal"], "file": "profiles/team-sprint", "kind": "delivery-mode", "requires": ["core"], "skills": ["domain-modeling", "implement", "plan-sync", "prd-interview", "prototype", "qa", "security", "skill-router", "spec", "sync-work", "systematic-debugging", "verification-before-completion"]}}, "schema_version": "repo-visual/v1", "skills": [{"intent": "釐清會實質改變 scope、architecture、public contract 或 acceptance criteria 的 material ambiguity。", "maturity": "stable", "name": "brainstorming", "output": "\u003cwork_root>/\u003cslug>/brainstorm.md", "path": "brainstorming/SKILL.md", "profiles": ["optional"], "provenance": {"declared_source": "obra/superpowers@d884ae04edebef577e82ff7c4e143debd0bbec99", "lock": null}, "source_kind": "adapted", "stage": "docs"}, {"intent": "Ultra-compressed code review comments. Cuts noise from PR feedback while preserving", "maturity": "stable", "name": "caveman-review", "output": "", "path": "caveman-review/SKILL.md", "profiles": ["optional"], "provenance": {"declared_source": "juliusbrussee/caveman@25d22f864ad6", "lock": {"hash": "fb7214a1c5793bae6ba8b1be4329e2e6f40dbec6dd911dfb335ad29f09c316a1", "source": "juliusbrussee/caveman"}}, "source_kind": "vendored", "stage": "review"}, {"intent": "程式碼庫全局理解專家。Use when: (1) 進入大型 / 陌生 codebase, (2) 需要產出 architecture map, (3) 需要發現 domain skill 候選, (4) 重構前需要整理模組引用證據, (5) Code Review 需要確認影響範圍。互動式 knowledge graph 或 dashboard 僅在使用者明確要求時走 optional visualization。", "maturity": "stable", "name": "codebase-understanding", "output": "", "path": "codebase-understanding/SKILL.md", "profiles": ["optional"], "provenance": {"declared_source": "", "lock": null}, "source_kind": "original", "stage": "infra"}, {"intent": "Anti-slop frontend skill for landing pages, portfolios, and redesigns. The agent reads the brief, infers the right design direction, and ships interfaces that do not look templated. Real design systems when applicable, audit-first on redesigns, strict pre-flight check.", "maturity": "stable", "name": "design-taste-frontend", "output": "", "path": "design-taste-frontend/SKILL.md", "profiles": ["frontend"], "provenance": {"declared_source": "leonxlnx/taste-skill@5285855df671", "lock": {"hash": "6d838b246d0e35d0b53f4f23f98ba7a1dd561937e64f7d0c7553b0928e376c3e", "source": "leonxlnx/taste-skill"}}, "source_kind": "vendored", "stage": "design"}, {"intent": "Build and sharpen a project's domain model. Use when the user wants to pin down domain terminology or a ubiquitous language, record an architectural decision, or when another skill needs to maintain the domain model.", "maturity": "stable", "name": "domain-modeling", "output": "", "path": "domain-modeling/SKILL.md", "profiles": ["team-sprint"], "provenance": {"declared_source": "mattpocock/skills@2454c95dc305", "lock": {"hash": "67343881f5def98487d56243155716110afbcbf22ec92421c882d532b941cb17", "source": "mattpocock/skills"}}, "source_kind": "vendored", "stage": "plan"}, {"intent": "Interview the user relentlessly about a plan or design. Use when the user wants to stress-test a plan before building, or uses any 'grill' trigger phrases.", "maturity": "stable", "name": "grilling", "output": "\u003cwork_root>/\u003cslug>/{adr.md,glossary.md}", "path": "grilling/SKILL.md", "profiles": ["optional"], "provenance": {"declared_source": "mattpocock/skills@2454c95dc305", "lock": {"hash": "ef685a6fa0bbe73b05bbd8dc1ec97258191587f07c6aa7dbc9006675ceb8f90f", "source": "mattpocock/skills"}}, "source_kind": "vendored", "stage": "plan"}, {"intent": "Remove signs of AI-generated writing from prose, docs, PRDs, specs, READMEs,", "maturity": "experimental", "name": "humanizer", "output": "", "path": "humanizer/SKILL.md", "profiles": ["optional"], "provenance": {"declared_source": "blader/humanizer@1b48564898e999219882660237fde01bf4843a0f", "lock": null}, "source_kind": "adapted", "stage": "docs"}, {"intent": "使用 RED-GREEN-REFACTOR 實作 feature、bug fix 或 refactor。Use when: router 已指定 Execution Mode，且需要測試先行的程式碼變更。", "maturity": "stable", "name": "implement", "output": "\u003cwork_root>/\u003cslug>/implement-report.md", "path": "implement/SKILL.md", "profiles": ["core", "personal", "team-sprint"], "provenance": {"declared_source": "obra/superpowers@d884ae04edebef577e82ff7c4e143debd0bbec99", "lock": null}, "source_kind": "adapted", "stage": "implement"}, {"intent": "Project Documentation Manager + 文件格式轉換器. Organizes, maintains, and verifies the project's documentation structure, AND converts binary docs (PDF/DOCX/PPTX/XLSX) to structured Markdown via MarkItDown.", "maturity": "stable", "name": "markdown", "output": "\u003cdocs_root>/reference/\u003cname>.md", "path": "markdown/SKILL.md", "profiles": ["optional"], "provenance": {"declared_source": "", "lock": null}, "source_kind": "original", "stage": "docs"}, {"intent": "建立與維護跨 session、跨 agent 的 durable execution plan。Use for dependent steps, handoff/resume, Goal Mode, or drift. Skip one-off edits; use spec for design without execution state.", "maturity": "stable", "name": "plan-sync", "output": "\u003cwork_root>/\u003cslug>/plan/plan.md", "path": "plan-sync/SKILL.md", "profiles": ["core", "personal", "team-sprint"], "provenance": {"declared_source": "", "lock": null}, "source_kind": "original", "stage": "plan"}, {"intent": "透過結構化訪談把新功能需求整理成可驗收的 PRD。Use when: (1) 使用者提出新功能, (2) 需要釐清範圍與風險, (3) 準備進入技術規格前。", "maturity": "stable", "name": "prd-interview", "output": "\u003cwork_root>/\u003cslug>/prd.md", "path": "prd-interview/SKILL.md", "profiles": ["team-sprint"], "provenance": {"declared_source": "", "lock": null}, "source_kind": "original", "stage": "docs"}, {"intent": "產出可互動的灰階 Lo-fi Prototype bundle，從 PRD 出發，經六個處理階段產生 HTML、assets 與 frozen map。", "maturity": "stable", "name": "prototype", "output": "\u003cwork_root>/\u003cslug>/prototype/index.html", "path": "prototype/SKILL.md", "profiles": ["team-sprint"], "provenance": {"declared_source": "", "lock": null}, "source_kind": "original", "stage": "design"}, {"intent": "QA 全流程：從 spec 產出測試方案，並在開發完成後做驗收閘門。Use when: (1) 技術規格完成後需要設計測試, (2) 用戶說「產生測試」「QA 方案」, (3) Story 開發完成、提 PR 前需要驗收。", "maturity": "stable", "name": "qa", "output": "\u003cwork_root>/\u003cslug>/{qa-plan,qa-report}.md", "path": "qa/SKILL.md", "profiles": ["team-sprint"], "provenance": {"declared_source": "", "lock": null}, "source_kind": "original", "stage": "qa"}, {"intent": "Manual-only skill for minimizing total codebase size. Only activate when explicitly requested by user. Measures success by final code amount, not effort. Bias toward deletion.", "maturity": "stable", "name": "reducing-entropy", "output": "", "path": "reducing-entropy/SKILL.md", "profiles": ["optional"], "provenance": {"declared_source": "softaworks/agent-toolkit@3027f20f3181", "lock": {"hash": "b13a84c41dc386c758a3eec600314ad2753989bd556bc2628519277ae3739fe5", "source": "softaworks/agent-toolkit"}}, "source_kind": "vendored", "stage": "implement"}, {"intent": "安全預檢與範圍化審查協調。Use when: commit 前需要 secrets 預檢、依賴變更需要 audit、", "maturity": "stable", "name": "security", "output": "", "path": "security/SKILL.md", "profiles": ["core", "personal", "team-sprint"], "provenance": {"declared_source": "", "lock": null}, "source_kind": "original", "stage": "infra"}, {"intent": "Shared skills 接入與整併專家。Use when: (1) 其他專案要接入共用 workflow skills, (2) 需要建立或補齊 project-manifest, (3) 需要自動掃描 repo 找出接入缺口, (4) 需要從程式碼中辨識模式並建立 domain skills。個人/輕量專案只要基本工程技能時走 Light track（省略團隊文件檢查與 pattern discovery，manifest 只填精簡欄位）。", "maturity": "stable", "name": "shared-skill-onboarder", "output": "", "path": "shared-skill-onboarder/SKILL.md", "profiles": ["optional"], "provenance": {"declared_source": "", "lock": null}, "source_kind": "original", "stage": "infra"}, {"intent": "Create new skills, modify and improve existing skills, and measure skill performance. Use when users want to create a skill from scratch, update or optimize an existing skill, run evals to test a skill, benchmark skill performance with variance analysis, or optimize a skill's description for better triggering accuracy.", "maturity": "stable", "name": "skill-creator", "output": "", "path": "skill-creator/SKILL.md", "profiles": [], "provenance": {"declared_source": "anthropics/skills@9d2f1ae187231d8199c64b5b762e1bdf2244733d", "lock": null}, "source_kind": "adapted", "stage": "skill"}, {"intent": "AI 任務分發器。每個新任務先讀本檔，用五條 flow 選擇最小必要 skills 與 Execution Mode。", "maturity": "stable", "name": "skill-router", "output": "", "path": "skill-router/SKILL.md", "profiles": ["core", "personal", "team-sprint"], "provenance": {"declared_source": "", "lock": null}, "source_kind": "original", "stage": "skill"}, {"intent": "將 PRD 轉化為技術實作規格。Use when: (1) PRD 完成後, (2) 需要設計技術方案, (3) 用戶說「產生 spec」「技術設計」時。", "maturity": "stable", "name": "spec", "output": "\u003cwork_root>/\u003cslug>/spec.md", "path": "spec/SKILL.md", "profiles": ["team-sprint"], "provenance": {"declared_source": "", "lock": null}, "source_kind": "original", "stage": "docs"}, {"intent": "使用 Subagent 批次執行 implementation plan。每個任務分派獨立 subagent 實作，並有 spec compliance + code quality 雙重 review。", "maturity": "stable", "name": "subagent-driven-development", "output": "", "path": "subagent-driven-development/SKILL.md", "profiles": ["optional"], "provenance": {"declared_source": "obra/superpowers@d884ae04edebef577e82ff7c4e143debd0bbec99", "lock": null}, "source_kind": "adapted", "stage": "infra"}, {"intent": "Authoritative Git delivery interface for scoped save, integration, branch finish, and recovery. Preserves unrelated work and gates external or irreversible actions.", "maturity": "stable", "name": "sync-work", "output": "", "path": "sync-work/SKILL.md", "profiles": ["core", "personal", "team-sprint"], "provenance": {"declared_source": "", "lock": null}, "source_kind": "original", "stage": "infra"}, {"intent": "系統化除錯流程。Use when: (1) 遇到任何 bug 或測試失敗, (2) 行為不如預期, (3) 連續修復失敗 2+ 次, (4) 遇到建置或整合錯誤。", "maturity": "stable", "name": "systematic-debugging", "output": "", "path": "systematic-debugging/SKILL.md", "profiles": ["core", "personal", "team-sprint"], "provenance": {"declared_source": "obra/superpowers@d884ae04edebef577e82ff7c4e143debd0bbec99", "lock": null}, "source_kind": "adapted", "stage": "infra"}, {"intent": "Turn the current conversation into a PRD and publish it to the project issue tracker — no interview, just synthesis of what you've already discussed.", "maturity": "stable", "name": "to-prd", "output": "\u003cwork_root>/\u003cslug>/prd.md", "path": "to-prd/SKILL.md", "profiles": ["optional"], "provenance": {"declared_source": "mattpocock/skills@2454c95dc305", "lock": {"hash": "5a733e19d825f22e83de52e68b8840c9fd2fa7501282277a122c1aa28a922059", "source": "mattpocock/skills"}}, "source_kind": "vendored", "stage": "docs"}, {"intent": "Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands and confirming output before making any success claims; evidence before assertions always", "maturity": "stable", "name": "verification-before-completion", "output": "", "path": "verification-before-completion/SKILL.md", "profiles": ["core", "personal", "team-sprint"], "provenance": {"declared_source": "obra/superpowers@d884ae04edebef577e82ff7c4e143debd0bbec99", "lock": null}, "source_kind": "adapted", "stage": "infra"}], "tests": {"roster": [{"kind": "layer", "name": "unit"}, {"kind": "layer", "name": "integration"}, {"kind": "layer", "name": "e2e"}, {"kind": "suite", "name": "tests/test_artifact_contract.sh"}, {"kind": "suite", "name": "tests/test_brainstorming.sh"}, {"kind": "suite", "name": "tests/test_gate_automation.sh"}, {"kind": "suite", "name": "tests/test_journey_evals.sh"}, {"kind": "suite", "name": "tests/test_plan_sync.sh"}, {"kind": "suite", "name": "tests/test_profiles.sh"}, {"kind": "suite", "name": "tests/test_project_status.sh"}, {"kind": "suite", "name": "tests/test_protocol_registry.sh"}, {"kind": "suite", "name": "tests/test_release_baseline.sh"}, {"kind": "suite", "name": "tests/test_release_convergence.sh"}, {"kind": "suite", "name": "tests/test_repo_map.sh"}, {"kind": "suite", "name": "tests/test_repo_visual.sh"}, {"kind": "suite", "name": "tests/test_skills_reorg.sh"}, {"kind": "suite", "name": "tests/test_work_items.sh"}, {"kind": "suite", "name": "tests/bootstrap/test_check.sh"}, {"kind": "suite", "name": "tests/bootstrap/test_e2e.sh"}, {"kind": "suite", "name": "tests/bootstrap/test_generate_safety.sh"}, {"kind": "suite", "name": "tests/bootstrap/test_manage.sh"}, {"kind": "suite", "name": "tests/bootstrap/test_manifest.sh"}, {"kind": "suite", "name": "tests/bootstrap/test_onboard.sh"}, {"kind": "suite", "name": "tests/bootstrap/test_platform.sh"}, {"kind": "suite", "name": "tests/bootstrap/test_render.sh"}, {"kind": "suite", "name": "tests/bootstrap/test_stamp.sh"}], "runner": "tests/verify.sh"}, "work_item": {"delivery_statuses": {"approved": {"allowed_evidence": ["approval_ref"], "allowed_work_statuses": ["completed"], "required_evidence": ["approval_ref"]}, "awaiting_approval": {"allowed_evidence": [], "allowed_work_statuses": ["completed"], "required_evidence": []}, "deployed": {"allowed_evidence": ["approval_ref", "merge_sha", "deployment_id"], "allowed_work_statuses": ["completed"], "required_evidence": ["approval_ref", "merge_sha", "deployment_id"]}, "merged": {"allowed_evidence": ["approval_ref", "merge_sha"], "allowed_work_statuses": ["completed"], "required_evidence": ["approval_ref", "merge_sha"]}, "not_requested": {"allowed_evidence": [], "allowed_work_statuses": ["active", "completed", "abandoned"], "required_evidence": []}, "pr_created": {"allowed_evidence": ["approval_ref", "pr_url"], "allowed_work_statuses": ["completed"], "required_evidence": ["approval_ref", "pr_url"]}}, "schema_version": "work-item/v3", "work_statuses": ["active", "completed", "abandoned"]}}</script>
+<script>
+const MODEL = JSON.parse(document.getElementById('model').textContent);
+const byName = {};
+MODEL.skills.forEach(s => { byName[s.name] = s; });
+const gateById = {};
+MODEL.human_gates.forEach(g => { gateById[g.id] = g; });
+const dialog = document.querySelector('dialog.detail');
+const body = document.getElementById('detail-body');
+
+function esc(v){ const d = document.createElement('div'); d.textContent = v == null ? '' : v; return d.innerHTML; }
+function row(k, v){ return v ? '<dt>' + esc(k) + '</dt><dd>' + v + '</dd>' : ''; }
+
+function openDetail(html){
+  body.innerHTML = html;
+  if (!dialog.open) dialog.showModal();
+  dialog.scrollTop = 0;
+}
+function source(path){ return '<a class="src" href="../' + esc(path) + '">開啟 ' + esc(path) + ' →</a>'; }
+function closeDetail(){ if (dialog.open) dialog.close(); }
+// The dialog element is the only hit area outside the content box, so a click
+// landing on it is a backdrop click.
+dialog.addEventListener('click', event => { if (event.target === dialog) closeDetail(); });
+
+function skillPanel(name){
+  const s = byName[name];
+  if (!s) return;
+  const prov = s.provenance.lock
+    ? esc(s.provenance.lock.source) + '<br><span class="mono">' + esc(s.provenance.lock.hash.slice(0,16)) + '…</span>'
+    : (s.provenance.declared_source ? '<span class="mono">' + esc(s.provenance.declared_source) + '</span>' : '');
+  const tests = MODEL.tests.roster
+    .filter(t => t.name.indexOf(name.replace(/-/g,'_')) !== -1)
+    .map(t => '<code>' + esc(t.name) + '</code>').join(' ');
+  openDetail(
+    '<h3>' + esc(s.name) + '</h3>' +
+    '<div class="kind">skill · stage ' + esc(s.stage || '未標') + '</div>' +
+    '<p>' + esc(s.intent) + '</p>' +
+    '<dl>' +
+      row('輸出', s.output ? '<code>' + esc(s.output) + '</code>' : '<span style="color:var(--dim)">無 artifact</span>') +
+      row('profile', s.profiles.length ? s.profiles.map(p => '<code>' + esc(p) + '</code>').join(' ') : '<span style="color:var(--dim)">不在任何 consuming profile（maintainer 工具）</span>') +
+      row('成熟度', esc(s.maturity)) +
+    '</dl>' +
+    '<details><summary>細節</summary>' +
+      '<dl style="margin-top:12px">' +
+        row('source_kind', '<code>' + esc(s.source_kind || 'original') + '</code>') +
+        row('provenance', prov || '<span style="color:var(--dim)">原生，無上游</span>') +
+        row('相關測試', tests || '<span style="color:var(--dim)">無以此技能命名的 suite</span>') +
+      '</dl>' +
+    '</details>' +
+    source(s.path)
+  );
+}
+
+function gatePanel(id){
+  const g = gateById[id];
+  if (!g) return;
+  const modes = Object.keys(MODEL.execution_modes).sort()
+    .filter(m => MODEL.execution_modes[m].human_gates.indexOf(id) !== -1);
+  openDetail(
+    '<h3>' + esc(g.label) + '</h3>' +
+    '<div class="kind">human decision · gate ' + esc(g.id) + '</div>' +
+    '<p>' + esc(g.decides) + '</p>' +
+    '<dl>' +
+      row('router 呈現', '<code>' + esc(g.router_label) + '</code>') +
+      row('適用模式', modes.map(m => '<code>' + esc(m) + '</code>').join(' ')) +
+    '</dl>' +
+    '<details><summary>細節</summary><p class="note" style="margin-top:12px">' +
+      '人工判斷點恰好三個，其餘一律機器檢查。核可是檔案上的狀態轉移（awaiting-approval → approved），不是對話裡的承諾。' +
+    '</p></details>' +
+    source('skill-router/SKILL.md')
+  );
+}
+
+function modePanel(name){
+  const m = MODEL.execution_modes[name];
+  if (!m) return;
+  const arts = Object.keys(m.artifacts).sort().map(a => {
+    const entry = m.artifacts[a];
+    const who = entry.producers.length ? entry.producers.join(', ') : '—';
+    return '<tr><td><code>' + esc(a) + '</code></td><td class="req" data-v="' + esc(entry.requirement) + '">'
+      + esc(entry.requirement) + '</td><td>' + esc(who) + '</td></tr>';
+  }).join('');
+  openDetail(
+    '<h3>' + esc(name) + '</h3>' +
+    '<div class="kind">execution mode · flow ' + esc(m.flow) + '</div>' +
+    '<dl>' +
+      row('人工判斷點', m.human_gates.map(g => '<code>' + esc(g) + '</code>').join(' ')) +
+      row('交接', '<code>' + esc(m.handoff) + '</code>') +
+    '</dl>' +
+    '<details open><summary>artifact 契約</summary>' +
+      '<table style="margin-top:10px"><thead><tr><th>artifact</th><th>要求</th><th>producer</th></tr></thead><tbody>'
+      + arts + '</tbody></table>' +
+      '<p class="note"><code>absent</code> 不是「還沒做」，是這條路徑不產該 artifact；補造它就是違約。</p>' +
+    '</details>' +
+    source('protocol-registry.json')
+  );
+}
+
+document.addEventListener('click', event => {
+  const target = event.target.closest('[data-skill],[data-gate],[data-mode],.close');
+  if (!target) return;
+  if (target.classList.contains('close')) { closeDetail(); return; }
+  if (target.dataset.skill) { skillPanel(target.dataset.skill); return; }
+  if (target.dataset.gate) { gatePanel(target.dataset.gate); return; }
+  if (target.dataset.mode) { modePanel(target.dataset.mode); return; }
+});
+
+const buttons = Array.prototype.slice.call(document.querySelectorAll('.filters button'));
+buttons.forEach(button => button.addEventListener('click', () => {
+  const wanted = button.dataset.profile;
+  buttons.forEach(b => b.setAttribute('aria-pressed', String(b === button)));
+  document.querySelectorAll('[data-skill]').forEach(handle => {
+    const owner = byName[handle.dataset.skill];
+    const inBundle = wanted === 'all' || (owner && owner.profiles.indexOf(wanted) !== -1);
+    if (inBundle) handle.removeAttribute('data-out');
+    else handle.setAttribute('data-out', 'true');
+  });
+}));
+</script>
+</body>
+</html>
