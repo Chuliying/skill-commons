@@ -19,6 +19,10 @@
 
 ### Changed
 
+- repo map 首屏先說明適用對象、交付範圍與接手價值，並在安裝 lens 前比較
+  personal 與 team-sprint；技能、契約、交付狀態及測試名單收進「工程細節」展開區。
+- repo map 的五項待處理工作改用「要回答的問題、完成後可以回答、目前狀態」呈現，
+  重播條件與評分術語保留在各項的「技術驗證方法」。
 - repo map 將未完成的 evidence gaps 改列為五項待處理工作，每項附完成條件與目前狀態；
   已由確定性 suite 支援的契約一致性另列為完成基線，不再與待辦混在同一張表。
 - repo map 的 profile 控制升為頁面級 sticky「以安裝內容檢視」lens；不在 bundle 的
@@ -36,6 +40,8 @@
 
 ### Fixed
 
+- repo map 在 640px 以下把安裝 lens 固定為單列橫向捲動，並替 section heading 保留
+  sticky offset；待處理工作改為單欄卡片，避免標題被遮住及三欄內容逐字斷行。
 - clean checkout 的 CI 會先生成受管 fan-out，再執行 canonical Verify chain。
 - repo map 在 640px 以下會把 variant 名稱放在獨立列，後續流程序列從下一列開始；
   桌面維持名稱欄與流程欄的雙欄密度，避免名稱和第一個節點依字寬隨機併列。

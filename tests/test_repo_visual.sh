@@ -256,11 +256,54 @@ else
   assert_contains "$page" "Unmeasured" "page presents unmeasured claim limits"
   assert_contains "$page" "absent" "page presents the absent artifact state"
 
-  # Evidence gaps should be presented as work that can be completed, not as a
-  # wall of negative questions.  The already-supported repository-contract
-  # check is a baseline, while only the five unresolved claims belong in the
-  # action table.
+  # A cold reader must learn the value and the two delivery choices before any
+  # installation controls or internal contract vocabulary.  Capability packs
+  # remain a separate axis instead of being presented as delivery modes.
+  orientation_probe="$(cd "$REPO/docs" && python3 - <<'EOF'
+import re
+from pathlib import Path
+
+text = Path("repo-visual.html").read_text(encoding="utf-8")
+header = text[text.index("<header>"):text.index("</header>")]
+problems = []
+for phrase in (
+    "給軟體團隊與 AI 協作者共用的交付流程",
+    "需求、設計、實作、驗證與發布",
+    "接手時不必重新猜測上下文",
+):
+    if phrase not in header:
+        problems.append(f"missing-value-{phrase}")
+for jargon in ("artifact", "repo", "script", "runtime engine", "state machine", "scheduler"):
+    if jargon in header:
+        problems.append(f"jargon-before-orientation-{jargon.replace(' ', '-')}")
+guide_start = text.find('<section class="mode-guide"')
+lens_start = text.find('<div class="filters">')
+if guide_start == -1:
+    problems.append("missing-mode-guide")
+else:
+    guide = text[guide_start:lens_start]
+    if guide.count('class="mode-card"') != 2:
+        problems.append("mode-card-count")
+    for handle in (
+        "個人或小範圍工作",
+        "需要正式需求、設計核可與 QA 驗證的團隊工作",
+        "delivery mode",
+        "capability pack",
+    ):
+        if handle not in guide:
+            problems.append(f"missing-mode-explanation-{handle}")
+if guide_start != -1 and lens_start != -1 and guide_start > lens_start:
+    problems.append("mode-guide-after-lens")
+print(" ".join(problems))
+EOF
+)"
+  assert_eq "" "$orientation_probe" "cold readers see purpose and delivery-mode choices before internals"
+
+  # Evidence gaps are reader-facing tasks first and reproducibility methods
+  # second.  Technical evaluation vocabulary stays available in disclosures,
+  # while the primary reading path explains what each task will answer.
   todo_probe="$(cd "$REPO/docs" && python3 - <<'EOF'
+import re
 from pathlib import Path
 
 text = Path("repo-visual.html").read_text(encoding="utf-8")
@@ -275,26 +318,71 @@ if "<h2>還沒被證明的事</h2>" in text:
     problems.append("negative-heading-remains")
 if "5 項未達 supported" in text:
     problems.append("negative-summary-remains")
-for heading in ("待處理事項", "完成條件", "目前狀態"):
-    if f"<th>{heading}</th>" not in section:
-        problems.append(f"missing-column-{heading}")
-if section.count('<tr class="limit todo-item">') != 5:
+if section.count('<article class="limit todo-item">') != 5:
     problems.append("todo-count-is-not-five")
-if "已完成基線" not in section or "只適用於被測 revision" not in section:
+if "已完成" not in section or "只證明規則沒有互相矛盾" not in section:
     problems.append("supported-baseline-missing")
 if "支持" in section:
     problems.append("mainland-support-term-remains")
-for completion_handle in (
+for reader_handle in (
+    "會增加多少模型輸入量",
+    "是否認為其中一種流程更好用、品質更高",
+    "是否有穩定勝出的方案",
+    "是否能更快繼續、減少重做",
+    "是否交付更快、重工更少",
+):
+    if reader_handle not in section:
+        problems.append(f"missing-reader-question-{reader_handle}")
+if section.count('class="todo-question"') != 5:
+    problems.append("reader-question-count")
+if section.count('class="todo-result"') != 5:
+    problems.append("reader-result-count")
+if section.count('<details class="todo-method">') != 5:
+    problems.append("method-disclosure-count")
+methods = " ".join(re.findall(r'<details class="todo-method">(.*?)</details>', section, re.DOTALL))
+for method_handle in (
     "可重播的 raw artifacts",
     "matched handoff experiment",
     "matched team study",
 ):
-    if completion_handle not in section:
-        problems.append(f"missing-completion-handle-{completion_handle}")
+    if method_handle not in methods:
+        problems.append(f"missing-method-handle-{method_handle}")
+primary = re.sub(r'<details class="todo-method">.*?</details>', '', section, flags=re.DOTALL)
+for jargon in ("arm identity", "packets", "rubric", "Luna-high", "matched handoff", "matched team"):
+    if jargon in primary:
+        problems.append(f"jargon-in-primary-copy-{jargon.replace(' ', '-')}")
+if '<table class="todo-table">' in section:
+    problems.append("todo-still-a-table")
 print(" ".join(problems))
 EOF
 )"
-  assert_eq "" "$todo_probe" "claim limits render as five actionable follow-ups with completion criteria"
+  assert_eq "" "$todo_probe" "follow-ups separate plain outcomes from technical replay methods"
+
+  # The long catalogue and contract rosters remain one disclosure away without
+  # competing with the overview.  The follow-up section stays outside it.
+  details_probe="$(cd "$REPO/docs" && python3 - <<'EOF'
+from pathlib import Path
+
+text = Path("repo-visual.html").read_text(encoding="utf-8")
+problems = []
+start = text.find('<details class="engineering-details">')
+end = text.find('</details><!-- engineering-details -->')
+if start == -1 or end == -1 or end < start:
+    problems.append("missing-engineering-disclosure")
+else:
+    details = text[start:end]
+    for heading in ("個技能", "Artifact 契約", "交付狀態", "驗證"):
+        if heading not in details:
+            problems.append(f"missing-detail-{heading}")
+    followups = text.find("<h2>待處理事項</h2>")
+    if followups == -1:
+        problems.append("missing-followups-heading")
+    elif followups < end:
+        problems.append("followups-trapped-in-engineering-details")
+print(" ".join(problems))
+EOF
+)"
+  assert_eq "" "$details_probe" "engineering catalogues use one level of progressive disclosure"
 
   # Identity describes the contracts, not the checkout. A page stamped with HEAD
   # would be invalidated by every commit -- including the commit that adds it --
@@ -319,7 +407,8 @@ print("" if m["identity"]["content_digest"] == want else f"{m[chr(34)+chr(34)] i
   done
 
   # Positioning is prose, not metadata. Schema versions and the digest belong in
-  # the footer; the non-goals belong where a reader decides whether to adopt.
+  # the footer; technical non-goals belong in the engineering disclosure rather
+  # than taking over the cold-reader header.
   probe_regions="$(cd "$REPO/docs" && python3 - <<'EOF'
 import json, re
 from pathlib import Path
@@ -331,10 +420,19 @@ model = json.loads(
 head = text[text.index("<header>"):text.index("</header>")]
 footer = text[text.index("<footer>"):text.index("</footer>")]
 problems = []
+engineering_start = text.find('<details class="engineering-details">')
+engineering_end = text.find('</details><!-- engineering-details -->')
+if engineering_start == -1 or engineering_end == -1:
+    engineering = ""
+    problems.append("engineering-details-missing")
+else:
+    engineering = text[engineering_start:engineering_end]
 if "runtime-engine" in head:
     problems.append("non-goals-still-raw-in-header")
-if "runtime engine" not in head:
-    problems.append("non-goals-missing-from-prose")
+if "runtime engine" in head:
+    problems.append("non-goals-still-in-reader-header")
+if "runtime engine" not in engineering:
+    problems.append("non-goals-missing-from-engineering-details")
 digest = model["identity"]["content_digest"]
 if digest in head:
     problems.append("digest-still-in-header")
@@ -369,6 +467,30 @@ print(" ".join(problems))
 EOF
 )"
   assert_eq "" "$probe_lens" "profile lens is page-level and marks instead of removing"
+
+  responsive_reader_probe="$(cd "$REPO/docs" && python3 - <<'EOF'
+import re
+from pathlib import Path
+
+text = Path("repo-visual.html").read_text(encoding="utf-8")
+css = text[text.index(":root{"):text.index("</style>")]
+problems = []
+filters = re.search(r"\.filters\{([^}]*)\}", css)
+if not filters or "overflow-x:auto" not in filters.group(1):
+    problems.append("lens-not-horizontally-scrollable")
+mobile = css[css.index("@media (max-width:640px){"):css.index("@media (prefers-reduced-motion:reduce)")]
+if ".filters{flex-wrap:nowrap" not in mobile:
+    problems.append("mobile-lens-still-wraps")
+if "scroll-margin-top" not in css:
+    problems.append("headings-have-no-sticky-offset")
+if ".todo-item{grid-template-columns:minmax(0,1fr)}" not in mobile:
+    problems.append("mobile-followups-not-single-column")
+if ".todo-method{grid-column:1}" not in mobile:
+    problems.append("mobile-method-not-contained")
+print(" ".join(problems))
+EOF
+)"
+  assert_eq "" "$responsive_reader_probe" "mobile lens and follow-ups preserve section context"
 
   probe_gate_lens="$(cd "$REPO/docs" && python3 - <<'EOF'
 import re

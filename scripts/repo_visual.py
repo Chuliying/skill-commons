@@ -34,40 +34,63 @@ PRIVATE_MARKERS = ("docs/work/", "STATUS.md")
 
 CLAIM_TODO_COPY = {
     "What is the input-token cost of loading workflow guidance?": {
-        "task": "重建 workflow guidance 的 input-token 成本基線",
-        "done_when": (
+        "task": "重建流程說明的 token 成本基線",
+        "question": "要回答：載入這套工作流程，會增加多少模型輸入量？",
+        "result": (
+            "能用同一組案例比較有無載入流程說明的成本，並保留原始資料，"
+            "讓其他人可以重新計算。"
+        ),
+        "method": (
             "找回原始八案例 artifacts，或在固定 revision、model 與 prompt 下重跑 "
             "A/B/C，並保存可重播的 raw artifacts。"
         ),
         "status": "待補證據",
     },
     "Did the historical blind scorer establish quality or usability gains?": {
-        "task": "重做不洩漏 arm identity 的品質與可用性盲評",
-        "done_when": (
+        "task": "重新進行不洩漏分組資訊的品質盲評",
+        "question": "要回答：看不到分組來源的評分者，是否認為其中一種流程更好用、品質更高？",
+        "result": (
+            "評分資料不透露受測分組，評分規則與完整輸入輸出都保留下來，"
+            "可以檢查評分是否公平。"
+        ),
+        "method": (
             "凍結匿名 packets 與 rubric，保存 scorer inputs／outputs，並驗證 packets "
             "不含 arm identity。"
         ),
         "status": "待重做",
     },
     "Did the repaired Luna-high blind scoring establish a quality winner?": {
-        "task": "重跑修正後的 Luna-high 盲評",
-        "done_when": (
+        "task": "重跑已修正的模型盲評",
+        "question": "要回答：修正評分流程後，是否有穩定勝出的方案？",
+        "result": (
+            "完整保留評分資料與驗證結果；若沒有明確勝者，也要照實記錄。"
+        ),
+        "method": (
             "保存完整 raw artifacts 與 post-run validator 結果，讓流程可獨立重播，"
             "並依結果記錄勝者或無勝者。"
         ),
         "status": "待重跑",
     },
     "Can another tool cold-start and continue with less rework?": {
-        "task": "量測跨工具 cold-start 與續接成本",
-        "done_when": (
+        "task": "量測不同工具接手工作的成本",
+        "question": "要回答：同一工作交給另一個 AI 工具接手，是否能更快繼續、減少重做？",
+        "result": (
+            "可以比較接手時間、釐清次數、重工與測試結果，且兩組使用相同任務與版本。"
+        ),
+        "method": (
             "以相同 task 與 revision 執行 matched handoff experiment，比較接續時間、"
             "釐清次數、stale work、rework、token 與測試結果。"
         ),
         "status": "待設計實驗",
     },
     "Does the bundle improve team throughput or human usability?": {
-        "task": "量測 team throughput 與 human usability",
-        "done_when": (
+        "task": "量測團隊交付速度與使用感受",
+        "question": "要回答：採用這套流程後，團隊是否交付更快、重工更少，也更容易使用？",
+        "result": (
+            "使用事先定義的週期時間、重工、錯誤率與可用性指標，"
+            "完成條件相同的團隊比較。"
+        ),
+        "method": (
             "以預先定義的週期時間、重工、錯誤率與可用性指標完成 matched team study。"
         ),
         "status": "待設計研究",
@@ -535,12 +558,19 @@ a{color:var(--accent)}
 code,.mono{font-family:var(--mono);font-size:.92em}
 .wrap{max-width:1180px;margin:0 auto;padding:40px 22px 100px}
 header h1{margin:0 0 10px;font-size:var(--fs-h1);letter-spacing:-.012em}
-header p.lede{margin:0 0 14px;color:var(--ink);max-width:66ch}
-header p.lede.stance{color:var(--muted);margin-bottom:34px;
-  border-left:3px solid var(--accent);padding-left:13px}
+header p.lede{margin:0;color:var(--ink);max-width:66ch}
 h2{font-size:var(--fs-title);letter-spacing:.01em;color:var(--ink);
-  margin:48px 0 16px;font-weight:650}
+  margin:48px 0 16px;font-weight:650;scroll-margin-top:84px}
 h2:first-of-type{margin-top:0}
+.mode-guide{margin:30px 0 22px}
+.mode-guide h2{margin-bottom:12px}
+.mode-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.mode-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  padding:15px 17px}
+.mode-card h3{margin:0 0 6px;font-size:var(--fs-title)}
+.mode-card p{margin:0;color:var(--ink)}
+.mode-card code{color:var(--accent)}
+.mode-note{color:var(--muted);font-size:var(--fs-note);margin:10px 0 0;max-width:82ch}
 .cards{display:grid;gap:13px;grid-template-columns:repeat(auto-fit,minmax(252px,1fr))}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 17px}
 .card h3{margin:0 0 7px;font-size:var(--fs-title)}
@@ -586,13 +616,14 @@ svg.hero .gate[data-na=true] .gate-na-label{display:block}
   font-weight:600}
 .chip.handoff{background:transparent;border-style:dashed;color:var(--muted);cursor:default}
 .arrow{color:var(--muted)}
-.filters{position:sticky;top:0;z-index:5;display:flex;gap:8px;flex-wrap:wrap;
+.filters{position:sticky;top:0;z-index:5;display:flex;gap:8px;flex-wrap:wrap;overflow-x:auto;
   align-items:center;background:var(--bg);border-bottom:1px solid var(--line);
   padding:11px 0;margin:0 0 30px}
-.filters .lenslabel{font-size:var(--fs-note);color:var(--muted);margin-right:2px}
+.filters .lenslabel{font-size:var(--fs-note);color:var(--muted);margin-right:2px;
+  flex:0 0 auto;white-space:nowrap}
 .filters button{border:1px solid var(--line);background:var(--panel);color:var(--ink);
   border-radius:999px;padding:5px 14px;font-size:var(--fs-note);cursor:pointer;
-  font-family:var(--sans)}
+  font-family:var(--sans);flex:0 0 auto;white-space:nowrap}
 .filters button[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent);
   color:var(--accent);font-weight:650}
 /* Out of the selected bundle. Marked, never removed: dropping a chip out of a
@@ -626,6 +657,37 @@ tr.limit td{background:var(--warn-soft)}
 tr.limit td:last-child{color:var(--warn);font-weight:650}
 .note{color:var(--muted);font-size:var(--fs-note);margin:12px 0 0;max-width:82ch}
 .rosterwrap{display:grid;gap:11px;grid-template-columns:repeat(auto-fit,minmax(272px,1fr))}
+.engineering-details{margin-top:48px;background:var(--panel);border:1px solid var(--line);
+  border-radius:10px;overflow:hidden}
+.engineering-details>summary{display:flex;align-items:center;justify-content:space-between;
+  gap:16px;cursor:pointer;padding:16px 17px;list-style:none}
+.engineering-details>summary::-webkit-details-marker{display:none}
+.engineering-details>summary strong{display:block;font-size:var(--fs-title)}
+.engineering-details>summary small{display:block;color:var(--muted);font-size:var(--fs-note);
+  font-weight:400}
+.engineering-details>summary::after{content:"展開";color:var(--accent);font-size:var(--fs-note);
+  font-weight:650;flex:0 0 auto}
+.engineering-details[open]>summary::after{content:"收合"}
+.engineering-body{border-top:1px solid var(--line);padding:0 17px 18px}
+.engineering-body>h2:first-of-type{margin-top:24px}
+.technical-stance{border-left:3px solid var(--accent);padding-left:13px}
+.followups{scroll-margin-top:84px}
+.todo-baseline{margin:0 0 14px;max-width:86ch}
+.todo-list{display:grid;gap:10px}
+.todo-head{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1.6fr) max-content;
+  gap:16px;padding:0 15px;color:var(--muted);font-size:var(--fs-note);font-weight:650}
+.todo-item{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1.6fr) max-content;
+  gap:13px 16px;background:var(--warn-soft);border:1px solid var(--line);border-radius:10px;
+  padding:15px}
+.todo-main h3{margin:0 0 5px;font-size:var(--fs-title)}
+.todo-question,.todo-result{margin:0}
+.todo-question{color:var(--ink)}
+.todo-completion{min-width:0}
+.todo-label{display:block;color:var(--muted);font-size:var(--fs-note);margin-bottom:3px}
+.todo-state{color:var(--warn);font-weight:650;white-space:nowrap}
+.todo-method{grid-column:1/-1;border-top:1px solid var(--line);padding-top:10px}
+.todo-method summary{cursor:pointer;color:var(--accent);font-weight:650;font-size:var(--fs-note)}
+.todo-method p{margin:7px 0 0;color:var(--muted);font-size:var(--fs-note);max-width:92ch}
 dialog.detail{max-width:700px;width:calc(100% - 40px);max-height:82vh;overflow-y:auto;
   background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:12px;
   padding:28px 28px 34px;box-shadow:0 24px 60px rgba(0,0,0,.24)}
@@ -647,8 +709,16 @@ dialog.detail .src{display:inline-block;margin-top:15px}
 footer{margin-top:56px;border-top:1px solid var(--line);padding-top:18px;
   color:var(--muted);font-size:var(--fs-note)}
 @media (max-width:640px){
+  .wrap{padding-left:16px;padding-right:16px}
+  .mode-cards{grid-template-columns:minmax(0,1fr)}
+  .filters{flex-wrap:nowrap;margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px}
   .variant{grid-template-columns:minmax(0,1fr)}
   .variant .vname{min-width:0;max-width:100%;width:max-content}
+  .engineering-details>summary{align-items:flex-start}
+  .todo-head{display:none}
+  .todo-item{grid-template-columns:minmax(0,1fr)}
+  .todo-method{grid-column:1}
+  .todo-state{white-space:normal}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 """
@@ -834,10 +904,22 @@ def render_inner(model: dict, source_fn: str) -> str:
         stages.setdefault(skill["stage"] or "未標 stage", []).append(skill)
 
     entry_cards = [
-        ("為什麼是這個形狀", "人只停在三個判斷點：需求、設計取捨、發布。其餘一律機器檢查，缺件與無法界定時停下來，不猜測後繼續。"),
-        ("怎麼運作", f"{len(skills)} 個技能依 flow 派發，artifact 契約由 protocol registry 宣告，狀態落在檔案而非對話。"),
-        ("怎麼用", "在 .agent/project-manifest.md 設 delivery_mode（personal 或 team-sprint）與選用的 capability_packs（frontend、optional），再跑 bootstrap/onboard.sh 重新 fan-out。execution mode 由 router 依單一任務決定，不必手動設定。"),
-        ("怎麼驗", f"{len(model['tests']['roster'])} 條確定性 suite 加真 agent journey；完成宣稱必須附當次證據。"),
+        (
+            "人在何時決定",
+            "需求、設計取捨與發布需要人做決定。其他步驟由自動檢查確認資料齊全；資訊不足就停下來。",
+        ),
+        (
+            "工作怎麼交接",
+            "每一步都把結果寫進固定文件，下一個人或 AI 工具可以從檔案繼續，不必只靠聊天紀錄。",
+        ),
+        (
+            "工程師怎麼安裝",
+            "在 .agent/project-manifest.md 設 delivery_mode 與 capability_packs，再跑 bootstrap/onboard.sh 更新安裝內容。",
+        ),
+        (
+            "完成怎麼認定",
+            "每次宣稱完成，都要附上當次自動檢查與實際操作的結果。",
+        ),
     ]
 
     flow_blocks = []
@@ -912,8 +994,15 @@ def render_inner(model: dict, source_fn: str) -> str:
     todo_rows = []
     for todo in claim_todos(model["claim_limits"]):
         todo_rows.append(
-            f'<tr class="limit todo-item"><td>{escape(todo["task"])}</td>'
-            f'<td>{escape(todo["done_when"])}</td><td>{escape(todo["status"])}</td></tr>'
+            f'<article class="limit todo-item">'
+            f'<div class="todo-main"><h3>{escape(todo["task"])}</h3>'
+            f'<p class="todo-question">{escape(todo["question"])}</p></div>'
+            f'<div class="todo-completion"><span class="todo-label">完成後可以回答</span>'
+            f'<p class="todo-result">{escape(todo["result"])}</p></div>'
+            f'<div class="todo-state"><span class="todo-label">目前狀態</span>'
+            f'{escape(todo["status"])}</div>'
+            f'<details class="todo-method"><summary>技術驗證方法</summary>'
+            f'<p>{escape(todo["method"])}</p></details></article>'
         )
 
     roster_groups: dict[str, list[str]] = {}
@@ -923,8 +1012,16 @@ def render_inner(model: dict, source_fn: str) -> str:
         )
         roster_groups.setdefault(bucket, []).append(entry["name"])
 
+    profile_labels = {
+        "core": "核心 core",
+        "frontend": "前端 frontend",
+        "optional": "選用 optional",
+        "personal": "個人交付 personal",
+        "team-sprint": "團隊交付 team-sprint",
+    }
     profile_buttons = "".join(
-        f'<button data-profile="{escape(name)}" aria-pressed="false">{escape(name)}'
+        f'<button data-profile="{escape(name)}" aria-pressed="false">'
+        f'{escape(profile_labels.get(name, name))}'
         f' <span style="color:var(--dim)">{len(model["profiles"][name]["skills"])}</span></button>'
         for name in sorted(model["profiles"])
     )
@@ -935,18 +1032,31 @@ def render_inner(model: dict, source_fn: str) -> str:
     return f"""<div class="wrap">
 <header>
   <h1>skill-commons</h1>
-  <p class="lede">把交付流程的形狀固定下來：每一步產出形體一致、可續跑、可被 script 驗證的 artifact。
-  這頁由 repo 的機器來源生成，權威在 repo，此頁只是索引——每個細節都以一個檔案連結收尾。</p>
-  <p class="lede stance">它是宣告式契約加一致性檢查，{escape("、".join("不是 " + goal.replace("-", " ") for goal in model["non_goals"]))}。</p>
+  <p class="lede">skill-commons 是給軟體團隊與 AI 協作者共用的交付流程。它把需求、設計、實作、驗證與發布要留下的資料與檢查規則固定下來，讓不同的人或工具接手時不必重新猜測上下文。</p>
 </header>
 
+<section class="mode-guide" aria-labelledby="mode-guide-title">
+  <h2 id="mode-guide-title">先選交付方式</h2>
+  <div class="mode-cards">
+    <article class="mode-card">
+      <h3>個人交付 <code>personal</code></h3>
+      <p>適合個人或小範圍工作。使用較輕量的交付路徑，由實作者直接完成與驗證，只保留發布核可。</p>
+    </article>
+    <article class="mode-card">
+      <h3>團隊交付 <code>team-sprint</code></h3>
+      <p>適合需要正式需求、設計核可與 QA 驗證的團隊工作，讓多人依相同文件規格共同規劃、實作與驗收。</p>
+    </article>
+  </div>
+  <p class="mode-note"><code>delivery mode</code> 決定交付路徑；<code>capability pack</code> 只增加前端或選用能力，不會改變已選的交付方式。</p>
+</section>
+
 <div class="filters">
-  <span class="lenslabel">以安裝內容檢視</span>
+  <span class="lenslabel">檢視安裝組合</span>
   <button data-profile="all" aria-pressed="true">全部 {len(skills)}</button>
   {profile_buttons}
 </div>
 
-<h2>一眼看懂</h2>
+<h2>先看整體</h2>
 <div class="cards">
 {"".join(f'<div class="card"><h3>{escape(t)}</h3><p>{escape(d)}</p></div>' for t, d in entry_cards)}
 </div>
@@ -963,6 +1073,11 @@ def render_inner(model: dict, source_fn: str) -> str:
 {"".join(flow_blocks)}
 <p class="note">flow 由 <code>flows.json</code> 宣告，並與 router 散文、protocol registry 雙向綁定：
 任一方單獨改動，<code>tests/test_repo_visual.sh</code> 就會變紅。</p>
+
+<details class="engineering-details">
+<summary><span><strong>工程細節</strong><small>查看 {len(skills)} 個技能、契約矩陣、交付狀態與 {len(model['tests']['roster'])} 條自動檢查</small></span></summary>
+<div class="engineering-body">
+<p class="note technical-stance">這套頁面描述的是宣告式契約與一致性檢查；它不負責在執行中安排工作，也不是 runtime engine、state machine 或 scheduler。權威資料在 repo，這裡提供索引與檔案出口。</p>
 
 <h2>{len(skills)} 個技能</h2>
 <div class="stagegrid">
@@ -1004,15 +1119,17 @@ def render_inner(model: dict, source_fn: str) -> str:
 </div>
 <p class="note">單一入口 <code>bash tests/verify.sh</code>，共 {len(model["tests"]["roster"])} 條。
 空 roster、空 layer 與缺檔都算錯誤而非通過。真 agent journey 另行執行，不佔確定性 Verify。</p>
-
-<h2>待處理事項</h2>
-<p class="note todo-baseline" style="margin:0 0 12px"><strong>已完成基線：</strong>
-artifact、Plan、profile、adapter 與 release contracts 的一致性已有確定性 repository suites 支援；
-結論只適用於被測 revision。以下五項是下一階段要補齊的驗證工作。</p>
-<div class="scroll" style="padding:0">
-<table class="todo-table"><thead><tr><th>待處理事項</th><th>完成條件</th><th>目前狀態</th></tr></thead>
-<tbody>{"".join(todo_rows)}</tbody></table>
 </div>
+</details><!-- engineering-details -->
+
+<section class="followups" aria-label="待處理事項">
+<h2>待處理事項</h2>
+<p class="todo-baseline"><strong>已完成：</strong>在目前測試版本中，需求文件、計畫、安裝組合、工具轉接與發布規則彼此一致。這項自動檢查只證明規則沒有互相矛盾；以下五項仍需用實驗回答實際成本、品質與團隊效果。</p>
+<div class="todo-list">
+  <div class="todo-head" aria-hidden="true"><span>要回答的問題</span><span>完成後可以回答</span><span>目前狀態</span></div>
+  {"".join(todo_rows)}
+</div>
+</section>
 
 <footer>
   生成自 <code>scripts/repo_visual.py render</code>，資料來自
