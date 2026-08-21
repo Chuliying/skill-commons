@@ -32,6 +32,48 @@ FLOWS_SCHEMA = "skill-commons/flows/v1"
 # producer refuses to carry their content rather than trusting a downstream test.
 PRIVATE_MARKERS = ("docs/work/", "STATUS.md")
 
+CLAIM_TODO_COPY = {
+    "What is the input-token cost of loading workflow guidance?": {
+        "task": "重建 workflow guidance 的 input-token 成本基線",
+        "done_when": (
+            "找回原始八案例 artifacts，或在固定 revision、model 與 prompt 下重跑 "
+            "A/B/C，並保存可重播的 raw artifacts。"
+        ),
+        "status": "待補證據",
+    },
+    "Did the historical blind scorer establish quality or usability gains?": {
+        "task": "重做不洩漏 arm identity 的品質與可用性盲評",
+        "done_when": (
+            "凍結匿名 packets 與 rubric，保存 scorer inputs／outputs，並驗證 packets "
+            "不含 arm identity。"
+        ),
+        "status": "待重做",
+    },
+    "Did the repaired Luna-high blind scoring establish a quality winner?": {
+        "task": "重跑修正後的 Luna-high 盲評",
+        "done_when": (
+            "保存完整 raw artifacts 與 post-run validator 結果，讓流程可獨立重播，"
+            "並依結果記錄勝者或無勝者。"
+        ),
+        "status": "待重跑",
+    },
+    "Can another tool cold-start and continue with less rework?": {
+        "task": "量測跨工具 cold-start 與續接成本",
+        "done_when": (
+            "以相同 task 與 revision 執行 matched handoff experiment，比較接續時間、"
+            "釐清次數、stale work、rework、token 與測試結果。"
+        ),
+        "status": "待設計實驗",
+    },
+    "Does the bundle improve team throughput or human usability?": {
+        "task": "量測 team throughput 與 human usability",
+        "done_when": (
+            "以預先定義的週期時間、重工、錯誤率與可用性指標完成 matched team study。"
+        ),
+        "status": "待設計研究",
+    },
+}
+
 NON_SKILL_DIRS = {"docs", "tests", "scripts", "bootstrap", "profiles", "journey-evals", "_archive", "node_modules"}
 
 
@@ -132,6 +174,21 @@ def evidence_map(root: Path) -> list[dict[str, str]]:
     if not rows:
         raise SystemExit("docs/evaluation.md evidence map is empty")
     return rows
+
+
+def claim_todos(claim_limits: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Turn unresolved evidence claims into a fail-closed action list."""
+    questions = [row["question"] for row in claim_limits]
+    missing = sorted(set(questions) - set(CLAIM_TODO_COPY))
+    stale = sorted(set(CLAIM_TODO_COPY) - set(questions))
+    if missing or stale:
+        details = []
+        if missing:
+            details.append(f"missing copy for: {', '.join(missing)}")
+        if stale:
+            details.append(f"stale copy for: {', '.join(stale)}")
+        raise SystemExit("claim todo copy drifted from docs/evaluation.md (" + "; ".join(details) + ")")
+    return [CLAIM_TODO_COPY[question] for question in questions]
 
 
 def roster(root: Path) -> list[dict[str, str]]:
@@ -852,12 +909,11 @@ def render_inner(model: dict, source_fn: str) -> str:
             f'<td>{escape(", ".join(required)) if required else "—"}</td></tr>'
         )
 
-    evidence_rows = []
-    for row_data in model["evidence_map"]:
-        limited = row_data in model["claim_limits"]
-        evidence_rows.append(
-            f'<tr class="{"limit" if limited else ""}"><td>{escape(row_data["question"])}</td>'
-            f'<td>{escape(row_data["evidence"])}</td><td>{escape(row_data["status"])}</td></tr>'
+    todo_rows = []
+    for todo in claim_todos(model["claim_limits"]):
+        todo_rows.append(
+            f'<tr class="limit todo-item"><td>{escape(todo["task"])}</td>'
+            f'<td>{escape(todo["done_when"])}</td><td>{escape(todo["status"])}</td></tr>'
         )
 
     roster_groups: dict[str, list[str]] = {}
@@ -949,13 +1005,14 @@ def render_inner(model: dict, source_fn: str) -> str:
 <p class="note">單一入口 <code>bash tests/verify.sh</code>，共 {len(model["tests"]["roster"])} 條。
 空 roster、空 layer 與缺檔都算錯誤而非通過。真 agent journey 另行執行，不佔確定性 Verify。</p>
 
-<h2>還沒被證明的事</h2>
+<h2>待處理事項</h2>
+<p class="note todo-baseline" style="margin:0 0 12px"><strong>已完成基線：</strong>
+artifact、Plan、profile、adapter 與 release contracts 的一致性已有確定性 repository suites 支援；
+結論只適用於被測 revision。以下五項是下一階段要補齊的驗證工作。</p>
 <div class="scroll" style="padding:0">
-<table><thead><tr><th>問題</th><th>目前證據</th><th>狀態</th></tr></thead>
-<tbody>{"".join(evidence_rows)}</tbody></table>
+<table class="todo-table"><thead><tr><th>待處理事項</th><th>完成條件</th><th>目前狀態</th></tr></thead>
+<tbody>{"".join(todo_rows)}</tbody></table>
 </div>
-<p class="note">{len(model["claim_limits"])} 項未達 supported。確定性 gate 只證明被測 revision 的契約一致，
-不證明團隊速度、模型品質或跨工具接手成效。</p>
 
 <footer>
   生成自 <code>scripts/repo_visual.py render</code>，資料來自

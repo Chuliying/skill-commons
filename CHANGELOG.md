@@ -19,6 +19,8 @@
 
 ### Changed
 
+- repo map 將未完成的 evidence gaps 改列為五項待處理工作，每項附完成條件與目前狀態；
+  已由確定性 suite 支援的契約一致性另列為完成基線，不再與待辦混在同一張表。
 - repo map 的 profile 控制升為頁面級 sticky「以安裝內容檢視」lens；不在 bundle 的
   skill 以降低強調、虛線與「未安裝」第三態呈現，hero、flow 與技能目錄仍保留完整
   形狀，也仍可開啟細節。personal 因此會明確標示未安裝的 `spec` owner。

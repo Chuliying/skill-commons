@@ -215,13 +215,14 @@ footer{margin-top:56px;border-top:1px solid var(--line);padding-top:18px;
 <p class="note">單一入口 <code>bash tests/verify.sh</code>，共 26 條。
 空 roster、空 layer 與缺檔都算錯誤而非通過。真 agent journey 另行執行，不佔確定性 Verify。</p>
 
-<h2>還沒被證明的事</h2>
+<h2>待處理事項</h2>
+<p class="note todo-baseline" style="margin:0 0 12px"><strong>已完成基線：</strong>
+artifact、Plan、profile、adapter 與 release contracts 的一致性已有確定性 repository suites 支援；
+結論只適用於被測 revision。以下五項是下一階段要補齊的驗證工作。</p>
 <div class="scroll" style="padding:0">
-<table><thead><tr><th>問題</th><th>目前證據</th><th>狀態</th></tr></thead>
-<tbody><tr class=""><td>Do artifact, Plan, profile, adapter, and release contracts agree?</td><td>Deterministic repository suites</td><td>Supported for the tested revision</td></tr><tr class="limit"><td>What is the input-token cost of loading workflow guidance?</td><td>Historical eight-case A/B/C narrative; raw private run artifacts unavailable</td><td>Unverified until original evidence is recovered or rerun</td></tr><tr class="limit"><td>Did the historical blind scorer establish quality or usability gains?</td><td>Packets leaked arm identity</td><td>Unsupported; scores compromised</td></tr><tr class="limit"><td>Did the repaired Luna-high blind scoring establish a quality winner?</td><td>Historical audit/scoring narrative; raw private run artifacts unavailable</td><td>No; the narrative is mixed and cannot be independently replayed</td></tr><tr class="limit"><td>Can another tool cold-start and continue with less rework?</td><td>No matched handoff experiment yet</td><td>Unmeasured</td></tr><tr class="limit"><td>Does the bundle improve team throughput or human usability?</td><td>No matched team study</td><td>Unmeasured</td></tr></tbody></table>
+<table class="todo-table"><thead><tr><th>待處理事項</th><th>完成條件</th><th>目前狀態</th></tr></thead>
+<tbody><tr class="limit todo-item"><td>重建 workflow guidance 的 input-token 成本基線</td><td>找回原始八案例 artifacts，或在固定 revision、model 與 prompt 下重跑 A/B/C，並保存可重播的 raw artifacts。</td><td>待補證據</td></tr><tr class="limit todo-item"><td>重做不洩漏 arm identity 的品質與可用性盲評</td><td>凍結匿名 packets 與 rubric，保存 scorer inputs／outputs，並驗證 packets 不含 arm identity。</td><td>待重做</td></tr><tr class="limit todo-item"><td>重跑修正後的 Luna-high 盲評</td><td>保存完整 raw artifacts 與 post-run validator 結果，讓流程可獨立重播，並依結果記錄勝者或無勝者。</td><td>待重跑</td></tr><tr class="limit todo-item"><td>量測跨工具 cold-start 與續接成本</td><td>以相同 task 與 revision 執行 matched handoff experiment，比較接續時間、釐清次數、stale work、rework、token 與測試結果。</td><td>待設計實驗</td></tr><tr class="limit todo-item"><td>量測 team throughput 與 human usability</td><td>以預先定義的週期時間、重工、錯誤率與可用性指標完成 matched team study。</td><td>待設計研究</td></tr></tbody></table>
 </div>
-<p class="note">5 項未達 supported。確定性 gate 只證明被測 revision 的契約一致，
-不證明團隊速度、模型品質或跨工具接手成效。</p>
 
 <footer>
   生成自 <code>scripts/repo_visual.py render</code>，資料來自

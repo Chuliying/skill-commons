@@ -256,6 +256,46 @@ else
   assert_contains "$page" "Unmeasured" "page presents unmeasured claim limits"
   assert_contains "$page" "absent" "page presents the absent artifact state"
 
+  # Evidence gaps should be presented as work that can be completed, not as a
+  # wall of negative questions.  The already-supported repository-contract
+  # check is a baseline, while only the five unresolved claims belong in the
+  # action table.
+  todo_probe="$(cd "$REPO/docs" && python3 - <<'EOF'
+from pathlib import Path
+
+text = Path("repo-visual.html").read_text(encoding="utf-8")
+problems = []
+title = "<h2>待處理事項</h2>"
+if title not in text:
+    problems.append("missing-title")
+    section = ""
+else:
+    section = text[text.index(title):text.index("<footer>")]
+if "<h2>還沒被證明的事</h2>" in text:
+    problems.append("negative-heading-remains")
+if "5 項未達 supported" in text:
+    problems.append("negative-summary-remains")
+for heading in ("待處理事項", "完成條件", "目前狀態"):
+    if f"<th>{heading}</th>" not in section:
+        problems.append(f"missing-column-{heading}")
+if section.count('<tr class="limit todo-item">') != 5:
+    problems.append("todo-count-is-not-five")
+if "已完成基線" not in section or "只適用於被測 revision" not in section:
+    problems.append("supported-baseline-missing")
+if "支持" in section:
+    problems.append("mainland-support-term-remains")
+for completion_handle in (
+    "可重播的 raw artifacts",
+    "matched handoff experiment",
+    "matched team study",
+):
+    if completion_handle not in section:
+        problems.append(f"missing-completion-handle-{completion_handle}")
+print(" ".join(problems))
+EOF
+)"
+  assert_eq "" "$todo_probe" "claim limits render as five actionable follow-ups with completion criteria"
+
   # Identity describes the contracts, not the checkout. A page stamped with HEAD
   # would be invalidated by every commit -- including the commit that adds it --
   # so the drift gate could never be green.
