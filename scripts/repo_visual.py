@@ -516,9 +516,12 @@ svg.hero .gate[data-na=true] .gate-na-label{display:block}
   padding:15px 17px;margin-bottom:11px}
 .flow h3{margin:0 0 4px;font-size:var(--fs-title)}
 .flow p.intent{margin:0 0 12px;color:var(--muted);font-size:var(--fs-note)}
-.variant{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:9px 0}
+.variant{display:grid;grid-template-columns:160px minmax(0,1fr);align-items:start;
+  gap:7px;margin:9px 0}
 .variant .vname{font-family:var(--mono);font-size:var(--fs-note);color:var(--muted);
-  min-width:152px;flex-shrink:0}
+  min-width:152px;justify-self:start}
+.variant-flow{display:flex;flex-wrap:wrap;align-items:center;gap:7px;min-width:0}
+.variant-flow .chip{max-width:100%;overflow-wrap:anywhere}
 .chip{border:1px solid var(--line);background:var(--panel-2);border-radius:6px;
   padding:4px 10px;font-size:var(--fs-body);cursor:pointer;color:var(--ink)}
 .chip:hover{border-color:var(--accent)}
@@ -586,6 +589,10 @@ dialog.detail table{margin-top:12px}
 dialog.detail .src{display:inline-block;margin-top:15px}
 footer{margin-top:56px;border-top:1px solid var(--line);padding-top:18px;
   color:var(--muted);font-size:var(--fs-note)}
+@media (max-width:640px){
+  .variant{grid-template-columns:minmax(0,1fr)}
+  .variant .vname{min-width:0;max-width:100%;width:max-content}
+}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 """
 
@@ -807,7 +814,10 @@ def render_inner(model: dict, source_fn: str) -> str:
                 if variant.get("execution_mode")
                 else f'<span class="vname">{escape(name)}</span>'
             )
-            variants.append(f'<div class="variant">{label}{"".join(chips)}</div>')
+            variants.append(
+                f'<div class="variant">{label}'
+                f'<div class="variant-flow">{"".join(chips)}</div></div>'
+            )
         flow_blocks.append(
             f'<div class="flow"><h3>{escape(flow["router_heading"])}</h3>'
             f'<p class="intent">{escape(flow["intent"])}</p>{"".join(variants)}</div>'

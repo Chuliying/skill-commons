@@ -35,6 +35,8 @@
 ### Fixed
 
 - clean checkout 的 CI 會先生成受管 fan-out，再執行 canonical Verify chain。
+- repo map 在 640px 以下會把 variant 名稱放在獨立列，後續流程序列從下一列開始；
+  桌面維持名稱欄與流程欄的雙欄密度，避免名稱和第一個節點依字寬隨機併列。
 - repo map hero 的意圖、設計、計畫、驗證與交付節點現在都連到真實 owner；移除測試的
   dead-handle 白名單，並要求每個 pointer-styled hero 節點都有可解析 handle。
 - profile lens 不再以 `display:none` 移除所有 `[data-skill]` 命中項目，避免 flow 留下

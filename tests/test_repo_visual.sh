@@ -348,6 +348,31 @@ EOF
 )"
   assert_eq "" "$probe_gate_lens" "profile lens marks inapplicable gates without removing them"
 
+  # A variant name is metadata for the following sequence, not the first node in
+  # that sequence.  Keep the two regions structurally separate so the mobile
+  # layout can always put the name on its own row instead of relying on accidental
+  # flex wrapping at particular label and chip widths.
+  probe_variant_layout="$(cd "$REPO/docs" && python3 - <<'EOF'
+import re
+from pathlib import Path
+
+text = Path("repo-visual.html").read_text(encoding="utf-8")
+variant_count = len(re.findall(r'class="variant"', text))
+flow_count = len(re.findall(r'class="variant-flow"', text))
+problems = []
+if flow_count != variant_count:
+    problems.append(f"variant-flow-count={flow_count}/{variant_count}")
+if not re.search(r'<div class="variant"><span class="vname(?: chip)?"[^>]*>.*?</span><div class="variant-flow">', text):
+    problems.append("name-and-flow-not-separated")
+if ".variant{display:grid;" not in text or ".variant-flow{display:flex;" not in text:
+    problems.append("desktop-regions-not-explicit")
+if "@media (max-width:640px){" not in text or ".variant{grid-template-columns:minmax(0,1fr)}" not in text:
+    problems.append("mobile-name-row-not-explicit")
+print(" ".join(problems))
+EOF
+)"
+  assert_eq "" "$probe_variant_layout" "variant names stay separate from mobile flow sequences"
+
   # Detail view is a modal dialog, not a side drawer.
   assert_contains "$page" "<dialog" "detail view uses a native dialog element"
   assert_contains "$page" "showModal" "dialog opens as a modal"
