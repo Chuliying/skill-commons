@@ -46,6 +46,14 @@ def is_in_scope(path: Path) -> bool:
         return False
     if len(relative.parts) >= 2 and relative.parts[:2] == ("journey-evals", "runs"):
         return False
+    # Raw captured run evidence inside a work item (frozen packets, session
+    # transcripts) is model output under content hashes, not authored prose.
+    if (
+        len(relative.parts) >= 4
+        and relative.parts[:2] == ("docs", "work")
+        and relative.parts[3] == "artifacts"
+    ):
+        return False
     return True
 
 def git_paths(*args: str) -> list[Path]:

@@ -32,45 +32,119 @@ FLOWS_SCHEMA = "skill-commons/flows/v1"
 # producer refuses to carry their content rather than trusting a downstream test.
 PRIVATE_MARKERS = ("docs/work/", "STATUS.md")
 
-CLAIM_TODO_COPY = {
+# Reader-facing copy for evidence-map rows whose status reached "Supported".
+# Keyed by the exact question so drift against docs/evaluation.md fails closed,
+# exactly like CLAIM_TODO_COPY below. A row whose evidence is already presented
+# by another page section declares `covered_by` instead of table copy.
+SUPPORTED_EVIDENCE_COPY = {
+    "Do artifact, Plan, profile, adapter, and release contracts agree?": {
+        "covered_by": "驗證",
+    },
     "What is the input-token cost of loading workflow guidance?": {
-        "task": "重建流程說明的 token 成本基線",
-        "question": "要回答：載入這套工作流程，會增加多少模型輸入量？",
+        "task": "流程說明的 token 成本基線",
+        "question": "回答了：載入這套工作流程，會增加多少模型輸入量？",
         "result": (
-            "能用同一組案例比較有無載入流程說明的成本，並保留原始資料，"
-            "讓其他人可以重新計算。"
+            "重跑了 8 個案例 × 3 種載入方式，共 27 個計量 session，版本與模型固定。"
+            "全部預載比不載入多 17.2% 未快取輸入；先讀 router、需要才載入平均只多 "
+            "0.3%，但逐案例配對看仍有約一成的中位數溢價。整段 session 的總輸入量"
+            "則由回合數主導，這個樣本數比不出高下。"
         ),
         "method": (
-            "找回原始八案例 artifacts，或在固定 revision、model 與 prompt 下重跑 "
-            "A/B/C，並保存可重播的 raw artifacts。"
+            "每個 session 的用量紀錄與帳本都留著，包含一次有記錄的 protocol "
+            "amendment。分析腳本直接讀原始紀錄，報告裡的每個數字都能重算出來。"
         ),
-        "status": "待補證據",
+        "status": "已有可重播證據（2026-08-24）",
+        "report": """
+<h4>固定條件</h4>
+<table><tbody>
+<tr><td>Repo revision</td><td><code>c6015d1</code>（技能檔與 HEAD 相同）</td></tr>
+<tr><td>執行模型</td><td><code>claude-haiku-4-5</code>，headless CLI，工具僅 Read／Grep／Glob（唯讀）</td></tr>
+<tr><td>案例</td><td>8 個，對應歷史分類：事實查詢、micro-task 邊界、有界模糊、研究、拒絕深挖、續作、跨 session 計畫、大範圍重構計畫</td></tr>
+<tr><td>三臂 payload</td><td>A 無（0 bytes）· B 全部預載 router＋brainstorming(＋references)＋plan-sync（20,509 bytes）· C 只預載 router、其餘技能放在工作區按需讀取（7,040 bytes）</td></tr>
+<tr><td>Session 數</td><td>24 主要＋3 amendment＝27，成本 US$2.62，run 內無重試</td></tr>
+</tbody></table>
+<h4>結果（八案例，c7 用 amendment 面）</h4>
+<table><thead><tr><th>臂</th><th>平均總輸入 tokens</th><th>平均未快取輸入</th><th>平均回合</th><th>平均成本 US$</th></tr></thead>
+<tbody>
+<tr><td>A 無 payload</td><td>325,906</td><td>17,453</td><td>10.75</td><td>0.1003</td></tr>
+<tr><td>B 全部預載</td><td>316,220</td><td>20,452</td><td>10.38</td><td>0.0889</td></tr>
+<tr><td>C router-first</td><td>362,384</td><td>17,506</td><td>11.50</td><td>0.0911</td></tr>
+</tbody></table>
+<p>未快取輸入是真正新付費的 tokens。以平均計：B 比 A 多 <strong>17.2%</strong>，C 比 A 多 0.3%，C 比 B 少 14.4%。
+逐案例配對看得更細：B 高於 A 的有 7/8 個案例，預載溢價很穩；C 高於 A 的也有 6/8 個案例，
+中位數約多 13%。C 的平均接近零，是被 c1 案例 A 臂的單一離群值拉平的。誠實的講法是：
+按需載入仍有小幅溢價，只是明顯小於全部預載。
+總輸入（含跨回合的快取重讀）則由回合數主導，單一案例落在 14 萬到 65 萬之間，8 個案例比不出方向。</p>
+<h4>Protocol amendment #1</h4>
+<p>主跑時 c7 的 B 臂撞到 16 回合上限，沒有產出最終答案。整個 c7 案例三臂都用 32 回合上限重跑一次，原始紀錄原封保留。
+把 c7 整個案例從三臂剔除、只比其餘七個案例，方向也一樣（B 的總輸入比 A 少 9.9%），結論不依賴這次補跑。</p>
+<h4>主張界線</h4>
+<ul>
+<li>這次重跑能說明的：在這個版本和模型下，全部預載有可量測的新輸入費用，方向與 2026-07 那份無法重播的敘事一致（當時記錄 C 比 B 省 16.6%）。</li>
+<li>它不能說明的：品質或可用性、跨模型的情況、以及由回合數主導的總成本。</li>
+<li>歷史的絕對數字（例如 A 平均 25,514）出自不同 harness 和不同計量定義，仍然是未驗證敘事。之後引用成本基線，以這次重跑為準。</li>
+</ul>
+<p>重播：在開發 repo 的 work item <code>eval-evidence-rerun</code> 裡，<code>harness/analyze_abc.py</code> 只讀 <code>artifacts/abc/</code> 的原始 session JSON 與帳本，重算上表每個數字；<code>run_abc.py</code> 和 <code>amend_c7.py</code> 可以整組重跑。</p>
+""",
     },
-    "Did the historical blind scorer establish quality or usability gains?": {
-        "task": "重新進行不洩漏分組資訊的品質盲評",
-        "question": "要回答：看不到分組來源的評分者，是否認為其中一種流程更好用、品質更高？",
+    "Does leak-free blind scoring show a quality winner between the arms?": {
+        "task": "修正後的無洩漏盲評",
+        "question": "回答了：看不到分組來源的評分者，是否認為其中一種流程品質更高？",
         "result": (
-            "評分資料不透露受測分組，評分規則與完整輸入輸出都保留下來，"
-            "可以檢查評分是否公平。"
+            "在這八個案例裡，全部預載在評分項通過數（31/32）和偏好排名都領先。"
+            "這是描述性證據，不是一般化的品質結論；而且領先的這一臂，"
+            "正好也是輸入成本最高的。"
         ),
         "method": (
-            "凍結匿名 packets 與 rubric，保存 scorer inputs／outputs，並驗證 packets "
-            "不含 arm identity。"
+            "匿名答案先消毒、再凍結雜湊。每個評分 session 沒有工具、只拿到一份資料；"
+            "session 會計（1 audit＋8 scorers＋1 review，無 retry）由零模型驗證器獨立"
+            "確認。兩次身份洩漏都在評分開始前被擋下，紀錄完整留檔。"
         ),
-        "status": "待重做",
+        "status": "已有可重播證據（2026-08-24）",
+        "report": """
+<h4>協定（修正後的 1/8/1）</h4>
+<p>輸入是 token 成本實驗的 24 份最終答案。每個案例把三個答案重貼成 X／Y／Z，貼法來自
+私有洗牌；已知的執行路徑先換成中性字串，零模型 leak gate 再逐字掃一次身份線索。
+八份資料的雜湊在任何 session 啟動前就凍結。之後依序跑：1 個 packet audit、
+8 個盲評 session、零模型彙整、1 個對抗性覆核。盲評 session 沒有工具、目錄是空的、
+各只拿到一份資料；標籤對應表從頭到尾不進任何 session。覆核只看它啟動前就存在的事實。
+session 會計（10 個 session、1/8/1 角色、audit 先於評分、無重試）由外部的零模型驗證器
+確認；歷史協定被詬病的「模型自證完成」，就移到這一步之外解決。評分模型
+<code>claude-sonnet-5</code>。</p>
+<h4>結果</h4>
+<table><thead><tr><th>臂</th><th>評分項通過</th><th>平均偏好排名（低者佳）</th></tr></thead>
+<tbody>
+<tr><td>A 無 payload</td><td>29／32</td><td>2.125</td></tr>
+<tr><td>B 全部預載</td><td>31／32</td><td>1.750</td></tr>
+<tr><td>C router-first</td><td>28／32</td><td>2.125</td></tr>
+</tbody></table>
+<p>預先註冊的判定規則要求排名與通過數同時嚴格領先，結果是<strong>描述性勝者 B（全部預載）</strong>。
+值得記住的一點：勝出的一臂正好是輸入成本最高的，最省的 C 臂通過數反而最低。</p>
+<h4>Attempt 歷史（全數留檔、run 內無重試）</h4>
+<table><thead><tr><th>Attempt</th><th>結果</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>packet audit 抓到兩個答案引用執行環境的暫存路徑，和歷史失敗是同一種洩漏。在任何評分開始前 fail-closed 中止</td></tr>
+<tr><td>2</td><td>audit 抓到消毒佔位符會自我暴露，也指出 audit 定義太寬：答案風格屬於 treatment 的內容，不算身份洩漏。改用中性替換、收斂定義後重新凍結</td></tr>
+<tr><td>3</td><td>一個評分 session 死在 1 回合上限，唯一的回合花在思考。這一輪的覆核 session 也死在同一個上限；記錄到的 fail 是 harness 對非零結束的 fail-closed 預設值，不是模型判定。這次記錄為未完成</td></tr>
+<tr><td>4</td><td>完成：10/10 sessions、零模型驗證器 PASS、判定如上表</td></tr>
+</tbody></table>
+<p>四次 attempt 合計 22 個 session，實際花費 US$2.96（帳本原記 2.67，漏了兩個失敗 session 的成本；harness 已改為失敗 session 也記帳）。盲評本身在每一次 attempt 都沒有被汙染。</p>
+<h4>覆核判定與機器事實</h4>
+<p>attempt 4 的對抗性覆核把一個 64 字元的凍結雜湊看成 66 字元，因此給了 fail。判定照原樣
+保留。零模型驗證器重算後確認雜湊正確、與資料內容一致。這件事剛好示範了為什麼機器可驗的
+事實要交給外部驗證器：模型的判定值得留下，但不能當成最終事實。</p>
+<h4>主張界線</h4>
+<ul>
+<li>每個案例只有一個評分 session，執行與評分也只用了一種模型組合。這是描述性證據，不是一般化的品質結論。</li>
+<li>盲評的「盲」指評分者無法得知分組指派。答案本身的風格差異屬於 treatment 的內容；評分者沒有對應表，無從還原。</li>
+</ul>
+<p>重播：work item <code>eval-evidence-rerun</code> 裡的 <code>harness/analyze_scoring.py</code> 與
+<code>harness/validate_scoring.py</code> 只讀留存的 artifacts，重算並重驗上表。</p>
+""",
     },
-    "Did the repaired Luna-high blind scoring establish a quality winner?": {
-        "task": "重跑已修正的模型盲評",
-        "question": "要回答：修正評分流程後，是否有穩定勝出的方案？",
-        "result": (
-            "完整保留評分資料與驗證結果；若沒有明確勝者，也要照實記錄。"
-        ),
-        "method": (
-            "保存完整 raw artifacts 與 post-run validator 結果，讓流程可獨立重播，"
-            "並依結果記錄勝者或無勝者。"
-        ),
-        "status": "待重跑",
-    },
+}
+
+CLAIM_TODO_COPY = {
     "Can another tool cold-start and continue with less rework?": {
         "task": "量測不同工具接手工作的成本",
         "question": "要回答：同一工作交給另一個 AI 工具接手，是否能更快繼續、減少重做？",
@@ -79,9 +153,35 @@ CLAIM_TODO_COPY = {
         ),
         "method": (
             "以相同 task 與 revision 執行 matched handoff experiment，比較接續時間、"
-            "釐清次數、stale work、rework、token 與測試結果。"
+            "釐清次數、stale work、rework、token 與測試結果。工具已在 2026-08-24 建好，"
+            "也跑完第一組配對（每臂 n=1）。接下來要在 context 較重的任務上累積多組配對。"
         ),
-        "status": "待設計實驗",
+        "status": "pilot 已執行，待擴大樣本",
+        "report": """
+<h4>已完成的 pilot（2026-08-24，每臂 n=1）</h4>
+<p>兩臂拿到完全相同的起點：同一個種子 repo（小型 CLI 專案，里程碑規格有三條驗收準則）、
+同一個模型（<code>claude-haiku-4-5</code>）、同一組工具。流程分三步：A session 只做準則一
+就停止；harness 提交後把準則二的語意改掉（合併改成絕不覆寫既有資料）、再提交一次；
+接著一個全新的 B session 接手，兩臂用一字不差的 prompt、只憑 repository state 完成剩下的
+工作。差別只有一處：P 臂的 A 被要求建立並維護 work-item 計畫，N 臂沒有任何持久狀態指示。
+驗收由確定性腳本對最終樹執行。</p>
+<table><thead><tr><th>接手 session 指標</th><th>P（協定臂）</th><th>N（對照臂）</th></tr></thead>
+<tbody>
+<tr><td>全部驗收（含變更後準則二）</td><td>通過</td><td>通過</td></tr>
+<tr><td>釐清提問</td><td>0</td><td>0</td></tr>
+<tr><td>回合數</td><td>35</td><td>21</td></tr>
+<tr><td>未快取輸入 tokens</td><td>26,789</td><td>20,263</td></tr>
+<tr><td>Session 成本 US$</td><td>0.240</td><td>0.158</td></tr>
+</tbody></table>
+<h4>觀察與界線</h4>
+<ul>
+<li>P 臂的前導 session 沒有照協定做滿：計畫只涵蓋自己做完的部分。接手者完成工作後，計畫也停在過期狀態沒人更新。</li>
+<li>這個任務規模下，程式碼加 git 歷史就足夠冷啟動；這種情境本來就是延續性協定最沒有發揮空間的地方。每臂 n=1，不構成任何一般化結論。</li>
+<li>要做出決定性的一輪，需要至少 5 組配對、context 不完全留在程式碼裡的任務，以及由真正的 bundle gate（而不是 prompt 摘錄）強制前導者遵循。主要結果預先註冊為接手驗收通過率與重工量。</li>
+</ul>
+<p>證據：work item <code>eval-evidence-rerun</code> 的 <code>artifacts/handoff/</code> 保存兩臂完整樹快照、
+git log、diff、4 份 session 原始 JSON 與指標；4 sessions 成本 US$0.66。</p>
+""",
     },
     "Does the bundle improve team throughput or human usability?": {
         "task": "量測團隊交付速度與使用感受",
@@ -92,9 +192,64 @@ CLAIM_TODO_COPY = {
         ),
         "method": (
             "以預先定義的週期時間、重工、錯誤率與可用性指標完成 matched team study。"
+            "研究方案已於 2026-08-24 預先註冊，待有團隊願意執行。"
         ),
-        "status": "待設計研究",
+        "status": "已設計研究方案，待團隊執行",
+        "report": """
+<h4>已預先註冊的研究方案（2026-08-24）</h4>
+<p>機器實驗無法回答這一題，所以交付的是凍結的研究設計。設計是兩臂配對比較，指派單位是
+team-sprint：同一個團隊在可比的 backlog 切片上各跑一個 sprint，先後順序擲幣決定並記錄
+（crossover）。W 臂使用 bundle，O 臂用相同的工具基線但不裝 bundle。最少收 4 個團隊 × 2
+sprints，收滿 6 個團隊或滿一季就停。</p>
+<table><thead><tr><th>指標</th><th>操作型定義</th></tr></thead>
+<tbody>
+<tr><td>週期時間</td><td>首個引用 work item 的 commit 到 merge commit 的小時數，每 sprint 取中位數</td></tr>
+<tr><td>重工率</td><td>合併後 7 天內需要補修 PR 動到相同檔案的 PR 佔比</td></tr>
+<tr><td>錯誤率</td><td>合併後 14 天內對 sprint 產出立案的 bug 數／合併 PR 數</td></tr>
+<tr><td>可用性</td><td>SUS 十題問卷，sprint 結束時每位參與者填答</td></tr>
+<tr><td>Token 成本</td><td>每完成任務的平均模型輸入 tokens（session log）</td></tr>
+</tbody></table>
+<p>判定規則已凍結：W 臂要宣稱「提升交付」，週期時間中位數必須較佳，而且重工率不能劣化；
+要宣稱「提升可用性」，SUS 平均差必須達到 +5。混合結果照實記錄為混合，不得事後換指標。
+效度威脅也先記錄了：新工具的學習效應（用 crossover 順序隨機化緩解）、backlog 不對等
+（點數差超過 30% 就作廢該配對）、志願者偏誤（結論只及於志願團隊）。</p>
+<p>完整方案存於 work item <code>eval-evidence-rerun</code> 的 <code>team-study-protocol.md</code>；
+任何偏離都必須在解盲前以註記修訂。</p>
+""",
     },
+}
+
+# The public verification surface is discovered from tests/verify.sh, while the
+# page still needs a reader-facing explanation for every discovered entry. Keep
+# this map keyed by the roster's stable names so adding a test without a plain-
+# language explanation fails closed during rendering.
+TEST_DESCRIPTIONS = {
+    "unit": "執行 tests/py/unit，驗證 foundation schema、graph、factory 等基礎單元行為。",
+    "integration": "執行 tests/py/integration，驗證 foundation、orchestration、bootstrap 與跨模組契約整合。",
+    "e2e": "執行 tests/py/e2e，驗證完整 journey、consumer convergence 與 CLI 端到端流程。",
+    "tests/test_artifact_contract.sh": "檢查 work-item/v3 artifact 契約、必要檔案、狀態與真實 Git workspace 邊界。",
+    "tests/test_brainstorming.sh": "檢查 brainstorming 的 discovery、research/wayfinding 條件與 router、README、文件引用一致性。",
+    "tests/test_gate_automation.sh": "用 fixture 驗證 PRD、QA、Gate 與 secret scan 等自動 gate 的通過、拒絕與 fail-closed 行為。",
+    "tests/test_journey_evals.sh": "列出並執行五條 release journey，檢查 grader、workspace 與非互動 CLI 參數。",
+    "tests/test_plan_sync.sh": "檢查 plan-sync skill/template 的 evidence boundary、canonical plan stage 與 decomposition contract。",
+    "tests/test_profiles.sh": "檢查 profile 解析、skill membership、依賴與衝突，以及 bootstrap fan-out defaults。",
+    "tests/test_project_status.sh": "用 fixtures 驗證 project-status 對 work item、bootstrap、ambiguity 與 focus 的狀態判定。",
+    "tests/test_protocol_registry.sh": "檢查 protocol-registry schema、execution mode、artifact、gate 與 release evidence 契約。",
+    "tests/test_release_baseline.sh": "檢查 release baseline 的必要檔案、公開邊界、版本與歷史對齊條件。",
+    "tests/test_release_convergence.sh": "檢查已淘汰 skill 是否移除，並驗證 implement、grilling、review、sync-work 的責任收斂。",
+    "tests/test_repo_map.sh": "驗證 codebase-understanding 的 repo map 在 fixtures 上能建圖，並處理 root、ignore、cycle 等邊界。",
+    "tests/test_repo_visual.sh": "驗證本頁的 model、flow drift、生成 parity、responsive、interaction、privacy 與 source variants。",
+    "tests/test_skills_reorg.sh": "驗證 public export、generated fan-out、文件結構與 deterministic cache 的完整性。",
+    "tests/test_work_items.sh": "用 fixture 驗證 work-items metadata、stage、delivery evidence、documentation impact 與狀態檢查。",
+    "tests/bootstrap/test_check.sh": "驗證 bootstrap check 在 claude-code、codex 等平台對健康狀態、directive 與 drift 的回報。",
+    "tests/bootstrap/test_e2e.sh": "在臨時 consuming project 執行 onboard 到 check 全流程，並確認 stamp drift 可被修復。",
+    "tests/bootstrap/test_generate_safety.sh": "驗證 generate 的 ownership 與 writable-path preflight 不會在相對路徑邊界卡住或誤寫。",
+    "tests/bootstrap/test_manage.sh": "驗證 bootstrap manage 的專案建立、平台切換、generated tree digest 與使用者內容保留。",
+    "tests/bootstrap/test_manifest.sh": "驗證 manifest 預設值、顯式 submodule path、platform parsing 與逗號轉換。",
+    "tests/bootstrap/test_onboard.sh": "驗證 onboard 的平台選擇、預設 manifest、stamp 與 invalid selection 的 fail-closed 行為。",
+    "tests/bootstrap/test_platform.sh": "驗證各平台輸出格式、JSON escaping、directive body 與 warning 前置。",
+    "tests/bootstrap/test_render.sh": "驗證 render block 的 fence、stamp、upsert 與既有使用者內容保留。",
+    "tests/bootstrap/test_stamp.sh": "驗證 stamp 內容雜湊具 deterministic、差異可辨識，且缺檔會報錯。",
 }
 
 NON_SKILL_DIRS = {"docs", "tests", "scripts", "bootstrap", "profiles", "journey-evals", "_archive", "node_modules"}
@@ -197,6 +352,37 @@ def evidence_map(root: Path) -> list[dict[str, str]]:
     if not rows:
         raise SystemExit("docs/evaluation.md evidence map is empty")
     return rows
+
+
+def supported_evidence(evidence: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Turn supported evidence-map rows into reader-facing result rows.
+
+    Every supported row must have copy (or an explicit `covered_by` pointer to
+    the page section that already presents it); a supported row without copy,
+    or copy for a question the map no longer supports, fails the build.
+    """
+    questions = [
+        row["question"]
+        for row in evidence
+        if row["status"].lower().startswith("supported")
+    ]
+    missing = sorted(set(questions) - set(SUPPORTED_EVIDENCE_COPY))
+    stale = sorted(set(SUPPORTED_EVIDENCE_COPY) - set(questions))
+    if missing or stale:
+        details = []
+        if missing:
+            details.append(f"missing copy for: {', '.join(missing)}")
+        if stale:
+            details.append(f"stale copy for: {', '.join(stale)}")
+        raise SystemExit(
+            "supported evidence copy drifted from docs/evaluation.md ("
+            + "; ".join(details) + ")"
+        )
+    return [
+        SUPPORTED_EVIDENCE_COPY[question]
+        for question in questions
+        if "covered_by" not in SUPPORTED_EVIDENCE_COPY[question]
+    ]
 
 
 def claim_todos(claim_limits: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -361,6 +547,16 @@ def build_model(root: Path) -> dict:
             )
         profiles[name] = profile
 
+    test_roster = roster(root)
+    for entry in test_roster:
+        description = TEST_DESCRIPTIONS.get(entry["name"])
+        if not description:
+            raise SystemExit(
+                "missing reader-facing description for verification entry "
+                f"`{entry['name']}`"
+            )
+        entry["description"] = description
+
     model = {
         "schema_version": MODEL_SCHEMA,
         "identity": {
@@ -378,7 +574,7 @@ def build_model(root: Path) -> dict:
         "work_item": registry.get("work_item", {}),
         "flows": flows.get("flows", []),
         "human_gates": flows.get("human_gates", []),
-        "tests": {"roster": roster(root), "runner": "tests/verify.sh"},
+        "tests": {"roster": test_roster, "runner": "tests/verify.sh"},
         "evidence_map": evidence,
         "claim_limits": [
             row for row in evidence if not row["status"].lower().startswith("supported")
@@ -538,6 +734,9 @@ CSS = """
   --accent:#1f4527; --accent-soft:#e2ece3;
   --human:#6b3708; --human-soft:#f4e5d4;
   --warn:#6e2020; --warn-soft:#f6e0dd;
+  --build-bg:#080d0a; --build-panel:#121d16; --build-line:#405148;
+  --build-ink:#f3f8f3; --build-muted:#b9c8bc; --build-accent:#a6e0b5;
+  --build-gate:#f4c286; --build-gate-soft:#352516;
   --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
   --sans:system-ui,-apple-system,"Helvetica Neue",sans-serif;
 }
@@ -603,10 +802,12 @@ svg.hero .gate[data-na=true] .gate-na-label{display:block}
   padding:15px 17px;margin-bottom:11px}
 .flow h3{margin:0 0 4px;font-size:var(--fs-title)}
 .flow p.intent{margin:0 0 12px;color:var(--muted);font-size:var(--fs-note)}
-.variant{display:grid;grid-template-columns:160px minmax(0,1fr);align-items:start;
-  gap:7px;margin:9px 0}
-.variant .vname{font-family:var(--mono);font-size:var(--fs-note);color:var(--muted);
-  min-width:152px;justify-self:start}
+.variant{display:grid;grid-template-columns:160px 32px minmax(0,1fr);align-items:stretch;
+  gap:0;margin:9px 0}
+.variant-name{min-width:0;padding-right:8px}
+.variant-separator{align-self:stretch;width:1px;margin-inline:16px;background:var(--line)}
+.variant .vname{display:inline-block;font-family:var(--mono);font-size:var(--fs-note);color:var(--muted);
+  min-width:152px;justify-self:start;white-space:nowrap}
 .variant-flow{display:flex;flex-wrap:wrap;align-items:center;gap:7px;min-width:0}
 .variant-flow .chip{max-width:100%;overflow-wrap:anywhere}
 .chip{border:1px solid var(--line);background:var(--panel-2);border-radius:6px;
@@ -616,6 +817,15 @@ svg.hero .gate[data-na=true] .gate-na-label{display:block}
   font-weight:600}
 .chip.handoff{background:transparent;border-style:dashed;color:var(--muted);cursor:default}
 .arrow{color:var(--muted)}
+.flow.build-flow{background:var(--build-bg);color:var(--build-ink)}
+.flow.build-flow .variant .vname.chip{background:#000;border-color:#fff;color:#fff}
+.flow.build-flow p.intent,.flow.build-flow .vname,.flow.build-flow .arrow{color:var(--build-muted)}
+.flow.build-flow .variant-separator{background:var(--build-line)}
+.flow.build-flow .chip{background:var(--build-panel);border-color:var(--build-line);color:var(--build-ink)}
+.flow.build-flow .chip:hover{border-color:var(--build-accent)}
+.flow.build-flow .chip.gate{background:var(--build-gate-soft);border-color:var(--build-gate);
+  color:var(--build-gate)}
+.flow.build-flow .chip.handoff{background:transparent;color:var(--build-muted)}
 .filters{position:sticky;top:0;z-index:5;display:flex;gap:8px;flex-wrap:wrap;overflow-x:auto;
   align-items:center;background:var(--bg);border-bottom:1px solid var(--line);
   padding:11px 0;margin:0 0 30px}
@@ -656,7 +866,12 @@ td.req[data-v=absent]{color:var(--muted);background:var(--panel-2)}
 tr.limit td{background:var(--warn-soft)}
 tr.limit td:last-child{color:var(--warn);font-weight:650}
 .note{color:var(--muted);font-size:var(--fs-note);margin:12px 0 0;max-width:82ch}
-.rosterwrap{display:grid;gap:11px;grid-template-columns:repeat(auto-fit,minmax(272px,1fr))}
+.rosterwrap{display:grid;gap:11px;grid-template-columns:minmax(0,1fr)}
+.test-table-wrap{overflow:visible;background:var(--panel);border:1px solid var(--line);
+  border-radius:8px;padding:0}
+.test-table{min-width:0;table-layout:fixed}
+.test-table th:first-child,.test-table td:first-child{width:32%;white-space:normal;overflow-wrap:anywhere}
+.test-table td:last-child{color:var(--muted)}
 .engineering-details{margin-top:48px;background:var(--panel);border:1px solid var(--line);
   border-radius:10px;overflow:hidden}
 .engineering-details>summary{display:flex;align-items:center;justify-content:space-between;
@@ -671,23 +886,48 @@ tr.limit td:last-child{color:var(--warn);font-weight:650}
 .engineering-body{border-top:1px solid var(--line);padding:0 17px 18px}
 .engineering-body>h2:first-of-type{margin-top:24px}
 .technical-stance{border-left:3px solid var(--accent);padding-left:13px}
-.followups{scroll-margin-top:84px}
+.followups{margin-top:40px;scroll-margin-top:84px}
 .todo-baseline{margin:0 0 14px;max-width:86ch}
-.todo-list{display:grid;gap:10px}
-.todo-head{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1.6fr) max-content;
-  gap:16px;padding:0 15px;color:var(--muted);font-size:var(--fs-note);font-weight:650}
-.todo-item{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1.6fr) max-content;
-  gap:13px 16px;background:var(--warn-soft);border:1px solid var(--line);border-radius:10px;
-  padding:15px}
-.todo-main h3{margin:0 0 5px;font-size:var(--fs-title)}
-.todo-question,.todo-result{margin:0}
-.todo-question{color:var(--ink)}
-.todo-completion{min-width:0}
-.todo-label{display:block;color:var(--muted);font-size:var(--fs-note);margin-bottom:3px}
-.todo-state{color:var(--warn);font-weight:650;white-space:nowrap}
-.todo-method{grid-column:1/-1;border-top:1px solid var(--line);padding-top:10px}
-.todo-method summary{cursor:pointer;color:var(--accent);font-weight:650;font-size:var(--fs-note)}
-.todo-method p{margin:7px 0 0;color:var(--muted);font-size:var(--fs-note);max-width:92ch}
+.todo-table-wrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);
+  border-radius:10px;padding:0;-webkit-overflow-scrolling:touch}
+.todo-table{min-width:940px}
+.todo-table th{white-space:nowrap}
+.todo-table tr.limit td{background:var(--panel)}
+.todo-table td.todo-task{min-width:220px}
+.todo-table td.todo-result{min-width:280px}
+.todo-table td.todo-method-cell{min-width:320px}
+.todo-table td.todo-status{color:var(--muted);font-weight:650;white-space:nowrap}
+.todo-table .todo-task strong{display:block;font-size:var(--fs-title);margin-bottom:5px}
+.todo-table .todo-question{margin:0;color:var(--muted)}
+.todo-table .todo-method{margin:0}
+.todo-table .todo-method p{margin:0;color:var(--muted);font-size:var(--fs-note);max-width:60ch}
+.done-table tr.done td{background:var(--panel)}
+.done-table td.done-task{min-width:220px}
+.done-table td.done-result{min-width:300px}
+.done-table td.done-method-cell{min-width:320px}
+.done-table td.done-status{color:var(--accent);font-weight:650;white-space:nowrap}
+.done-table .done-task strong{display:block;font-size:var(--fs-title);margin-bottom:5px}
+.done-table .done-question{margin:0;color:var(--muted)}
+.done-table .done-method{margin:0;color:var(--muted);font-size:var(--fs-note);max-width:60ch}
+/* Child selector on purpose: the wrapper cell drops its padding (the details
+   box carries its own), while td inside the embedded report tables keep the
+   page-wide 9px 11px cell padding. */
+tr.report-row > td{background:var(--panel-2);padding:0}
+/* The report lives in a 940px-min table whose wrapper scrolls sideways on
+   narrow screens. Pinning the details box to the wrapper's left edge and
+   capping it at the viewport keeps prose readable without horizontal reading. */
+.row-report{position:sticky;left:0;max-width:calc(100vw - 72px)}
+.row-report summary{cursor:pointer;color:var(--accent);font-weight:650;
+  font-size:var(--fs-note);padding:9px 11px;list-style:none}
+.row-report summary::-webkit-details-marker{display:none}
+.row-report summary::before{content:"▸ "}
+.row-report[open] summary::before{content:"▾ "}
+.report-body{padding:2px 11px 16px;font-size:var(--fs-note);color:var(--muted)}
+.report-body h4{margin:14px 0 6px;color:var(--ink)}
+.report-body p,.report-body li{max-width:86ch;white-space:normal}
+.report-body ul{margin:6px 0;padding-left:20px}
+.report-body table{margin:6px 0;min-width:0}
+.report-body td,.report-body th{white-space:normal}
 dialog.detail{max-width:700px;width:calc(100% - 40px);max-height:82vh;overflow-y:auto;
   background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:12px;
   padding:28px 28px 34px;box-shadow:0 24px 60px rgba(0,0,0,.24)}
@@ -712,13 +952,15 @@ footer{margin-top:56px;border-top:1px solid var(--line);padding-top:18px;
   .wrap{padding-left:16px;padding-right:16px}
   .mode-cards{grid-template-columns:minmax(0,1fr)}
   .filters{flex-wrap:nowrap;margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px}
-  .variant{grid-template-columns:minmax(0,1fr)}
+  .variant{grid-template-columns:minmax(0,1fr);gap:7px}
+  .variant-name{padding:0}
+  .variant-separator{width:auto;height:1px;margin-inline:16px}
   .variant .vname{min-width:0;max-width:100%;width:max-content}
   .engineering-details>summary{align-items:flex-start}
-  .todo-head{display:none}
-  .todo-item{grid-template-columns:minmax(0,1fr)}
-  .todo-method{grid-column:1}
-  .todo-state{white-space:normal}
+  .test-table{min-width:0}
+  .test-table th:first-child,.test-table td:first-child{width:42%}
+  .todo-table{min-width:940px}
+  .followups{margin-top:32px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 """
@@ -954,11 +1196,14 @@ def render_inner(model: dict, source_fn: str) -> str:
                 else f'<span class="vname">{escape(name)}</span>'
             )
             variants.append(
-                f'<div class="variant">{label}'
+                f'<div class="variant"><div class="variant-name">{label}</div>'
+                f'<div class="variant-separator" aria-hidden="true"></div>'
                 f'<div class="variant-flow">{"".join(chips)}</div></div>'
             )
+        flow_class = "flow build-flow" if flow.get("id") == "build" else "flow"
         flow_blocks.append(
-            f'<div class="flow"><h3>{escape(flow["router_heading"])}</h3>'
+            f'<div class="{flow_class}" data-flow="{escape(flow["id"])}">'
+            f'<h3>{escape(flow["router_heading"])}</h3>'
             f'<p class="intent">{escape(flow["intent"])}</p>{"".join(variants)}</div>'
         )
 
@@ -991,26 +1236,46 @@ def render_inner(model: dict, source_fn: str) -> str:
             f'<td>{escape(", ".join(required)) if required else "—"}</td></tr>'
         )
 
+    def report_row(copy: dict[str, str], summary: str) -> str:
+        report = copy.get("report", "").strip()
+        if not report:
+            return ""
+        return (
+            f'<tr class="report-row"><td colspan="4">'
+            f'<details class="row-report"><summary>{escape(summary)}</summary>'
+            f'<div class="report-body">{report}</div></details></td></tr>'
+        )
+
+    done_rows = []
+    for done in supported_evidence(model["evidence_map"]):
+        done_rows.append(
+            f'<tr class="done">'
+            f'<td class="done-task"><strong>{escape(done["task"])}</strong>'
+            f'<p class="done-question">{escape(done["question"])}</p></td>'
+            f'<td class="done-result">{escape(done["result"])}</td>'
+            f'<td class="done-method-cell"><p class="done-method">{escape(done["method"])}</p></td>'
+            f'<td class="done-status">{escape(done["status"])}</td></tr>'
+            + report_row(done, "展開完整 eval 報告")
+        )
+
     todo_rows = []
     for todo in claim_todos(model["claim_limits"]):
         todo_rows.append(
-            f'<article class="limit todo-item">'
-            f'<div class="todo-main"><h3>{escape(todo["task"])}</h3>'
-            f'<p class="todo-question">{escape(todo["question"])}</p></div>'
-            f'<div class="todo-completion"><span class="todo-label">完成後可以回答</span>'
-            f'<p class="todo-result">{escape(todo["result"])}</p></div>'
-            f'<div class="todo-state"><span class="todo-label">目前狀態</span>'
-            f'{escape(todo["status"])}</div>'
-            f'<details class="todo-method"><summary>技術驗證方法</summary>'
-            f'<p>{escape(todo["method"])}</p></details></article>'
+            f'<tr class="limit">'
+            f'<td class="todo-task"><strong>{escape(todo["task"])}</strong>'
+            f'<p class="todo-question">{escape(todo["question"])}</p></td>'
+            f'<td class="todo-result">{escape(todo["result"])}</td>'
+            f'<td class="todo-method-cell"><p class="todo-method">{escape(todo["method"])}</p></td>'
+            f'<td class="todo-status">{escape(todo["status"])}</td></tr>'
+            + report_row(todo, "展開目前進度的完整紀錄")
         )
 
-    roster_groups: dict[str, list[str]] = {}
+    roster_groups: dict[str, list[dict[str, str]]] = {}
     for entry in model["tests"]["roster"]:
         bucket = "python 分層" if entry["kind"] == "layer" else (
             "bootstrap suites" if "/bootstrap/" in entry["name"] else "top-level suites"
         )
-        roster_groups.setdefault(bucket, []).append(entry["name"])
+        roster_groups.setdefault(bucket, []).append(entry)
 
     profile_labels = {
         "core": "核心 core",
@@ -1109,12 +1374,20 @@ def render_inner(model: dict, source_fn: str) -> str:
 <p class="note">工作完成不等於已交付。每個狀態要求對應形狀的證據；形狀檢查不證明外部核可或部署真的發生過。</p>
 
 <h2>驗證</h2>
+<p class="note">以下列出本頁公開 verification roster 的每一個 test，說明它實際檢查的邊界；單一入口仍是 <code>bash tests/verify.sh</code>。</p>
 <div class="rosterwrap">
 {"".join(
-    f'<div class="stage"><h4>{escape(group)} · {len(names)}</h4>'
-    + "".join(f'<div class="mono" style="color:var(--ink)">{escape(n)}</div>' for n in sorted(names))
+    f'<div class="stage"><h4>{escape(group)} · {len(entries)}</h4>'
+    f'<div class="test-table-wrap"><table class="test-table"><thead>'
+    f'<tr><th>test</th><th>它在做什麼</th></tr></thead><tbody>'
+    + "".join(
+        f'<tr><td><code>{escape(entry["name"])}</code></td>'
+        f'<td>{escape(entry["description"])}</td></tr>'
+        for entry in sorted(entries, key=lambda item: item["name"])
+    )
+    + "</tbody></table></div>"
     + "</div>"
-    for group, names in sorted(roster_groups.items())
+    for group, entries in sorted(roster_groups.items())
 )}
 </div>
 <p class="note">單一入口 <code>bash tests/verify.sh</code>，共 {len(model["tests"]["roster"])} 條。
@@ -1122,12 +1395,21 @@ def render_inner(model: dict, source_fn: str) -> str:
 </div>
 </details><!-- engineering-details -->
 
+<section class="followups evidence-done" aria-label="已完成的實驗證據">
+<h2>已完成的實驗證據</h2>
+<p class="todo-baseline">上方「驗證」是每次都會重跑的確定性檢查。這一節列的是已經用實驗回答的問題：每一項都附上完整報告，原始 session 紀錄與重播腳本保存在開發 repo 的 work item，不隨公開頁面發布。</p>
+<div class="todo-table-wrap">
+  <table class="todo-table done-table"><thead><tr><th>已完成的驗證</th><th>結果</th><th>怎麼重播</th><th>狀態</th></tr></thead>
+  <tbody>{"".join(done_rows)}</tbody></table>
+</div>
+</section>
+
 <section class="followups" aria-label="待處理事項">
 <h2>待處理事項</h2>
-<p class="todo-baseline"><strong>已完成：</strong>在目前測試版本中，需求文件、計畫、安裝組合、工具轉接與發布規則彼此一致。這項自動檢查只證明規則沒有互相矛盾；以下五項仍需用實驗回答實際成本、品質與團隊效果。</p>
-<div class="todo-list">
-  <div class="todo-head" aria-hidden="true"><span>要回答的問題</span><span>完成後可以回答</span><span>目前狀態</span></div>
-  {"".join(todo_rows)}
+<p class="todo-baseline"><strong>已完成：</strong>在目前測試版本中，需求文件、計畫、安裝組合、工具轉接與發布規則彼此一致；這項自動檢查只證明規則沒有互相矛盾。token 成本基線與無洩漏盲評的實驗證據在上一節。剩下這兩項，還需要更多實驗才能回答。</p>
+<div class="todo-table-wrap">
+  <table class="todo-table"><thead><tr><th>待處理事項</th><th>完成後可以回答</th><th>技術驗證方法</th><th>目前狀態</th></tr></thead>
+  <tbody>{"".join(todo_rows)}</tbody></table>
 </div>
 </section>
 

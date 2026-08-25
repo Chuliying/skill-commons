@@ -5,7 +5,7 @@ requirements, Spec, Plan, implementation state, verification evidence, and deliv
 authorization in Git so developers, Claude Code, Codex, and Cursor resume from the same
 latest work state.
 
-[zh-TW](README.md) · [Quick Start](#quick-start) · [References](#references)
+[zh-TW](README.md) · [Interactive Repo Map](https://skill-commons-map.vercel.app) · [Quick Start](#quick-start) · [References](#references)
 
 ## Scope
 

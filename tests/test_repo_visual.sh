@@ -318,45 +318,158 @@ if "<h2>還沒被證明的事</h2>" in text:
     problems.append("negative-heading-remains")
 if "5 項未達 supported" in text:
     problems.append("negative-summary-remains")
-if section.count('<article class="limit todo-item">') != 5:
-    problems.append("todo-count-is-not-five")
+if section.count('<tr class="limit">') != 2:
+    problems.append("todo-count-is-not-two")
+if '<table class="todo-table">' not in section:
+    problems.append("todo-table-missing")
+if '<div class="todo-list">' in section or '<article class="limit todo-item">' in section:
+    problems.append("todo-still-card-layout")
+for heading in ("待處理事項", "完成後可以回答", "技術驗證方法", "目前狀態"):
+    if heading not in section:
+        problems.append(f"todo-column-missing-{heading}")
 if "已完成" not in section or "只證明規則沒有互相矛盾" not in section:
     problems.append("supported-baseline-missing")
 if "支持" in section:
     problems.append("mainland-support-term-remains")
 for reader_handle in (
-    "會增加多少模型輸入量",
-    "是否認為其中一種流程更好用、品質更高",
-    "是否有穩定勝出的方案",
     "是否能更快繼續、減少重做",
     "是否交付更快、重工更少",
 ):
     if reader_handle not in section:
         problems.append(f"missing-reader-question-{reader_handle}")
-if section.count('class="todo-question"') != 5:
+if section.count('class="todo-question"') != 2:
     problems.append("reader-question-count")
-if section.count('class="todo-result"') != 5:
+if section.count('class="todo-result"') != 2:
     problems.append("reader-result-count")
-if section.count('<details class="todo-method">') != 5:
-    problems.append("method-disclosure-count")
-methods = " ".join(re.findall(r'<details class="todo-method">(.*?)</details>', section, re.DOTALL))
+if section.count('class="todo-method"') != 2:
+    problems.append("method-count")
+if '<details class="todo-method">' in section or '<summary>展開技術驗證方法</summary>' in section:
+    problems.append("method-still-collapsible")
+methods = " ".join(re.findall(r'<p class="todo-method">(.*?)</p>', section, re.DOTALL))
 for method_handle in (
-    "可重播的 raw artifacts",
     "matched handoff experiment",
     "matched team study",
 ):
     if method_handle not in methods:
         problems.append(f"missing-method-handle-{method_handle}")
-primary = re.sub(r'<details class="todo-method">.*?</details>', '', section, flags=re.DOTALL)
+primary = " ".join(re.findall(r'<td class="todo-(?:task|result|status)">.*?</td>', section, re.DOTALL))
 for jargon in ("arm identity", "packets", "rubric", "Luna-high", "matched handoff", "matched team"):
     if jargon in primary:
         problems.append(f"jargon-in-primary-copy-{jargon.replace(' ', '-')}")
-if '<table class="todo-table">' in section:
-    problems.append("todo-still-a-table")
 print(" ".join(problems))
 EOF
 )"
   assert_eq "" "$todo_probe" "follow-ups separate plain outcomes from technical replay methods"
+
+  # Completed experiment evidence is presented on the page, not only removed
+  # from the follow-up list, and never leaks private work-item paths.
+  done_probe="$(cd "$REPO/docs" && python3 - <<'EOF'
+from pathlib import Path
+
+text = Path("repo-visual.html").read_text(encoding="utf-8")
+problems = []
+title = "<h2>已完成的實驗證據</h2>"
+if title not in text:
+    problems.append("missing-done-title")
+    section = ""
+else:
+    section = text[text.index(title):text.index("<h2>待處理事項</h2>")]
+if section.count('<tr class="done">') != 2:
+    problems.append("done-count-is-not-two")
+if '<table class="todo-table done-table">' not in section:
+    problems.append("done-table-missing")
+for handle in (
+    "會增加多少模型輸入量",
+    "是否認為其中一種流程品質更高",
+    "17.2%",
+    "描述性證據",
+    "已有可重播證據",
+    "零模型驗證器",
+):
+    if handle not in section:
+        problems.append(f"missing-done-handle-{handle}")
+# Each completed row carries its full inline eval report; the pending rows
+# carry their progress records. Reports must not name private paths.
+if section.count("展開完整 eval 報告") != 2:
+    problems.append("done-report-count")
+followups = text[text.index("<h2>待處理事項</h2>"):text.index("<footer>")]
+if followups.count("展開目前進度的完整紀錄") != 2:
+    problems.append("todo-report-count")
+for report_handle in ("Attempt 歷史", "固定條件", "已完成的 pilot", "已預先註冊的研究方案"):
+    if report_handle not in section + followups:
+        problems.append(f"missing-report-handle-{report_handle}")
+if "docs/work" in section or "docs/work" in followups:
+    problems.append("done-section-leaks-private-path")
+print(" ".join(problems))
+EOF
+)"
+  assert_eq "" "$done_probe" "completed experiment evidence is presented without private paths"
+
+  test_catalog_probe="$(cd "$REPO/docs" && python3 - <<'EOF'
+import json
+import re
+from pathlib import Path
+
+text = Path("repo-visual.html").read_text(encoding="utf-8")
+model = json.loads(
+    re.search(r'<script id="model" type="application/json">(.*?)</script>', text, re.DOTALL)
+    .group(1)
+    .replace("\\u003c", "<")
+)
+start = text.find("<h2>驗證</h2>")
+end = text.find("</details><!-- engineering-details -->")
+section = text[start:end]
+problems = []
+if section.count('class="test-table"') != 3:
+    problems.append("test-catalog-group-count")
+if ".rosterwrap{display:grid;gap:11px;grid-template-columns:minmax(0,1fr)}" not in text:
+    problems.append("test-catalog-groups-still-split-horizontally")
+if ".test-table{min-width:0;table-layout:fixed}" not in text:
+    problems.append("test-catalog-description-column-can-overflow")
+for entry in model["tests"]["roster"]:
+    if not entry.get("description"):
+        problems.append(f"missing-description-{entry['name']}")
+    elif entry["description"] not in section:
+        problems.append(f"description-not-rendered-{entry['name']}")
+print(" ".join(problems))
+EOF
+)"
+  assert_eq "" "$test_catalog_probe" "verification catalog explains every public test"
+
+  build_probe="$(cd "$REPO/docs" && python3 - <<'EOF'
+import re
+from pathlib import Path
+
+text = Path("repo-visual.html").read_text(encoding="utf-8")
+problems = []
+if '<div class="flow build-flow" data-flow="build">' not in text:
+    problems.append("build-flow-class-missing")
+if '<div class="variant"><div class="variant-name"><span class="vname chip" data-mode="team-feature"' not in text:
+    problems.append("team-feature-unit-label-missing")
+if '<div class="variant"><div class="variant-name"><span class="vname chip" data-mode="team-feature"' in text and '<div class="variant-flow"><span class="chip" data-skill="prd-interview"' not in text:
+    problems.append("team-feature-following-flow-not-separated")
+if not re.search(r'<div class="variant-separator"[^>]*></div>', text):
+    problems.append("unit-separator-missing")
+if "margin-inline:16px" not in text:
+    problems.append("unit-separator-not-mx-4")
+if ".flow.build-flow{background:var(--build-bg)" not in text:
+    problems.append("build-flow-dark-token-missing")
+if "--build-bg:#" not in text:
+    problems.append("build-palette-missing")
+if "border-left:4px solid var(--build-accent)" in text:
+    problems.append("build-flow-accent-edge-remains")
+if ".flow.build-flow h3{display:inline-block;background:#000;color:#fff" in text:
+    problems.append("build-heading-still-black")
+if ".flow.build-flow .variant .vname.chip{background:#000;border-color:#fff;color:#fff" not in text:
+    problems.append("build-unit-label-white-border-missing")
+if ".todo-table tr.limit td{background:var(--panel)}" not in text:
+    problems.append("todo-red-background-remains")
+if '<details class="todo-method">' in text:
+    problems.append("todo-method-is-collapsible")
+print(" ".join(problems))
+EOF
+)"
+  assert_eq "" "$build_probe" "build flow has a distinct dark visual treatment"
 
   # The long catalogue and contract rosters remain one disclosure away without
   # competing with the overview.  The follow-up section stays outside it.
@@ -483,10 +596,10 @@ if ".filters{flex-wrap:nowrap" not in mobile:
     problems.append("mobile-lens-still-wraps")
 if "scroll-margin-top" not in css:
     problems.append("headings-have-no-sticky-offset")
-if ".todo-item{grid-template-columns:minmax(0,1fr)}" not in mobile:
-    problems.append("mobile-followups-not-single-column")
-if ".todo-method{grid-column:1}" not in mobile:
-    problems.append("mobile-method-not-contained")
+if ".todo-table{min-width:940px}" not in mobile:
+    problems.append("mobile-followups-not-scrollable-table")
+if ".todo-table-wrap{overflow-x:auto" not in css:
+    problems.append("mobile-followups-wrapper-not-scrollable")
 print(" ".join(problems))
 EOF
 )"
@@ -524,11 +637,13 @@ flow_count = len(re.findall(r'class="variant-flow"', text))
 problems = []
 if flow_count != variant_count:
     problems.append(f"variant-flow-count={flow_count}/{variant_count}")
-if not re.search(r'<div class="variant"><span class="vname(?: chip)?"[^>]*>.*?</span><div class="variant-flow">', text):
+if not re.search(r'<div class="variant"><div class="variant-name"><span class="vname(?: chip)?"[^>]*>.*?</span></div><div class="variant-separator"[^>]*></div><div class="variant-flow">', text):
     problems.append("name-and-flow-not-separated")
-if ".variant{display:grid;" not in text or ".variant-flow{display:flex;" not in text:
+if ".variant{display:grid;" not in text or ".variant-separator{" not in text or ".variant-flow{display:flex;" not in text:
     problems.append("desktop-regions-not-explicit")
-if "@media (max-width:640px){" not in text or ".variant{grid-template-columns:minmax(0,1fr)}" not in text:
+if not re.search(r"\.variant \.vname\{[^}]*white-space:nowrap", text):
+    problems.append("unit-label-can-wrap")
+if "@media (max-width:640px){" not in text or not re.search(r"\.variant\{grid-template-columns:minmax\(0,1fr\);gap:7px\}", text):
     problems.append("mobile-name-row-not-explicit")
 print(" ".join(problems))
 EOF

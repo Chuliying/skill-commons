@@ -8,11 +8,10 @@ product value. A green structural test supports only the contract it executes.
 | Question | Current evidence | Status |
 |---|---|---|
 | Do artifact, Plan, profile, adapter, and release contracts agree? | Deterministic repository suites | Supported for the tested revision |
-| What is the input-token cost of loading workflow guidance? | Historical eight-case A/B/C narrative; raw private run artifacts unavailable | Unverified until original evidence is recovered or rerun |
-| Did the historical blind scorer establish quality or usability gains? | Packets leaked arm identity | Unsupported; scores compromised |
-| Did the repaired Luna-high blind scoring establish a quality winner? | Historical audit/scoring narrative; raw private run artifacts unavailable | No; the narrative is mixed and cannot be independently replayed |
-| Can another tool cold-start and continue with less rework? | No matched handoff experiment yet | Unmeasured |
-| Does the bundle improve team throughput or human usability? | No matched team study | Unmeasured |
+| What is the input-token cost of loading workflow guidance? | 2026-08-24 replayable A/B/C rerun: 27 metered sessions at a fixed revision on claude-haiku-4-5; raw session JSON and ledgers preserved in the development repository | Supported for the tested revision and model: all-preload +17.2% uncached input vs no payload; router-first +0.3% on means, a ≈+13% median premium in the paired view |
+| Does leak-free blind scoring show a quality winner between the arms? | 2026-08-24 repaired 1/8/1 protocol rerun: structural blindness, frozen packet hashes, zero-model post-run validation | Supported as descriptive evidence only: all-preload won rank and rubric in the tested corpus; not a general quality effect |
+| Can another tool cold-start and continue with less rework? | Matched handoff instrument built and piloted 2026-08-24, n=1 per arm; no protocol benefit observable at micro-task scale | Unmeasured beyond the pilot; needs matched pairs on context-heavy tasks |
+| Does the bundle improve team throughput or human usability? | Pre-registered matched team study protocol designed 2026-08-24; no data collected | Unmeasured until a consenting team runs the protocol |
 
 ## Deterministic repository verification
 
@@ -26,6 +25,57 @@ with zero failures. That proves the checked repository contracts agreed at that
 checkpoint. It does not measure developer time, rework, model quality, or cross-tool
 handoff success. Release candidates rerun `PROFILE=all bash bootstrap/generate.sh` and
 `bash tests/verify.sh`; historical counts never replace fresh output.
+
+## 2026-08-24 evidence reruns
+
+Rather than recovering the lost 2026-07 artifacts, the open questions were
+re-answered by fresh, fully replayable experiments recorded in the development
+repository's `eval-evidence-rerun` work item (harness, raw session JSON,
+ledgers, frozen manifests, and reports). All runs used the `claude` CLI
+headless with full token metering at repository revision `c6015d1`.
+
+- **Token cost (A/B/C rerun)**: 8 cases mirroring the historical taxonomy,
+  three arms (A no payload; B preload router+brainstorming+plan-sync; C router
+  only with conditional in-workspace reads), 27 `claude-haiku-4-5` sessions
+  including one documented amendment (a turn-cap failure rerun as a complete
+  case). On uncached input tokens, B costs **+17.2%** vs A while C costs
+  **+0.3%** vs A (−14.4% vs B) on means — the same direction as the
+  unreplayable 2026-07 narrative. The paired view tempers the C result: C sits
+  above A in 6 of 8 cases with a ≈+13% median premium; the near-zero mean
+  traces to a single A-arm outlier. Total-input differences are turn-count
+  dominated and unstable at n=8. Session cost USD 2.62.
+- **Blind scoring (repaired 1/8/1 protocol)**: anonymized X/Y/Z packets with
+  neutral path sanitization, a zero-model leak gate, and hashes frozen before
+  any session; 1 packet audit, 8 tool-less single-packet scorers, zero-model
+  aggregation, then 1 adversarial review restricted to pre-launch facts, with
+  session accounting verified by an external zero-model validator instead of
+  any model's self-attestation. Two early attempts were aborted fail-closed by
+  the packet audit (execution-path leaks — the exact historical failure mode —
+  then a self-describing redaction placeholder); one attempt lost a scorer to a
+  turn cap and was recorded incomplete. The completed attempt: validator PASS;
+  pre-registered decision rule yields **all-preload as the descriptive winner**
+  (rubric 31/32, mean rank 1.75 vs 2.125/2.125). The adversarial reviewer
+  returned fail after misreading a 64-character frozen hash as 66 characters;
+  its verdict is preserved unedited, and the deterministic recomputation that
+  contradicts it is exactly the external-validator architecture this protocol
+  exists to provide. Descriptive evidence only: one scorer session per case,
+  one model pair. 22 sessions across attempts, USD 2.96 actually spent (the
+  ledgers first recorded 2.67 because failed sessions' costs were skipped;
+  the harness now records them).
+- **Cold-start handoff**: the matched experiment described below now exists as
+  a replayable instrument and ran one pilot pair (protocol arm vs control) on
+  a three-criterion task with a mid-stream spec change. Both successors
+  finished correctly; the protocol arm showed no benefit at this micro-task
+  scale and its predecessor under-complied with the plan contract. n=1 per
+  arm measures nothing general; the instrument and its next-iteration
+  requirements are recorded in the work item.
+- **Team study**: cannot be produced by a machine experiment; a pre-registered
+  protocol (metrics, matched crossover design, decision rules, threats) is
+  written and awaits a consenting team.
+
+Notable tension to carry into any future claim: the arm that won the blind
+preference (all-preload) is the arm with the measured input-cost premium, and
+the cheapest arm (router-first) scored lowest on rubric passes in this corpus.
 
 ## Historical benchmark evidence warning
 
@@ -122,7 +172,9 @@ only facts available before its own launch.
 
 ## Product-value test still needed
 
-The next direct test is a cold-start handoff:
+The cold-start handoff instrument below was built and piloted on 2026-08-24
+(see the rerun section above); what remains is running enough matched pairs on
+context-heavy tasks to measure the effect. The design:
 
 1. Agent A creates a work item and stops.
 2. Agent B, or another supported tool, receives no chat transcript and resumes only
@@ -142,6 +194,7 @@ The v0.8 text previously said the private repository retained the benchmark hand
 completion audit, and replay analysis. Reconciliation found that statement was false:
 those files were never preserved in the available private source history. The private
 repository now retains an evidence-recovery record plus a freshly generated deterministic
-convergence surface report. `docs/work/` remains excluded from public exports. Until the
-original benchmark artifacts are recovered or a new authorized run is completed, all
-historical model-run figures in this document remain unverified narrative.
+convergence surface report. `docs/work/` remains excluded from public exports. The
+original benchmark artifacts were never recovered, so all historical model-run figures in
+this document remain unverified narrative; the 2026-08-24 reruns above replace them as
+the citable, replayable baselines for token cost and blind scoring.
