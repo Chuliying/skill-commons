@@ -33,7 +33,7 @@
 
 ### Changed
 
-- Frontend 技能入口由 87,327 縮為 25,854 bytes，移出的內容保留於七份按需讀取的
+- Frontend 技能入口由 87,327 縮為 25,855 bytes，移出的內容保留於七份按需讀取的
   references；新增 context meter。這是結構量測，不宣稱 token、品質或總時間改善。
 - Maintainer source health 會檢查三套生成入口的一致性；project-status 優先顯示
   可執行的 canonical plan 下一步，並保留 attention 與 unknown 的差異。

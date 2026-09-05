@@ -7,150 +7,166 @@
     "required_read_bytes",
     "total_with_on_demand_bytes"
   ],
+  "entry_budget_amendment": {
+    "changes": {
+      "claude-code": {
+        "current_entry_bytes": 1971,
+        "delta_bytes": 567,
+        "previous_entry_bytes": 1404
+      },
+      "codex": {
+        "current_entry_bytes": 1175,
+        "delta_bytes": 263,
+        "previous_entry_bytes": 912
+      }
+    },
+    "date": "2026-09-06",
+    "reason": "Integrate dev-main 381111e focused/release/cache instructions and explicit source/public CI explanation. Only entry bytes and their derived totals change; description/router/registry ceilings stay fixed."
+  },
   "rows": {
     "claude-code|all": {
       "descriptions_bytes": 6506,
-      "entry_bytes": 1404,
+      "entry_bytes": 1971,
       "linked_registry_bytes": 6084,
-      "required_read_bytes": 14639,
+      "required_read_bytes": 15206,
       "router_bytes": 6729,
-      "total_with_on_demand_bytes": 20723
+      "total_with_on_demand_bytes": 21290
     },
     "claude-code|personal": {
       "descriptions_bytes": 1850,
-      "entry_bytes": 1404,
+      "entry_bytes": 1971,
       "linked_registry_bytes": 6084,
-      "required_read_bytes": 9983,
+      "required_read_bytes": 10550,
       "router_bytes": 6729,
-      "total_with_on_demand_bytes": 16067
+      "total_with_on_demand_bytes": 16634
     },
     "claude-code|personal+frontend": {
       "descriptions_bytes": 2119,
-      "entry_bytes": 1404,
+      "entry_bytes": 1971,
       "linked_registry_bytes": 6084,
-      "required_read_bytes": 10252,
+      "required_read_bytes": 10819,
       "router_bytes": 6729,
-      "total_with_on_demand_bytes": 16336
+      "total_with_on_demand_bytes": 16903
     },
     "claude-code|personal+frontend+optional": {
       "descriptions_bytes": 5192,
-      "entry_bytes": 1404,
+      "entry_bytes": 1971,
       "linked_registry_bytes": 6084,
-      "required_read_bytes": 13325,
+      "required_read_bytes": 13892,
       "router_bytes": 6729,
-      "total_with_on_demand_bytes": 19409
+      "total_with_on_demand_bytes": 19976
     },
     "claude-code|personal+optional": {
       "descriptions_bytes": 4923,
-      "entry_bytes": 1404,
+      "entry_bytes": 1971,
       "linked_registry_bytes": 6084,
-      "required_read_bytes": 13056,
+      "required_read_bytes": 13623,
       "router_bytes": 6729,
-      "total_with_on_demand_bytes": 19140
+      "total_with_on_demand_bytes": 19707
     },
     "claude-code|team-sprint": {
       "descriptions_bytes": 3164,
-      "entry_bytes": 1404,
+      "entry_bytes": 1971,
       "linked_registry_bytes": 6084,
-      "required_read_bytes": 11297,
+      "required_read_bytes": 11864,
       "router_bytes": 6729,
-      "total_with_on_demand_bytes": 17381
+      "total_with_on_demand_bytes": 17948
     },
     "claude-code|team-sprint+frontend": {
       "descriptions_bytes": 3433,
-      "entry_bytes": 1404,
+      "entry_bytes": 1971,
       "linked_registry_bytes": 6084,
-      "required_read_bytes": 11566,
+      "required_read_bytes": 12133,
       "router_bytes": 6729,
-      "total_with_on_demand_bytes": 17650
+      "total_with_on_demand_bytes": 18217
     },
     "claude-code|team-sprint+frontend+optional": {
       "descriptions_bytes": 6506,
-      "entry_bytes": 1404,
+      "entry_bytes": 1971,
       "linked_registry_bytes": 6084,
-      "required_read_bytes": 14639,
+      "required_read_bytes": 15206,
       "router_bytes": 6729,
-      "total_with_on_demand_bytes": 20723
+      "total_with_on_demand_bytes": 21290
     },
     "claude-code|team-sprint+optional": {
       "descriptions_bytes": 6237,
-      "entry_bytes": 1404,
+      "entry_bytes": 1971,
       "linked_registry_bytes": 6084,
-      "required_read_bytes": 14370,
+      "required_read_bytes": 14937,
       "router_bytes": 6729,
-      "total_with_on_demand_bytes": 20454
+      "total_with_on_demand_bytes": 21021
     },
     "codex|all": {
       "descriptions_bytes": 6506,
-      "entry_bytes": 912,
+      "entry_bytes": 1175,
       "linked_registry_bytes": 6084,
-      "required_read_bytes": 14147,
+      "required_read_bytes": 14410,
       "router_bytes": 6729,
-      "total_with_on_demand_bytes": 20231
+      "total_with_on_demand_bytes": 20494
     },
     "codex|personal": {
       "descriptions_bytes": 1850,
-      "entry_bytes": 912,
+      "entry_bytes": 1175,
       "linked_registry_bytes": 6084,
-      "required_read_bytes": 9491,
+      "required_read_bytes": 9754,
       "router_bytes": 6729,
-      "total_with_on_demand_bytes": 15575
+      "total_with_on_demand_bytes": 15838
     },
     "codex|personal+frontend": {
       "descriptions_bytes": 2119,
-      "entry_bytes": 912,
+      "entry_bytes": 1175,
       "linked_registry_bytes": 6084,
-      "required_read_bytes": 9760,
+      "required_read_bytes": 10023,
       "router_bytes": 6729,
-      "total_with_on_demand_bytes": 15844
+      "total_with_on_demand_bytes": 16107
     },
     "codex|personal+frontend+optional": {
       "descriptions_bytes": 5192,
-      "entry_bytes": 912,
+      "entry_bytes": 1175,
       "linked_registry_bytes": 6084,
-      "required_read_bytes": 12833,
+      "required_read_bytes": 13096,
       "router_bytes": 6729,
-      "total_with_on_demand_bytes": 18917
+      "total_with_on_demand_bytes": 19180
     },
     "codex|personal+optional": {
       "descriptions_bytes": 4923,
-      "entry_bytes": 912,
+      "entry_bytes": 1175,
       "linked_registry_bytes": 6084,
-      "required_read_bytes": 12564,
+      "required_read_bytes": 12827,
       "router_bytes": 6729,
-      "total_with_on_demand_bytes": 18648
+      "total_with_on_demand_bytes": 18911
     },
     "codex|team-sprint": {
       "descriptions_bytes": 3164,
-      "entry_bytes": 912,
+      "entry_bytes": 1175,
       "linked_registry_bytes": 6084,
-      "required_read_bytes": 10805,
+      "required_read_bytes": 11068,
       "router_bytes": 6729,
-      "total_with_on_demand_bytes": 16889
+      "total_with_on_demand_bytes": 17152
     },
     "codex|team-sprint+frontend": {
       "descriptions_bytes": 3433,
-      "entry_bytes": 912,
+      "entry_bytes": 1175,
       "linked_registry_bytes": 6084,
-      "required_read_bytes": 11074,
+      "required_read_bytes": 11337,
       "router_bytes": 6729,
-      "total_with_on_demand_bytes": 17158
+      "total_with_on_demand_bytes": 17421
     },
     "codex|team-sprint+frontend+optional": {
       "descriptions_bytes": 6506,
-      "entry_bytes": 912,
+      "entry_bytes": 1175,
       "linked_registry_bytes": 6084,
-      "required_read_bytes": 14147,
+      "required_read_bytes": 14410,
       "router_bytes": 6729,
-      "total_with_on_demand_bytes": 20231
+      "total_with_on_demand_bytes": 20494
     },
     "codex|team-sprint+optional": {
       "descriptions_bytes": 6237,
-      "entry_bytes": 912,
+      "entry_bytes": 1175,
       "linked_registry_bytes": 6084,
-      "required_read_bytes": 13878,
+      "required_read_bytes": 14141,
       "router_bytes": 6729,
-      "total_with_on_demand_bytes": 19962
+      "total_with_on_demand_bytes": 20225
     },
     "cursor|all": {
       "descriptions_bytes": 0,
