@@ -59,6 +59,16 @@ summarized in [Discovery and planning](docs/discovery-and-planning.md).
 | `humanizer` (ext) | Revise prose while preserving meaning and disclosure requirements |
 | `reducing-entropy` (ext) | Manual-only deletion/consolidation pass measured by final code surface |
 
+`sync-work` also offers an opt-in [pre-PR brief](sync-work/references/pre-pr-brief.md)
+that reuses or establishes a project overview, marks the current PR as a chapter
+on the project roadmap, and provides an answerable understanding test with scoring
+and explanations. Before push/PR, AI offers this flow once and runs it only after
+opt-in; existing enable/skip choices persist. It remains a subordinate optional
+flow without an additional capability pack, lifecycle stage, or delivery gate.
+Conditional resources cover [source grounding and online previews](sync-work/references/grounded-overview.md),
+an adaptable [template](sync-work/assets/project-brief-template.md), and
+[maintainer eval cases](sync-work/references/pre-pr-brief-evals.md).
+
 ## Router flows
 
 ```text

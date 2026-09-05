@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  verify-source:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -25,14 +25,23 @@ jobs:
         run: PROFILE=all bash bootstrap/generate.sh
 
       - name: Verify repository (canonical runner; discovers every suite)
-        # CI is the authoritative gate, so it never reuses a cached payload-check
-        # verdict. The cache is a local developer convenience only.
-        env:
-          SKILL_COMMONS_VERIFY_NO_CACHE: "1"
-        run: bash tests/verify.sh
+        run: bash tests/verify.sh --release --scope source
 
       - name: Lint documentation
         run: bash scripts/lint-docs.sh
+
+  verify-public:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Verify fresh clean-public payload
+        # The entry exports the current checkout, generates adapters, creates a
+        # temporary local commit, and runs the public payload with source scope.
+        # The default public entry always runs fresh.
+        run: bash tests/verify-public.sh
 
   bash-32-compat:
     runs-on: macos-latest

@@ -224,9 +224,9 @@ sprints，收滿 6 個團隊或滿一季就停。</p>
 # this map keyed by the roster's stable names so adding a test without a plain-
 # language explanation fails closed during rendering.
 TEST_DESCRIPTIONS = {
-    "unit": "執行 tests/py/unit，驗證 foundation schema、graph、factory 等基礎單元行為。",
-    "integration": "執行 tests/py/integration，驗證 foundation、orchestration、bootstrap 與跨模組契約整合。",
-    "e2e": "執行 tests/py/e2e，驗證完整 journey、consumer convergence 與 CLI 端到端流程。",
+    "unit": "執行 tests/py/unit，驗證 factory、corpus 與 timing 等保留的測試基礎行為。",
+    "integration": "執行 tests/py/integration，驗證 verify runner 與 coverage roster 等保留的契約整合。",
+    "e2e": "執行 tests/py/e2e，驗證 proof-of-use 的完整公開測試流程。",
     "tests/test_artifact_contract.sh": "檢查 work-item/v3 artifact 契約、必要檔案、狀態與真實 Git workspace 邊界。",
     "tests/test_brainstorming.sh": "檢查 brainstorming 的 discovery、research/wayfinding 條件與 router、README、文件引用一致性。",
     "tests/test_gate_automation.sh": "用 fixture 驗證 PRD、QA、Gate 與 secret scan 等自動 gate 的通過、拒絕與 fail-closed 行為。",
@@ -236,10 +236,11 @@ TEST_DESCRIPTIONS = {
     "tests/test_project_status.sh": "用 fixtures 驗證 project-status 對 work item、bootstrap、ambiguity 與 focus 的狀態判定。",
     "tests/test_protocol_registry.sh": "檢查 protocol-registry schema、execution mode、artifact、gate 與 release evidence 契約。",
     "tests/test_release_baseline.sh": "檢查 release baseline 的必要檔案、公開邊界、版本與歷史對齊條件。",
-    "tests/test_release_convergence.sh": "檢查已淘汰 skill 是否移除，並驗證 implement、grilling、review、sync-work 的責任收斂。",
+    "tests/test_release_convergence.sh": "檢查已淘汰 skill 是否移除，驗證 implement、grilling、review、sync-work 的責任收斂與 public export boundary。",
     "tests/test_repo_map.sh": "驗證 codebase-understanding 的 repo map 在 fixtures 上能建圖，並處理 root、ignore、cycle 等邊界。",
     "tests/test_repo_visual.sh": "驗證本頁的 model、flow drift、生成 parity、responsive、interaction、privacy 與 source variants。",
-    "tests/test_skills_reorg.sh": "驗證 public export、generated fan-out、文件結構與 deterministic cache 的完整性。",
+    "tests/test_skills_reorg.sh": "驗證 public export、generated fan-out 與文件結構的完整性。",
+    "tests/test_context_budget.sh": "驗證 context budget meter、ratchet 與 lossless frontend disclosure 的結構邊界。",
     "tests/test_work_items.sh": "用 fixture 驗證 work-items metadata、stage、delivery evidence、documentation impact 與狀態檢查。",
     "tests/bootstrap/test_check.sh": "驗證 bootstrap check 在 claude-code、codex 等平台對健康狀態、directive 與 drift 的回報。",
     "tests/bootstrap/test_e2e.sh": "在臨時 consuming project 執行 onboard 到 check 全流程，並確認 stamp drift 可被修復。",
@@ -306,6 +307,26 @@ def package_dirs(root: Path) -> list[Path]:
         and path.name not in NON_SKILL_DIRS
         and (path / "__init__.py").is_file()
     )
+
+
+def export_ignored(root: Path, paths: list[str]) -> set[str]:
+    """Return paths marked ``export-ignore`` by the worktree attributes."""
+    if not paths:
+        return set()
+    attrs = subprocess.run(
+        ["git", "check-attr", "export-ignore", "--", *paths],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+    if attrs.returncode != 0:
+        raise SystemExit(f"git check-attr export-ignore failed: {attrs.stderr.strip()}")
+    ignored: set[str] = set()
+    for line in attrs.stdout.splitlines():
+        path, _, value = line.rpartition(": export-ignore: ")
+        if value == "set":
+            ignored.add(path)
+    return ignored
 
 
 def resolve_profile(root: Path, name: str, depth: int = 0) -> list[str]:
@@ -424,19 +445,7 @@ def roster(root: Path) -> list[dict[str, str]]:
     # Ask Git for the one authoritative public/private boundary instead of
     # duplicating the export-ignore roster here.
     suites = [entry["name"] for entry in entries if entry["kind"] == "suite"]
-    attrs = subprocess.run(
-        ["git", "check-attr", "export-ignore", "--", *suites],
-        cwd=root,
-        capture_output=True,
-        text=True,
-    )
-    if attrs.returncode != 0:
-        raise SystemExit(f"git check-attr export-ignore failed: {attrs.stderr.strip()}")
-    ignored = {
-        line.rsplit(": ", 1)[0].split(": export-ignore", 1)[0]
-        for line in attrs.stdout.splitlines()
-        if line.endswith(": set")
-    }
+    ignored = export_ignored(root, suites)
     public_entries = [
         entry
         for entry in entries
@@ -519,6 +528,8 @@ def build_model(root: Path) -> dict:
             }
         )
 
+    package_paths = [f"{path.name}/__init__.py" for path in package_dirs(root)]
+    ignored_packages = export_ignored(root, package_paths)
     packages = [
         {
             "name": path.name,
@@ -526,6 +537,7 @@ def build_model(root: Path) -> dict:
             "modules": len(sorted(path.glob("*.py"))),
         }
         for path in package_dirs(root)
+        if f"{path.name}/__init__.py" not in ignored_packages
     ]
 
     evidence = evidence_map(root)

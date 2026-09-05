@@ -22,13 +22,13 @@ The adapters are intentionally different:
 | Codex | `.codex/skills/`, `AGENTS.md` |
 | Cursor | `.cursor/rules/skill-commons.mdc`, `AGENTS.md`; no skill fan-out |
 
-## Install v0.10.0
+## Install v0.11.0
 
 Pin the published tag:
 
 ```bash
 git submodule add git@github.com:Chuliying/skill-commons.git .agent/skills/_shared
-git -C .agent/skills/_shared checkout v0.10.0
+git -C .agent/skills/_shared checkout v0.11.0
 
 mkdir -p .agent
 cp .agent/skills/_shared/shared-skill-onboarder/templates/project-manifest.md \
@@ -123,7 +123,7 @@ fetch, select, or checkout refs:
 
 ```bash
 git -C .agent/skills/_shared fetch --tags
-git -C .agent/skills/_shared checkout v0.10.0
+git -C .agent/skills/_shared checkout v0.11.0
 bash .agent/skills/_shared/bootstrap/manage.sh update
 bash .agent/skills/_shared/bootstrap/manage.sh doctor
 ```

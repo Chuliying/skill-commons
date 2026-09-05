@@ -7,56 +7,6 @@ HASH2="$(mktemp)"
 trap 'rm -rf "$TMP"; rm -f "$HASH1" "$HASH2"' EXIT
 . "$REPO/tests/bootstrap/lib/assert.sh"
 
-# Identity of an exported payload: every file path, its content, its exec bit,
-# and the toolchain that would run the suite. The nested payload check's verdict
-# is a function of exactly that pair, so a recorded pass stays valid until one of
-# them moves. Any read failure prints nothing, and callers treat empty as a miss,
-# so the cache can only ever skip work it has positive evidence for.
-toolchain_identity() {
-  if [ -n "${TOOLCHAIN_ID_OVERRIDE:-}" ]; then
-    printf '%s' "$TOOLCHAIN_ID_OVERRIDE"
-    return 0
-  fi
-  printf 'bash=%s python3=%s uname=%s' \
-    "${BASH_VERSION:-none}" \
-    "$(python3 --version 2>&1 || echo none)" \
-    "$(uname -sm 2>/dev/null || echo none)"
-}
-
-payload_identity() { # <dir> -> digest on stdout, empty when unreadable
-  [ -d "${1:-}" ] || return 0
-  (
-    cd "$1" 2>/dev/null || exit 0
-    {
-      find . -path ./.git -prune -o -type f -exec shasum -a 256 {} + 2>/dev/null \
-        | LC_ALL=C sort
-      echo "--exec--"
-      find . -path ./.git -prune -o -type f -perm -u+x -print 2>/dev/null \
-        | LC_ALL=C sort
-      echo "--toolchain--"
-      toolchain_identity
-    } | shasum -a 256 | cut -d' ' -f1
-  )
-}
-
-payload_cache_state() { # <dir> <cache-file> -> hit|miss
-  if [ "${SKILL_COMMONS_VERIFY_NO_CACHE:-0}" = "1" ]; then
-    echo miss
-    return 0
-  fi
-  cache_probe_id="$(payload_identity "${1:-}")"
-  if [ -z "$cache_probe_id" ] || [ ! -f "${2:-}" ]; then
-    echo miss
-    return 0
-  fi
-  cache_probe_recorded="$(tr -d '[:space:]' <"$2" 2>/dev/null || true)"
-  if [ "$cache_probe_recorded" = "$cache_probe_id" ]; then
-    echo hit
-  else
-    echo miss
-  fi
-}
-
 active_names() {
   find "$REPO" -mindepth 2 -maxdepth 2 -type f -name SKILL.md \
     -not -path "$REPO/_archive/*" \
@@ -74,7 +24,10 @@ $REPO/verification-before-completion/scripts/verify.sh
 $REPO/qa/scripts/run-qa.sh
 $REPO/scripts/run-gate.sh
 $REPO/scripts/manifest-stack.sh
-$REPO/scripts/export-public.sh"
+$REPO/scripts/export-public.sh
+$REPO/tests/verify.sh
+$REPO/tests/verify-public.sh
+$REPO/tests/verify-release.sh"
 if printf '%s\n' "$changed_shells" | while IFS= read -r script; do
   [ -z "$script" ] || bash -n "$script" || exit 1
 done; then
@@ -720,130 +673,126 @@ else
 fi
 
 # The export payload must work as a standalone public repository: committing it
-# must keep every .gitignore even under a hostile global excludes file, and the
-# repository test suites advertised to public users must pass without any
-# private-only file. SKILL_COMMONS_PAYLOAD_CHECK=1 marks the nested run and
-# stops the recursion at depth one.
-# --- content-addressed payload-check cache ---------------------------------
-# The nested payload suite is ~486s of a ~970s run. Its verdict is a function of
-# the exported tree plus the toolchain that runs it, so an unchanged pair cannot
-# produce a different verdict. These assertions pin the identity function and the
-# fail-closed cache decision BEFORE either is relied on. Every comparison below
-# is guarded on a non-empty identity: comparing "" with "" would report ok and
-# hide a broken or missing function.
-CACHE_FIXTURE="$TMP/cache-fixture"
-CACHE_FILE="$TMP/cache-fixture.digest"
-mkdir -p "$CACHE_FIXTURE/sub"
-printf 'alpha\n' >"$CACHE_FIXTURE/a.txt"
-printf 'beta\n' >"$CACHE_FIXTURE/sub/b.sh"
-chmod +x "$CACHE_FIXTURE/sub/b.sh"
-
-id_a="$(payload_identity "$CACHE_FIXTURE" 2>/dev/null || true)"
-if [ -z "$id_a" ]; then
-  fail "payload identity returns a value (got empty; every downstream comparison skipped)"
-else
-  assert_eq "$id_a" "$(payload_identity "$CACHE_FIXTURE")" \
-    "payload identity is stable on an unchanged tree"
-
-  assert_eq "miss" \
-    "$(SKILL_COMMONS_VERIFY_NO_CACHE=0 payload_cache_state "$CACHE_FIXTURE" "$CACHE_FILE")" \
-    "absent cache is a miss, so the check runs"
-
-  printf '%s\n' "$id_a" >"$CACHE_FILE"
-  assert_eq "hit" \
-    "$(SKILL_COMMONS_VERIFY_NO_CACHE=0 payload_cache_state "$CACHE_FIXTURE" "$CACHE_FILE")" \
-    "recorded identity for the same tree is a hit"
-
-  printf 'alpha changed\n' >"$CACHE_FIXTURE/a.txt"
-  id_mut="$(payload_identity "$CACHE_FIXTURE")"
-  assert_neq "" "$id_mut" "identity stays non-empty after a content change"
-  assert_neq "$id_a" "$id_mut" "identity changes when a file's content changes"
-  assert_eq "miss" \
-    "$(SKILL_COMMONS_VERIFY_NO_CACHE=0 payload_cache_state "$CACHE_FIXTURE" "$CACHE_FILE")" \
-    "content change invalidates the cache"
-
-  printf 'alpha\n' >"$CACHE_FIXTURE/a.txt"
-  assert_eq "$id_a" "$(payload_identity "$CACHE_FIXTURE")" \
-    "identity returns to the recorded value once content is restored"
-
-  printf 'gamma\n' >"$CACHE_FIXTURE/sub/c.txt"
-  id_add="$(payload_identity "$CACHE_FIXTURE")"
-  assert_neq "" "$id_add" "identity stays non-empty after an addition"
-  assert_neq "$id_a" "$id_add" "identity changes when a file is added"
-  rm -f "$CACHE_FIXTURE/sub/c.txt"
-
-  chmod -x "$CACHE_FIXTURE/sub/b.sh"
-  id_mode="$(payload_identity "$CACHE_FIXTURE")"
-  assert_neq "" "$id_mode" "identity stays non-empty after an exec-bit change"
-  assert_neq "$id_a" "$id_mode" "identity changes when an exec bit changes"
-  chmod +x "$CACHE_FIXTURE/sub/b.sh"
-
-  assert_eq "miss" \
-    "$(SKILL_COMMONS_VERIFY_NO_CACHE=1 payload_cache_state "$CACHE_FIXTURE" "$CACHE_FILE")" \
-    "SKILL_COMMONS_VERIFY_NO_CACHE=1 forces the check to run"
-
-  assert_eq "miss" \
-    "$(SKILL_COMMONS_VERIFY_NO_CACHE=0 payload_cache_state "$TMP/does-not-exist" "$CACHE_FILE")" \
-    "an unreadable payload directory is a miss, not a hit"
-
-  assert_neq "$id_a" "$(TOOLCHAIN_ID_OVERRIDE=pretend-other-toolchain \
-    payload_identity "$CACHE_FIXTURE")" \
-    "identity changes when the toolchain changes"
-fi
-
-if [ "${SKILL_COMMONS_PAYLOAD_CHECK:-0}" != "1" ]; then
-  PAYLOAD_HOME="$TMP/payload-home"
-  mkdir -p "$PAYLOAD_HOME"
-  printf '.gitignore\n' > "$PAYLOAD_HOME/excludes"
-  cat > "$PAYLOAD_HOME/gitconfig" <<EOF
+# must keep every .gitignore even under a hostile global excludes file.  The
+# complete public execution belongs to verify-public.sh, so this leaf keeps its
+# export and commit safety checks bounded and does not invoke another full gate.
+PAYLOAD_HOME="$TMP/payload-home"
+mkdir -p "$PAYLOAD_HOME"
+printf '.gitignore\n' > "$PAYLOAD_HOME/excludes"
+cat > "$PAYLOAD_HOME/gitconfig" <<EOF
 [core]
 	excludesFile = $PAYLOAD_HOME/excludes
 [user]
 	email = payload-check@example.com
 	name = payload-check
 EOF
-  git -C "$EXPORT_TMP" init -q &&
-    env GIT_CONFIG_GLOBAL="$PAYLOAD_HOME/gitconfig" git -C "$EXPORT_TMP" add -A &&
-    env GIT_CONFIG_GLOBAL="$PAYLOAD_HOME/gitconfig" git -C "$EXPORT_TMP" commit -qm "payload check" ||
-    fail "payload check repository setup"
-  if git -C "$EXPORT_TMP" ls-files --error-unmatch \
-       .gitignore \
-       tests/fixtures/python-cli/.gitignore \
-       tests/fixtures/ts-web/.gitignore >/dev/null 2>&1; then
-    TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: payload commit keeps ignore files under hostile global excludes"
-  else
-    fail "payload commit keeps ignore files under hostile global excludes"
-  fi
-  PAYLOAD_LOG="$TMP/payload-suite.log"
-  PAYLOAD_CACHE_FILE="$REPO/.verify-cache/payload-check.digest"
-  # Read the identity BEFORE generate.sh writes the fan-out into the payload, so
-  # what gets recorded describes the exported tree and not the run's leftovers.
-  payload_id="$(payload_identity "$EXPORT_TMP")"
-  if [ "$(payload_cache_state "$EXPORT_TMP" "$PAYLOAD_CACHE_FILE")" = "hit" ]; then
-    # Deliberately not phrased as "passes": the suite did not run in this
-    # process. The claim is narrower and exactly what the digest supports.
-    TESTS_PASS=$((TESTS_PASS+1))
-    echo "  ok: payload suite verdict reused - identical payload and toolchain already passed (digest $(printf '%.12s' "$payload_id"); SKILL_COMMONS_VERIFY_NO_CACHE=1 forces a rerun)"
-  # VERIFY_ACTIVE must not leak into the payload run. The canonical runner has a
-  # re-entrancy guard for accidental nesting inside ONE tree; the payload is a
-  # separate exported tree whose suite legitimately runs its own full gate, so
-  # inheriting the flag would abort it as a false positive.
-  elif (cd "$EXPORT_TMP" &&
-      unset VERIFY_ACTIVE &&
-      PROFILE=all bash bootstrap/generate.sh &&
-      SKILL_COMMONS_PAYLOAD_CHECK=1 bash tests/run-all.sh) >"$PAYLOAD_LOG" 2>&1; then
-    TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: payload passes its complete public test suite without private files"
-    if [ -n "$payload_id" ]; then
-      mkdir -p "$(dirname "$PAYLOAD_CACHE_FILE")" &&
-        printf '%s\n' "$payload_id" >"$PAYLOAD_CACHE_FILE"
-    fi
-  else
-    fail "payload passes its complete public test suite without private files"
-    # A failure must never leave a hit behind for the next run to trust.
-    rm -f "$PAYLOAD_CACHE_FILE"
-    grep -vE '^  ok:' "$PAYLOAD_LOG" | tail -20
-  fi
+git -C "$EXPORT_TMP" init -q &&
+  env GIT_CONFIG_GLOBAL="$PAYLOAD_HOME/gitconfig" git -C "$EXPORT_TMP" add -A &&
+  env GIT_CONFIG_GLOBAL="$PAYLOAD_HOME/gitconfig" git -C "$EXPORT_TMP" commit -qm "payload check" ||
+  fail "payload check repository setup"
+if git -C "$EXPORT_TMP" ls-files --error-unmatch \
+     .gitignore \
+     tests/fixtures/python-cli/.gitignore \
+     tests/fixtures/ts-web/.gitignore >/dev/null 2>&1; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: payload commit keeps ignore files under hostile global excludes"
+else
+  fail "payload commit keeps ignore files under hostile global excludes"
 fi
+
+PUBLIC_PROBE_ROOT="$TMP/public-gate-probe"
+mkdir -p "$PUBLIC_PROBE_ROOT/scripts" "$PUBLIC_PROBE_ROOT/bootstrap" "$PUBLIC_PROBE_ROOT/tests"
+cp "$REPO/tests/verify-public.sh" "$PUBLIC_PROBE_ROOT/tests/verify-public.sh"
+chmod +x "$PUBLIC_PROBE_ROOT/tests/verify-public.sh"
+cat > "$PUBLIC_PROBE_ROOT/scripts/export-public.sh" <<'EOF'
+#!/usr/bin/env bash
+set -u
+PROBE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+TARGET="$1"
+mkdir -p "$TARGET/bootstrap" "$TARGET/tests"
+printf 'export\n' > "$TARGET/order"
+cp "$PROBE_ROOT/bootstrap/generate.sh" "$TARGET/bootstrap/generate.sh"
+cp "$PROBE_ROOT/tests/verify.sh" "$TARGET/tests/verify.sh"
+chmod +x "$TARGET/bootstrap/generate.sh" "$TARGET/tests/verify.sh"
+EOF
+cat > "$PUBLIC_PROBE_ROOT/bootstrap/generate.sh" <<'EOF'
+#!/usr/bin/env bash
+set -u
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+printf 'generate\n' >> "$ROOT/order"
+EOF
+cat > "$PUBLIC_PROBE_ROOT/tests/verify.sh" <<'EOF'
+#!/usr/bin/env bash
+set -u
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+if [ "$#" -ne 2 ] || [ "$1" != "--scope" ] || [ "$2" != "source" ]; then
+  printf 'wrong scope: %s\n' "$*" >&2
+  exit 8
+fi
+printf 'verify\n' >> "$ROOT/order"
+printf 'probe stdout\n'
+printf 'probe stderr\n' >&2
+if [ "${FAKE_PUBLIC_FAIL:-0}" = "1" ]; then
+  exit 9
+fi
+printf 'SUMMARY entries=1 errors=0 failures=0 scope=source\n'
+EOF
+chmod +x "$PUBLIC_PROBE_ROOT/scripts/export-public.sh" "$PUBLIC_PROBE_ROOT/bootstrap/generate.sh" "$PUBLIC_PROBE_ROOT/tests/verify.sh"
+PUBLIC_SUCCESS_LOG="$TMP/public-gate-success.log"
+if VERIFY_PUBLIC_KEEP=1 bash "$PUBLIC_PROBE_ROOT/tests/verify-public.sh" >"$PUBLIC_SUCCESS_LOG" 2>&1 &&
+   grep -q 'PUBLIC_GATE scope=public' "$PUBLIC_SUCCESS_LOG" &&
+   grep -q 'SUMMARY entries=1 errors=0 failures=0 scope=source' "$PUBLIC_SUCCESS_LOG"; then
+  PUBLIC_SUCCESS_DIR="$(sed -n 's/^PUBLIC_LOGS dir=\([^ ]*\).*/\1/p' "$PUBLIC_SUCCESS_LOG")"
+  if [ -n "$PUBLIC_SUCCESS_DIR" ] &&
+     [ "$(cat "$PUBLIC_SUCCESS_DIR/payload/order")" = $'export\ngenerate\nverify' ] &&
+     git -C "$PUBLIC_SUCCESS_DIR/payload" rev-parse HEAD >/dev/null 2>&1; then
+    TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: public gate performs fresh export, generate, commit, and scoped run"
+  else
+    fail "public gate performs fresh export, generate, commit, and scoped run"
+  fi
+else
+  fail "public gate performs fresh export, generate, commit, and scoped run"
+fi
+# Local cache reuses only an identical exported payload; release still reruns.
+if SKILL_COMMONS_VERIFY_NO_CACHE=0 bash "$PUBLIC_PROBE_ROOT/tests/verify-public.sh" --cached >"$TMP/cache-hit.log" 2>&1 &&
+   grep -q 'reused=identical-payload-and-toolchain' "$TMP/cache-hit.log"; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: local public cache announces reuse without claiming a fresh run"
+else
+  fail "local public cache announces reuse without claiming a fresh run"
+fi
+printf '\n# changed payload\n' >> "$PUBLIC_PROBE_ROOT/tests/verify.sh"
+if SKILL_COMMONS_VERIFY_NO_CACHE=0 bash "$PUBLIC_PROBE_ROOT/tests/verify-public.sh" --cached >"$TMP/cache-miss.log" 2>&1 &&
+   grep -q 'PUBLIC_GATE scope=public inner=' "$TMP/cache-miss.log"; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: changing the exported payload invalidates the local cache"
+else
+  fail "changing the exported payload invalidates the local cache"
+fi
+if SKILL_COMMONS_VERIFY_NO_CACHE=1 bash "$PUBLIC_PROBE_ROOT/tests/verify-public.sh" --cached >"$TMP/cache-release.log" 2>&1 &&
+   grep -q 'PUBLIC_GATE scope=public inner=' "$TMP/cache-release.log"; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: release mode forces a fresh public run despite an identical cache"
+else
+  fail "release mode forces a fresh public run despite an identical cache"
+fi
+if ! VERIFY_PUBLIC_KEEP=1 FAKE_PUBLIC_FAIL=1 \
+     bash "$PUBLIC_PROBE_ROOT/tests/verify-public.sh" >"$TMP/public-gate-failure.log" 2>&1; then
+  if grep -q 'PUBLIC_DIAGNOSTICS dir=' "$TMP/public-gate-failure.log" &&
+     grep -q 'probe stdout' "$TMP/public-gate-failure.log" &&
+     grep -q 'probe stderr' "$TMP/public-gate-failure.log"; then
+    TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: public gate propagates exported runner failure diagnostics"
+  else
+    fail "public gate propagates exported runner failure diagnostics"
+  fi
+else
+  fail "public gate propagates exported runner failure diagnostics"
+fi
+if [ ! -e "$PUBLIC_PROBE_ROOT/.verify-cache/public-payload.digest" ]; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: a failed fresh public run invalidates an old cache record"
+else
+  fail "a failed fresh public run invalidates an old cache record"
+fi
+PUBLIC_SUCCESS_DIR="${PUBLIC_SUCCESS_DIR:-}"
+PUBLIC_FAILURE_DIR="$(sed -n 's/^PUBLIC_DIAGNOSTICS dir=\([^ ]*\).*/\1/p' "$TMP/public-gate-failure.log")"
+if [ -n "$PUBLIC_SUCCESS_DIR" ]; then rm -rf "$PUBLIC_SUCCESS_DIR"; fi
+if [ -n "$PUBLIC_FAILURE_DIR" ]; then rm -rf "$PUBLIC_FAILURE_DIR"; fi
 
 SECRET_SCAN_LOG="$TMP/secret-scan.log"
 if (cd "$REPO" && unset PROJECT_MANIFEST && bash security/scripts/scan-secrets.sh "$REPO" >"$SECRET_SCAN_LOG" 2>&1); then
@@ -1058,7 +1007,8 @@ else:
         "pull_request:",
         "runs-on: ubuntu-latest",
         "runs-on: macos-latest",
-        "run: bash tests/verify.sh",
+        "run: bash tests/verify.sh --release --scope source",
+        "run: bash tests/verify-public.sh",
         "run: /bin/bash --version",
         "run: PATH=/usr/bin:/bin /bin/bash tests/bootstrap/test_generate_safety.sh",
         "run: PATH=/usr/bin:/bin /bin/bash tests/bootstrap/test_manage.sh",
@@ -1083,10 +1033,13 @@ else:
     if agents_verify != ["bash tests/verify.sh"]:
         errors.append("AGENTS.md and CLAUDE.md must expose one canonical root Verify command")
     for command in agents_verify:
-        if f"run: {command}" not in active_tokens:
+        source_variants = {f"run: {command}"}
+        if command == "bash tests/verify.sh":
+            source_variants.add("run: bash tests/verify.sh --release --scope source")
+        if not any(variant in active_tokens for variant in source_variants):
             errors.append(f"ci.yml missing canonical Verify command {command!r}")
-    if sum(token.startswith("uses: actions/checkout@") for token in active_tokens) != 2:
-        errors.append("ci.yml must check out the repository once in each Verify job")
+    if sum(token.startswith("uses: actions/checkout@") for token in active_tokens) != 3:
+        errors.append("ci.yml must check out the source, public, and Bash 3.2 jobs")
 
 root_runner_path = repo / "tests" / "run-all.sh"
 if not root_runner_path.is_file():

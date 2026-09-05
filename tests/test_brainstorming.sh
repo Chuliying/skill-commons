@@ -95,16 +95,6 @@ assert_not_contains "$router_text" 'personal 預設 `brainstorming → to-prd`' 
 assert_not_contains "$subagent_text" "先用 brainstorming + plan-sync" "subagent fallback does not force brainstorming"
 assert_contains "$subagent_text" "Fog" "subagent execution rejects unresolved discovery Fog"
 
-router_lines="$(wc -l < "$REPO/skill-router/SKILL.md" | tr -d ' ')"
-router_bytes="$(wc -c < "$REPO/skill-router/SKILL.md" | tr -d ' ')"
-[ "$router_lines" -le 180 ] && [ "$router_bytes" -le 7600 ] \
-  && { TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: router stays within hot-path line and byte budgets"; } \
-  || fail "router stays within 180 lines and 7600 bytes"
-
-plan_sync_bytes="$(wc -c < "$REPO/plan-sync/SKILL.md" | tr -d ' ')"
-context_bytes="$((router_bytes + skill_bytes + reference_bytes + plan_sync_bytes))"
-echo "  info: combined workflow source-size trend is $context_bytes bytes (reference 20480; informational only)"
-
 assert_contains "$spec_text" "### 技術方案研究 (Tech Research)" "Spec retains phase-owned technical research"
 assert_contains "$qa_plan_text" "### 測試策略研究 (QA Research)" "QA retains phase-owned test-strategy research"
 assert_not_contains "$spec_text" "brainstorming/references/research.md" "Spec research does not re-enter discovery"

@@ -29,6 +29,29 @@ Scoped Save; it is not a fifth workflow owner or mode.
 5. Never use broad staging or cleanup. `git add .` and `git add -A` are forbidden;
    preserve every unrelated path and report it afterward.
 
+## Optional pre-PR brief
+
+Before a pending push/PR, offer once: "Enable the project overview and understanding
+test before this push/PR, or skip it?" Honor an existing choice for this candidate;
+do not re-ask after an explicit opt-in or skip. Only enable the
+[pre-PR brief](references/pre-pr-brief.md) after the user opts in. A skip or no answer
+leaves it untriggered and does not add a gate to already-authorized delivery.
+Do not offer it during unrelated edits, local-only saves, or read-only work.
+
+When enabled, prepare the brief and an answerable, source-grounded understanding
+test with scoring, explanations and focused retry. A score is not delivery approval.
+Honor a narrower request for a summary only. The brief can be a local draft
+even when exact-candidate verification or separate security evidence is missing or
+stale; label each gap and set readiness to unknown. Do not add tests or re-audit
+merely to write that draft. Before any dependent push/PR or other delivery, the
+Common contract still requires fresh exact-candidate verification and separate
+security evidence; the brief never substitutes for those gates. When that evidence
+is available, prepare the brief before the push/PR step. It reuses the report and
+Gate Package without adding a stage or gate. Existing delivery authorization remains
+valid; understanding questions pause dependent actions only when the answer affects
+scope, correctness, or delivery safety. Keep any pending opt-in separate from
+required delivery authorization, and continue independent work while awaiting it.
+
 ## Mode: Scoped Save
 
 Use for subordinate branch setup, explicit staging, local commits, or an authorized

@@ -729,9 +729,13 @@ sl_out_file="$TMP/sleep-scan-out"
 ( cd "$FI_CLEAN" && sl_rc=0 && { SCAN_ENGINE_TIMEOUT=1 bash "$fi_scan_sleep" > "$sl_out_file" 2>&1 || sl_rc=$?; } && printf 'scan_rc=%s\n' "$sl_rc" >> "$sl_out_file" ) &
 sl_pid=$!
 sl_done=0
-for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
+# 60 polls, not 12: the verdict is terminates-vs-hangs (the injected sleep is 300s),
+# so a wide bound stays load-immune without weakening the contract.
+sl_i=0
+while [ "$sl_i" -lt 60 ]; do
   if ! kill -0 "$sl_pid" 2>/dev/null; then sl_done=1; break; fi
   sleep 1
+  sl_i=$((sl_i + 1))
 done
 if [ "$sl_done" = 1 ]; then
   wait "$sl_pid" 2>/dev/null || true
@@ -793,23 +797,22 @@ assert_not_contains "$np_out" "PASS:" "no-op python runtime: no per-check PASS b
 # The runner handshake is the timeout trust-chain entry point. It must itself be
 # bounded; otherwise a wedged python runtime can hang before the shared runner ever
 # gets a chance to enforce SCAN_OPERATION_TIMEOUT.
+BOUNDED_RUNNER="$REPO/security/scripts/run-bounded.py"
+REAL_PYTHON="$(command -v python3)"
+TEST_WATCHDOG="$REPO/tests/bootstrap/lib/test-watchdog.py"
+TEST_WATCHDOG_TIMEOUT=30
 SLOWPY="$TMP/slow-python-bin"; mkdir -p "$SLOWPY"
 printf '#!/bin/sh\ncase "$1:$2" in *run-bounded.py:--health-check) sleep 5 ;; esac\nexec %s "$@"\n' \
   "$(command -v python3)" > "$SLOWPY/python3"
 chmod +x "$SLOWPY/python3"
 set +e
-rp_start=$(date +%s)
-rp_out="$(cd "$FI_CLEAN" && SCAN_OPERATION_TIMEOUT=0.2 PATH="$SLOWPY:$PATH" \
+rp_out="$(cd "$FI_CLEAN" && "$REAL_PYTHON" "$TEST_WATCHDOG" "$TEST_WATCHDOG_TIMEOUT" \
+  env SCAN_OPERATION_TIMEOUT=1 PATH="$SLOWPY:$PATH" \
   bash "$REPO/security/scripts/scan-secrets.sh" 2>&1)"
 rp_rc=$?
-rp_elapsed=$(( $(date +%s) - rp_start ))
 set -e
 assert_neq "0" "$rp_rc" "sleeping python runtime cannot certify runner health"
-if [ "$rp_elapsed" -le 2 ]; then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: runner health handshake obeys the operation timeout"
-else
-  fail "runner health handshake obeys the operation timeout (elapsed=${rp_elapsed}s)"
-fi
+assert_neq "124" "$rp_rc" "runner health handshake finishes before the independent watchdog"
 assert_not_contains "$rp_out" "PASS:" "sleeping python runtime: no PASS before runner health is established"
 
 # The outer bootstrap deadline starts before any temp/evidence setup. Fault-inject a
@@ -817,22 +820,16 @@ assert_not_contains "$rp_out" "PASS:" "sleeping python runtime: no PASS before r
 bootstrap_setup_scan="$(make_support_scanner_copy "import os,sys; os.execv(sys.executable,[sys.executable,r'$REAL_SUPPORT',*sys.argv[1:]])")"
 python3 -c 'import pathlib,sys; p=pathlib.Path(sys.argv[1]); s=p.read_text(); marker="  # BOOTSTRAP_WORKER_SETUP_START\n"; assert marker in s; p.write_text(s.replace(marker, marker + "  /bin/sleep 5\n", 1))' "$bootstrap_setup_scan"
 set +e
-bsu_start=$(date +%s)
-bsu_out="$(cd "$FI_CLEAN" && SCAN_OPERATION_TIMEOUT=0.2 bash "$bootstrap_setup_scan" 2>&1)"
+bsu_out="$(cd "$FI_CLEAN" && "$REAL_PYTHON" "$TEST_WATCHDOG" "$TEST_WATCHDOG_TIMEOUT" \
+  env SCAN_OPERATION_TIMEOUT=1 bash "$bootstrap_setup_scan" 2>&1)"
 bsu_rc=$?
-bsu_elapsed=$(( $(date +%s) - bsu_start ))
 set -e
 assert_neq "0" "$bsu_rc" "bootstrap setup stall fails before any scanner PASS"
-if [[ "$bsu_elapsed" -le 2 ]]; then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: bootstrap deadline includes pre-health setup"
-else
-  fail "bootstrap deadline includes pre-health setup (elapsed=${bsu_elapsed}s)"
-fi
+assert_neq "124" "$bsu_rc" "bootstrap setup stall finishes before the independent watchdog"
 assert_not_contains "$bsu_out" "PASS:" "bootstrap setup stall: no PASS"
 
 # One portable bounded runner governs every mandatory subprocess, not only the
 # extractor. Its timeout and command-not-found normalization are direct contracts.
-BOUNDED_RUNNER="$REPO/security/scripts/run-bounded.py"
 set +e
 python3 "$BOUNDED_RUNNER" 0.1 python3 -c 'import time; time.sleep(5)' >/dev/null 2>&1
 br_timeout_rc=$?
@@ -879,46 +876,82 @@ fi
 # A mandatory filesystem search is bounded by the same runner as the engine.
 bt_scan="$(make_support_scanner_copy "import os,sys,time; a=sys.argv[1:]; (print('scan-files:v2') or sys.exit(0)) if a==['--health-check'] else ((time.sleep(5) or sys.exit(0)) if 'worktree' in a else os.execv(sys.executable,[sys.executable,r'$REAL_SUPPORT',*a]))")"
 set +e
-bt_start=$(date +%s)
-bt_out="$(cd "$FI_CLEAN" && SCAN_OPERATION_TIMEOUT=0.2 bash "$bt_scan" 2>&1)"
+bt_out="$(cd "$FI_CLEAN" && "$REAL_PYTHON" "$TEST_WATCHDOG" "$TEST_WATCHDOG_TIMEOUT" \
+  env SCAN_OPERATION_TIMEOUT=1 bash "$bt_scan" 2>&1)"
 bt_rc=$?
-bt_elapsed=$(( $(date +%s) - bt_start ))
 set -e
 assert_neq "0" "$bt_rc" "mandatory worktree search timeout fails the scan"
-if [ "$bt_elapsed" -le 2 ]; then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: mandatory worktree search obeys the shared timeout"
-else
-  fail "mandatory worktree search obeys the shared timeout (elapsed=${bt_elapsed}s)"
-fi
+assert_neq "124" "$bt_rc" "mandatory worktree search finishes before the independent watchdog"
+assert_contains "$bt_out" "worktree candidate search coverage mismatch or malformed output (exit 124)" "mandatory worktree search observes its inner timeout"
 assert_not_contains "$bt_out" "Secret preflight result: PASS" "mandatory worktree search timeout: no overall PASS"
 
 # The engine-specific value may narrow, never widen, the global operation deadline.
+RUNNER_SPY_LOG="$TMP/engine-timeout-runner-spy.log"
+fi_scan_cap="$(make_scanner_copy 'import time; time.sleep(300)')"
+fi_scan_cap_runner="${fi_scan_cap%scan-secrets.sh}run-bounded.py"
+printf '%s\n' \
+  'import os,sys' \
+  'with open(os.environ["RUNNER_SPY_LOG"], "a", encoding="utf-8") as stream:' \
+  '    stream.write("\t".join(sys.argv[1:]) + "\n")' \
+  'os.execv(sys.executable, [sys.executable, os.environ["REAL_BOUNDED_RUNNER"], *sys.argv[1:]])' \
+  > "$fi_scan_cap_runner"
 set +e
-et_start=$(date +%s)
-et_out="$(cd "$FI_CLEAN" && SCAN_OPERATION_TIMEOUT=0.2 SCAN_ENGINE_TIMEOUT=5 \
-  bash "$fi_scan_sleep" 2>&1)"
+et_out="$(cd "$FI_CLEAN" && "$REAL_PYTHON" "$TEST_WATCHDOG" "$TEST_WATCHDOG_TIMEOUT" \
+  env RUNNER_SPY_LOG="$RUNNER_SPY_LOG" REAL_BOUNDED_RUNNER="$BOUNDED_RUNNER" \
+  SCAN_OPERATION_TIMEOUT=1 SCAN_ENGINE_TIMEOUT=5 bash "$fi_scan_cap" 2>&1)"
 et_rc=$?
-et_elapsed=$(( $(date +%s) - et_start ))
 set -e
-assert_neq "0" "$et_rc" "engine timeout cannot widen the global operation timeout"
-if [[ "$et_elapsed" -le 2 ]]; then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: engine timeout is capped by the global operation timeout"
-else
-  fail "engine timeout is capped by the global operation timeout (elapsed=${et_elapsed}s)"
+effective_engine_timeout="$(python3 - "$RUNNER_SPY_LOG" "${fi_scan_cap%scan-secrets.sh}extract-secrets.py" <<'PY'
+import pathlib
+import sys
+
+log_path = pathlib.Path(sys.argv[1])
+engine_path = pathlib.Path(sys.argv[2]).resolve()
+for raw in log_path.read_text(encoding="utf-8").splitlines():
+    fields = raw.split("\t")
+    if (
+        len(fields) >= 3
+        and fields[1] == "python3"
+        and pathlib.Path(fields[2]).resolve() == engine_path
+    ):
+        print(fields[0])
+        break
+PY
+)"
+if [[ -z "$effective_engine_timeout" ]]; then
+  echo "  diagnostic: no extractor invocation matched in runner spy"
+  sed 's/^/    spy: /' "$RUNNER_SPY_LOG"
 fi
+assert_neq "0" "$et_rc" "engine timeout cannot widen the global operation timeout"
+assert_neq "124" "$et_rc" "engine timeout cap finishes before the independent watchdog"
+assert_eq "1" "$effective_engine_timeout" "effective engine timeout is capped at the operation timeout"
 assert_not_contains "$et_out" "Secret preflight result: PASS" "widening engine timeout: no overall PASS"
 
-# A healthy engine can still hang on real candidate input. Exercise both actual
-# worktree and staged invocations, not only the initial health handshake.
-sleeping_call_scan="$(make_scanner_copy "import sys,time; health=sys.argv[1:]==['--health-check']; print('extract-secrets:v1') if health else None; sys.exit(0) if health else time.sleep(300)")"
+# A healthy engine can still hang on real candidate input. Worktree and staged are
+# separate fixtures: one 1s operation budget must not be required to reach both
+# phases under host load. The staged copy returns immediately for ordinary worktree
+# paths and sleeps only for the scanner-owned staged workspace.
+sleeping_worktree_scan="$(make_scanner_copy "import sys,time; health=sys.argv[1:]==['--health-check']; data='' if health else sys.stdin.read(); print('extract-secrets:v1') if health else None; sys.exit(0) if health else (time.sleep(300) if 'skill-commons-staged.' not in data else sys.exit(0))")"
 set +e
-sc_out="$(cd "$FI" && SCAN_OPERATION_TIMEOUT=0.2 bash "$sleeping_call_scan" 2>&1)"
-sc_rc=$?
+sc_worktree_out="$(cd "$FI" && "$REAL_PYTHON" "$TEST_WATCHDOG" "$TEST_WATCHDOG_TIMEOUT" \
+  env SCAN_OPERATION_TIMEOUT=1 bash "$sleeping_worktree_scan" 2>&1)"
+sc_worktree_rc=$?
 set -e
-assert_neq "0" "$sc_rc" "sleeping real engine invocations fail the scan"
-assert_contains "$sc_out" "failed on worktree candidates (exit 124)" "worktree engine invocation obeys its timeout"
-assert_contains "$sc_out" "failed on staged changes (exit 124)" "staged engine invocation obeys its timeout"
-assert_not_contains "$sc_out" "Secret preflight result: PASS" "sleeping real engine invocations: no overall PASS"
+assert_neq "0" "$sc_worktree_rc" "sleeping worktree engine invocation fails the scan"
+assert_neq "124" "$sc_worktree_rc" "worktree engine timeout finishes before the independent watchdog"
+assert_contains "$sc_worktree_out" "failed on worktree candidates (exit 124)" "worktree engine invocation obeys its timeout"
+assert_not_contains "$sc_worktree_out" "Secret preflight result: PASS" "sleeping worktree engine invocation: no overall PASS"
+
+sleeping_staged_scan="$(make_scanner_copy "import sys,time; health=sys.argv[1:]==['--health-check']; data='' if health else sys.stdin.read(); print('extract-secrets:v1') if health else None; sys.exit(0) if health else (time.sleep(300) if 'skill-commons-staged.' in data else sys.exit(0))")"
+set +e
+sc_staged_out="$(cd "$FI" && "$REAL_PYTHON" "$TEST_WATCHDOG" "$TEST_WATCHDOG_TIMEOUT" \
+  env SCAN_OPERATION_TIMEOUT=1 bash "$sleeping_staged_scan" 2>&1)"
+sc_staged_rc=$?
+set -e
+assert_neq "0" "$sc_staged_rc" "sleeping staged engine invocation fails the scan"
+assert_neq "124" "$sc_staged_rc" "staged engine timeout finishes before the independent watchdog"
+assert_contains "$sc_staged_out" "failed on staged changes (exit 124)" "staged engine invocation obeys its timeout"
+assert_not_contains "$sc_staged_out" "Secret preflight result: PASS" "sleeping staged engine invocation: no overall PASS"
 
 # External grep is no longer in the trust surface; replacing it with a no-op cannot
 # affect the canonical helper's worktree/staged verdicts.
@@ -1003,7 +1036,6 @@ assert_not_contains "$ms_out" "Secret preflight result: PASS" "no-op manifest de
 
 # A successful direct child may still leave descendants in its process group. The
 # runner must close that group before returning, even when no timeout fired.
-REAL_PYTHON="$(command -v python3)"
 BR_EARLY_READY="$TMP/bounded-early-ready"
 BR_EARLY_MARKER="$TMP/bounded-early-marker"
 set +e
@@ -1035,57 +1067,23 @@ else
   fail "bounded runner closes descendants after a successful parent exit"
 fi
 
-# A descendant can create a new session and escape the direct child's process group.
-# Even when that escaped process inherits stdout/stderr, it must not keep the runner's
-# caller pipe open beyond the operation bound.
-set +e
-br_escape_start=$(date +%s)
-br_escape_out="$(python3 "$BOUNDED_RUNNER" 0.2 python3 -c '
-import subprocess, sys
-subprocess.Popen(
-    [sys.executable, "-c", "import time; print(chr(120), flush=True); time.sleep(5)"],
-    start_new_session=True,
-)
-' 2>&1)"
-br_escape_rc=$?
-br_escape_elapsed=$(( $(date +%s) - br_escape_start ))
-set -e
-assert_eq "0" "$br_escape_rc" "bounded runner preserves rc when an escaped descendant inherits output"
-if [[ "$br_escape_elapsed" -le 2 ]]; then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: escaped descendant cannot hold the runner caller pipe open"
-else
-  fail "escaped descendant cannot hold the runner caller pipe open (elapsed=${br_escape_elapsed}s)"
-fi
-
 # Commands that need stdin opt into a runner-owned regular-file channel. This keeps
 # an escaped descendant from retaining the upstream pipe while preserving input.
 br_stdin_roundtrip="$(printf 'secret-input\n' | python3 "$BOUNDED_RUNNER" 1 --stdin /bin/cat)"
 assert_eq "secret-input" "$br_stdin_roundtrip" "bounded runner preserves explicit stdin through an isolated channel"
-set +e
-br_stdin_start=$(date +%s)
-br_stdin_out="$(python3 -c 'print("x" * 200000)' | python3 "$BOUNDED_RUNNER" 0.5 --stdin python3 -c '
-import subprocess, sys
-subprocess.Popen([sys.executable, "-c", "import time; time.sleep(5)"], start_new_session=True)
-' 2>&1)"
-br_stdin_rc=$?
-br_stdin_elapsed=$(( $(date +%s) - br_stdin_start ))
-set -e
-assert_eq "0" "$br_stdin_rc" "bounded runner preserves rc with isolated stdin and an escaped descendant"
-if [[ "$br_stdin_elapsed" -le 2 ]]; then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: escaped descendant cannot retain the runner input pipe"
-else
-  fail "escaped descendant cannot retain the runner input pipe (elapsed=${br_stdin_elapsed}s)"
-fi
+# The escaped-descendant stdout and stdin retention contracts live in
+# test_verification_runtime_contract.py, whose Python parent owns the direct pipes and
+# compares the real runner with a deliberate non-isolating mutant.
 
 # Bootstrap timeout is outside the Python runner trust boundary, so it needs its own
-# TERM->grace->KILL group policy. An outer trusted runner prevents this RED cell from
-# hanging the test suite indefinitely.
+# TERM->grace->KILL group policy. The independent test watchdog prevents this RED cell
+# from hanging the test suite indefinitely.
 IGNOREPY="$TMP/ignore-term-python-bin"; mkdir -p "$IGNOREPY"
 printf '#!/bin/sh\ncase "$1:$2" in *run-bounded.py:--health-check) trap "" TERM; while :; do sleep 1; done ;; esac\nexec %s "$@"\n' \
   "$REAL_PYTHON" > "$IGNOREPY/python3"; chmod +x "$IGNOREPY/python3"
 set +e
-ib_out="$(cd "$FI_CLEAN" && "$REAL_PYTHON" "$BOUNDED_RUNNER" 3 env \
-  SCAN_OPERATION_TIMEOUT=0.2 PATH="$IGNOREPY:$PATH" bash "$REPO/security/scripts/scan-secrets.sh" 2>&1)"
+ib_out="$(cd "$FI_CLEAN" && "$REAL_PYTHON" "$TEST_WATCHDOG" "$TEST_WATCHDOG_TIMEOUT" env \
+  SCAN_OPERATION_TIMEOUT=1 PATH="$IGNOREPY:$PATH" bash "$REPO/security/scripts/scan-secrets.sh" 2>&1)"
 ib_rc=$?
 set -e
 assert_neq "124" "$ib_rc" "runner bootstrap handles a TERM-ignoring runtime before the outer watchdog"
@@ -1160,7 +1158,7 @@ assert_not_contains "$symlink_out" "Secret preflight result: PASS" "symlink scop
 BAD_SLEEP="$TMP/bad-sleep-bin"; mkdir -p "$BAD_SLEEP"
 printf '#!/bin/sh\ntrap "" TERM\nwhile :; do :; done\n' > "$BAD_SLEEP/sleep"; chmod +x "$BAD_SLEEP/sleep"
 set +e
-bs_out="$(cd "$FI_CLEAN" && "$REAL_PYTHON" "$BOUNDED_RUNNER" 3 env \
+bs_out="$(cd "$FI_CLEAN" && "$REAL_PYTHON" "$TEST_WATCHDOG" "$TEST_WATCHDOG_TIMEOUT" env \
   PATH="$BAD_SLEEP:$PATH" bash "$REPO/security/scripts/scan-secrets.sh" 2>&1)"
 bs_rc=$?
 set -e

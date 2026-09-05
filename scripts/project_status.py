@@ -66,18 +66,13 @@ def probe_bootstrap(project_root: Path) -> dict:
     """Harvest bootstrap health from bootstrap/check.sh.
 
     Pin --platform text so the output format is environment-independent (the
-    script otherwise formats per detected agent). check.sh always exits 0 and
-    prefixes each warning with a warning glyph; we classify by content:
-    no warnings -> PASS, stamp drift -> attention, otherwise -> unknown
-    (not onboarded / not applicable, per the "don't force attention" rule).
-
-    The skill-commons source repo itself is not a consuming repo, so its
-    bootstrap is N/A -> unknown (not a silent PASS); check.sh separately exempts
-    it from the session-hook nag.
+    script otherwise formats per detected agent). check.sh prefixes each warning
+    with a warning glyph; consumer warnings retain their existing classification
+    (no warnings -> PASS, stamp drift -> attention, otherwise -> unknown).
+    The source checkout runs the same probe: maintainer generated-root,
+    ownership-ledger, content, and retired-output warnings are attention, while
+    a failed subprocess or an operational health-check warning is unknown.
     """
-    if project_root == REPO_ROOT:
-        return {"state": "unknown", "warnings": [],
-                "detail": "skill-commons source repo (bootstrap N/A — not a consuming repo)"}
     if not CHECK_SH.is_file():
         return {"state": "unknown", "warnings": [], "detail": "bootstrap/check.sh not found"}
     try:
@@ -93,6 +88,34 @@ def probe_bootstrap(project_root: Path) -> dict:
     for line in proc.stdout.splitlines():
         if "⚠" in line:  # ⚠ warning marker
             warnings.append(line.split("⚠", 1)[1].lstrip("️").strip())
+
+    if proc.returncode != 0:
+        return {
+            "state": "unknown",
+            "warnings": warnings,
+            "detail": f"bootstrap check failed (exit status {proc.returncode})",
+        }
+
+    if project_root == REPO_ROOT:
+        # The source health check is advisory, but a failed expected-payload
+        # build/temp allocation is not evidence of a healthy generated tree.
+        if any("could not" in warning.lower() for warning in warnings):
+            return {
+                "state": "unknown",
+                "warnings": warnings,
+                "detail": "maintainer source health check failed operationally",
+            }
+        if not warnings:
+            return {
+                "state": "PASS",
+                "warnings": [],
+                "detail": "maintainer source health consistent",
+            }
+        return {
+            "state": "attention",
+            "warnings": warnings,
+            "detail": "maintainer source health requires attention",
+        }
 
     if not warnings:
         state = "PASS"
@@ -290,6 +313,13 @@ def compute_next_action(status: str, ambiguity: dict, focus: dict | None,
         return f"review attention: {', '.join(attention_sources)}"
     if status == "unknown":
         return f"insufficient signal (unknown): {', '.join(unknown_sources)}"
+    if focus:
+        plan = focus.get("plan") or {}
+        plan_action = plan.get("next_action")
+        # planctl uses the string sentinel "None" for a plan without an
+        # executable task; do not turn that sentinel into a continuation hint.
+        if plan_action and plan_action != "None":
+            return f"continue {focus['slug']}: {plan_action}"
     if focus and focus.get("next_stage"):
         stage = focus["next_stage"]
         return f"continue {focus['slug']}: {stage['name']} ({stage['status']})"

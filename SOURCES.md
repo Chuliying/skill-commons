@@ -93,6 +93,7 @@ vendor 後必須重套並跑測試：
 | Skill | Patch | Reason |
 |---|---|---|
 | all vendored skills | `source_kind: vendored` frontmatter | 讓 provenance 可機器檢查；upstream 更新後一律重套 |
+| `design-taste-frontend` | lossless progressive-disclosure split: retain the decision spine in `SKILL.md` and move conditional sections to linked `references/` files | keep the pinned upstream sections available while reducing the default read path; per-section hashes in `tests/fixtures/context-budget/frontend-sections.json` verify preservation |
 | `skill-creator` | `stage`, `source`, `source_kind`; 保留本 repo 可用的 schema/eval scripts；新增本地 new-skill checklist reference | 登記官方來源並接入 skill-commons metadata 與 lifecycle contract |
 | `brainstorming` | project-specific bounded discovery：material-ambiguity qualification、Skip/Quick/Standard/Deep 預算、conditional Research、consent-gated Deep Wayfinding、conditional artifact、local handoff | 避免 adapted upstream 的 always-on ceremony，同時保留來源、名稱與 profile 相容性 |
 | `subagent-driven-development` | plan-sync contract、雙 review、gate handoff；T05 closeout handoff 改為 `sync-work` Finish | 接入本 repo orchestration contract，避免新任務派發 compatibility owner |

@@ -14,11 +14,17 @@
 
 - Generate: `DELIVERY_MODE=personal bash bootstrap/generate.sh`
 - Verify: `bash tests/verify.sh`
+- Focused iteration: run the directly affected suite or test module; this is not repository-completion evidence.
+- Local full Verify uses the content-addressed public-payload cache; release/CI uses `bash tests/verify.sh --release` for a forced fresh payload run.
 
 `verify.sh` 是唯一 canonical runner：它從樹上**探索** suites（`tests/test_*.sh`
 與 `tests/bootstrap/test_*.sh`）而非硬編清單，所以新增測試不會靜默不跑；python
 分層也在同一入口。`tests/run-all.sh` 只是轉呼叫的相容 shim。
-Maintainer 全量 fan-out：`PROFILE=all bash bootstrap/generate.sh`。
+跑 Verify 前要先執行全量 fan-out `PROFILE=all bash bootstrap/generate.sh`：
+`tests/test_skill_inventory.sh` 是對完整 owner set 對帳的，只做
+`DELIVERY_MODE=personal` 的 fan-out 會讓非 personal 技能被誤報為 missing。
+CI 分開跑 source 與 fresh public jobs，以明確的 release scope 停用 payload cache（見
+`.github/workflows/ci.yml`）。
 
 ## Navigation
 

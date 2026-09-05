@@ -25,7 +25,7 @@ Cross-platform auto-load for the skill-commons skill set (Claude Code / Cursor /
    keys. Bundle lists live in `profiles/`.
    The 7-owner core is released in `v0.10.0`, with `sync-work` as the sole
    Git-delivery owner. Repositories that still need the legacy 13-owner core
-   remain pinned to `v0.7.1`. `v0.10.0` personal adopters select manifest
+   remain pinned to `v0.7.1`. `v0.11.0` personal adopters select manifest
    `capability_packs: optional`; direct generation uses
    `DELIVERY_MODE=personal CAPABILITY_PACKS=optional`. That pack supplies
    personal discovery, PRD, review, and onboarding capabilities. This profile
@@ -93,6 +93,43 @@ running `update`; this avoids silently overwriting edits inside managed output.
   `manage.sh doctor` for a strict health result.
 - `lib/` — shared stamp, platform, render, manifest, and ownership safety helpers.
 
+When `check.sh` is run with this source checkout as `--project-root`, it also
+performs a bounded maintainer check over `.claude/skills/`, `.codex/skills/`, and
+`.agents/skills/`. The check builds an expected payload under a temporary
+directory and reports missing ownership ledgers, stale managed content, and
+retired owner output while remaining advisory and read-only. For a root with a
+valid ownership ledger, the normal repair command is:
+
+```
+PROFILE=all bash bootstrap/generate.sh
+```
+
+With a valid ledger, `generate.sh` preserves retired-name collisions that are
+unowned. Inspect the source first, retain foreign content or handle it
+separately, and remove only output confirmed obsolete before rerunning the
+normal command. A missing or unsafe ownership ledger cannot establish
+ownership, so a retired-name collision is ambiguous and must be inspected
+first. Explicit legacy adoption claims frozen historical names and can remove
+a same-name foreign directory. Preserve or relocate foreign content outside
+paths claimed by legacy adoption, or handle it separately, before considering
+this command:
+
+```
+SKILL_COMMONS_ADOPT_LEGACY=1 PROFILE=all bash bootstrap/generate.sh
+```
+
+The warning presents this adoption command conditionally after the legacy
+namespace inspection; it does not imply that the original collision path will
+be preserved during adoption.
+The source checkout emits source-relative paths such as `./skill-router/` rather
+than the consuming `.agent/skills/_shared/` mount.
+
+The maintainer deliberately keeps both `.codex/skills/` and `.agents/skills/`
+inside its three-root contract. The health check measures them independently;
+duplicate catalog entries do not prove duplicate full-body loading. The current
+repository configuration exposes no repository-owned setting to collapse those
+roots; resolving that host discovery boundary belongs to a later context task.
+
 ## Notes
 
 - `jq` is required for the Claude Code `settings.json` merge.
@@ -104,10 +141,13 @@ running `update`; this avoids silently overwriting edits inside managed output.
 - A v0.6 manifest with blank `profile:` must first be changed to one explicit
   `delivery_mode` plus optional `capability_packs` (or one non-empty legacy
   delivery mode). Legacy and new selection fields cannot coexist.
-- A repository adopting the `v0.10.0` 7-owner core adds
+- A repository adopting the `v0.11.0` 7-owner core adds
   `optional` before onboarding if it depends on the personal
   discovery/PRD/review/onboarding owners. A repository deferring that migration
   keeps its `v0.7.1` pin.
 - This complements `shared-skill-onboarder` (which builds the manifest + domain skills);
   bootstrap only generates the cross-platform auto-load shims.
 - If you also have the superpowers plugin installed, consider disabling it for this project to avoid two routers.
+
+The v0.11.0 release retains the same seven-owner core and adds the optional
+pre-PR overview and understanding test within sync-work; opting out adds no gate.

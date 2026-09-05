@@ -57,13 +57,21 @@ print(" ".join(sorted(s["name"] for s in m["skills"]))+" ")
 ' "$model_a")"
 assert_eq "$expected_skills" "$actual_skills" "model skill set equals SKILL.md folders"
 
-# Python packages are not skills; they must be classified separately.
+# Python packages are not skills; they must be classified separately. The page
+# ships in the public payload, so its package set must follow the same
+# export-ignore attributes as the archive itself.
 pkgs="$(python3 -c '
 import json,sys
 m=json.load(open(sys.argv[1]))
 print(" ".join(sorted(p["name"] for p in m["packages"])))
 ' "$model_a")"
-assert_contains "$pkgs" "foundation" "python packages listed separately"
+expected_pkgs="$(cd "$REPO" && for init in */__init__.py; do
+  [ -f "$init" ] || continue
+  attr="$(git check-attr export-ignore -- "$init" | awk -F': ' '{print $NF}')"
+  [ "$attr" = "set" ] || basename "$(dirname "$init")"
+done | sort | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+assert_eq "$expected_pkgs" "$pkgs" "model package set equals the public package set"
+assert_not_contains "$pkgs" "foundation" "excluded foundation package is absent from the visual model"
 assert_not_contains "$actual_skills" "foundation" "foundation is not treated as a skill"
 
 # Profile membership must come from profiles/, not be re-typed.

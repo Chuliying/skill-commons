@@ -37,5 +37,5 @@ tests/py/_sbx_*/
 # Separately managed explainer-site repository; never stage it as a gitlink.
 /website/
 
-# Local payload-check verdict cache (content-addressed; never a release gate)
+# Content-addressed local public verdict cache; release/CI always run fresh.
 .verify-cache/

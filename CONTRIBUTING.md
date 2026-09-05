@@ -46,9 +46,43 @@ Experimental 技能不進 `profiles/core`，不承諾輸入輸出契約穩定，
 
 1. 先改 top-level source。
 2. 執行 `PROFILE=all bash bootstrap/generate.sh`。
-3. 執行 `AGENTS.md` 列出的完整 Verify chain，包含 profiles、artifact、work-item、plan、journey harness、machine gate、release convergence 與 bootstrap。
-4. 新增根目錄文件時同步加入 README 文件連結。
-5. Commit、tag、push 與 PR 依 repository guardrails 執行；未經明確授權不 push。
+3. 小修改先跑受影響的 suite（例如 `python3 -m unittest tests.py.integration.test_verify_contract`）。較完整的本地檢查可用 `bash tests/verify.sh --scope source`；確認公開 payload 用 `bash tests/verify-public.sh`。無參數的 `bash tests/verify.sh` 與舊 `tests/run-all.sh` 執行完整 source 與 public 檢查，本機 public 結果可依相同內容／toolchain 重用。正式 release 用 `bash tests/verify.sh --release`，強制獨立執行 source 與 fresh clean-public 兩邊。
+4. 整合多個 shared contract 的變更，或準備 merge／release 時，再執行 `AGENTS.md` 列出的完整 Verify chain，包含 profiles、artifact、work-item、plan、journey harness、machine gate、release convergence 與 bootstrap。一般編輯迭代以受影響的 focused suite 為準；同一版本已通過的完整檢查，只有後續變更、失敗或未解疑慮才需要重跑。
+5. 新增根目錄文件時同步加入 README 文件連結。
+6. Commit、tag、push 與 PR 依 repository guardrails 執行；未經明確授權不 push。
+
+每筆 runner failure 會在系統 temporary 目錄留下獨立 run log，保留 stdout、stderr、完整失敗輸出 與 per-entry retry command；成功 run 會清理該目錄。CI 的 source 與 public jobs 都從 fresh checkout 執行，public job 會重新 export、generate 並建立 temporary commit，不讀取本地 verdict cache。
+
+`sync-work` 在準備 push 或建立 PR 前會主動詢問一次，是否啟用
+[Pre-PR Brief](sync-work/references/pre-pr-brief.md) 的「專案摘要＋理解測驗」。
+同意才執行；已選擇啟用或跳過時不重問，未回答不視為同意，也不新增交付 gate。
+也可直接要求：
+
+```text
+用 sync-work，在 push／PR 前先給我變更摘要清單、visual roadmap，
+加上可作答、計分、逐題解析與重試的理解測驗。
+```
+
+Roadmap 先呈現專案全貌，再標出本次 PR 對應的章節。優先沿用 README、既有專案
+摘要與 roadmap；缺少足夠的專案摘要時，才依 repository 文件慣例補上精簡、有來源
+依據的版本。PR 章節說明本次變更的原因、影響、證據與實際交付狀態，連回專案摘要；
+避免每個 PR 重建整份專案文件或把未知方向寫成已承諾里程碑。
+
+理解測驗使用有來源的情境題，檢查專案、改動與證據限制。網頁提供作答與送出介面，
+聊天則先收答案再評分；不預選、不把空白算答對，區分首次作答與看過解析後的重試。
+分數只描述受測觀念，不代表已全面理解或同意 Git 交付。只要求摘要時可不含測驗。
+
+需要來源追溯或線上預覽時，按需讀取
+[Grounded Overview](sync-work/references/grounded-overview.md)，沿用
+[摘要範本](sync-work/assets/project-brief-template.md)。關鍵敘述對應來源段落與
+revision；dirty 內容記錄實際 hash。網頁由選定來源產生，發布範圍與存取對象須符合
+既有授權。維護此 flow 時可用 [eval cases](sync-work/references/pre-pr-brief-evals.md)
+檢查來源衝突、缺件、私有預覽與過期證據；一般 PR 不因此新增模型評測。
+
+此 flow 沿用同一候選版本的驗證證據與 Gate Package，按需載入，不新增 mode、
+必填 artifact 或測試 gate，也不需要加裝 optional capability pack。理解確認與 Git
+交付授權分開處理；既有授權持續有效，會影響正確性、範圍或交付安全的未決答案才
+阻擋相依動作。一般補充說明問題不額外阻擋已授權的交付。
 
 ## 發版清單
 
@@ -62,7 +96,7 @@ release 會宣告公開版本已發布。
 2. 先 commit 候選內容，再以 `git status --short` 確認工作樹為空；若同一工作目錄仍有
    未追蹤或不屬於候選的檔案，在乾淨 checkout 驗證該 commit，不以 dirty worktree
    的結果宣稱「evidence on this tree」。
-3. 在精確候選 commit 上執行 `bash tests/verify.sh`；改過 skill source 時另跑
+3. 在精確候選 commit 上執行 `bash tests/verify.sh --release`；改過 skill source 時另跑
    `PROFILE=all bash bootstrap/generate.sh`，並確認 regenerate 後仍無 diff。
 4. Annotated tag 必須指向剛驗證的 commit。已推送的 prerelease tag 不移動；修正後使用
    下一個 `-rc.N`。

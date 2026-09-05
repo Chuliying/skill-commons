@@ -16,6 +16,41 @@
 **/.env.* export-ignore
 **/.env.example -export-ignore
 
+# Runtime packages kept for private development history and verification, but
+# outside the retained public product boundary.
+/foundation export-ignore
+/foundation/** export-ignore
+/orchestration export-ignore
+/orchestration/** export-ignore
+/productscope export-ignore
+/productscope/** export-ignore
+
+# Python tests that import the private runtime packages are excluded with them.
+# The independent harness unit tests, runner/roster integration tests, and
+# generic proof-of-use e2e test remain part of the public verification surface.
+/tests/py/e2e/test_consumer_contract_checkpoint.py export-ignore
+/tests/py/e2e/test_consumer_convergence.py export-ignore
+/tests/py/e2e/test_foundation_journey.py export-ignore
+/tests/py/e2e/test_orchestration_journey.py export-ignore
+/tests/py/integration/test_foundation_adversarial.py export-ignore
+/tests/py/integration/test_foundation_cli.py export-ignore
+/tests/py/integration/test_foundation_contract.py export-ignore
+/tests/py/integration/test_foundation_core.py export-ignore
+/tests/py/integration/test_foundation_gitobj.py export-ignore
+/tests/py/integration/test_foundation_home.py export-ignore
+/tests/py/integration/test_foundation_homelocator.py export-ignore
+/tests/py/integration/test_orchestration_aggregate.py export-ignore
+/tests/py/integration/test_orchestration_bootstrap.py export-ignore
+/tests/py/integration/test_orchestration_consumer.py export-ignore
+/tests/py/integration/test_orchestration_execution.py export-ignore
+/tests/py/integration/test_orchestration_projection.py export-ignore
+/tests/py/integration/test_product_scope_activation.py export-ignore
+/tests/py/integration/test_product_scope_contracts.py export-ignore
+/tests/py/integration/test_product_scope_oracle_equivalence.py export-ignore
+/tests/py/integration/test_release_line_root_fixes.py export-ignore
+/tests/py/unit/test_foundation_graph.py export-ignore
+/tests/py/unit/test_foundation_schema.py export-ignore
+
 # Benchmark result payloads are immutable verbatim host/model evidence. Preserve
 # Markdown hard-break spaces and other source formatting without normalizing it.
 /docs/work/skill-bundle-effect-benchmark/benchmark/results/** -whitespace

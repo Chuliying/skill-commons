@@ -1,0 +1,144 @@
+{
+  "schema_version": "context-budget/frontend-sections/v1",
+  "source": "design-taste-frontend/SKILL.md",
+  "baseline_sha256": "4e49fd5f54f8eaa76d63b3bdee2421f430d22e34c453f69ed12e5fde9187adaa",
+  "baseline_bytes": 87327,
+  "baseline_lines": 1209,
+  "preamble_sha256": "e87aaa23c2ae42e91c60b5ef1240da864b9555277a0a4b08285b652021ed6650",
+  "preamble_bytes": 666,
+  "sections": [
+    {
+      "id": "0",
+      "heading": "## 0. BRIEF INFERENCE (Read the Room Before Anything Else)",
+      "baseline_sha256": "4a03d1d2728673ca5077986e4dae59fca2ad3cd45cf9abdb7587893f87cdff82",
+      "baseline_bytes": 2671,
+      "disposition": "retained"
+    },
+    {
+      "id": "1",
+      "heading": "## 1. THE THREE DIALS (Core Configuration)",
+      "baseline_sha256": "801b82144caf95ce9bb8085372e64992b3e23cdb85469c54fcd9d5b1ce29f084",
+      "baseline_bytes": 1853,
+      "disposition": "retained"
+    },
+    {
+      "id": "2",
+      "heading": "## 2. BRIEF → DESIGN SYSTEM MAP",
+      "baseline_sha256": "ac1a5a970a84f6bc40f02e4f89ef6da50f8ed6eedc6fb1ae9981662ccdf9a859",
+      "baseline_bytes": 3275,
+      "disposition": "retained"
+    },
+    {
+      "id": "3",
+      "heading": "## 3. DEFAULT ARCHITECTURE & CONVENTIONS",
+      "baseline_sha256": "c66ce92fa2efa7d5ec235b0113da08389a7c86f7efb7170b5582b1d232b4fd39",
+      "baseline_bytes": 3167,
+      "disposition": "retained"
+    },
+    {
+      "id": "4",
+      "heading": "## 4. DESIGN ENGINEERING DIRECTIVES (Bias Correction)",
+      "baseline_sha256": "1729f1ce25dbf36d406eee5da4fec6844116e7ff51fe576d1b1e848157102310",
+      "baseline_bytes": 24901,
+      "disposition": "moved"
+    },
+    {
+      "id": "5",
+      "heading": "## 5. CONTEXT-AWARE PROACTIVITY",
+      "baseline_sha256": "4fa88e9e604a994721ef9e442e6efc8beec8c85b6294aef45213663dd0495d13",
+      "baseline_bytes": 8714,
+      "disposition": "moved"
+    },
+    {
+      "id": "6",
+      "heading": "## 6. PERFORMANCE & ACCESSIBILITY GUARDRAILS",
+      "baseline_sha256": "f9d14be480a9da19e7ba4a1092e52a1dc584ecaa5e621e9b5f507f27b21b1690",
+      "baseline_bytes": 2128,
+      "disposition": "retained"
+    },
+    {
+      "id": "7",
+      "heading": "## 7. DIAL DEFINITIONS (Technical Reference)",
+      "baseline_sha256": "92eda98f687850eae45417d7ce2a77257b3e95f496ba657f8dca71c6e28ce118",
+      "baseline_bytes": 1614,
+      "disposition": "retained"
+    },
+    {
+      "id": "8",
+      "heading": "## 8. DARK MODE PROTOCOL",
+      "baseline_sha256": "f4ec062c9848207c52d45545631ae13ca9d17983edf8fabd9639360f883b772d",
+      "baseline_bytes": 1449,
+      "disposition": "retained"
+    },
+    {
+      "id": "9",
+      "heading": "## 9. AI TELLS (Forbidden Patterns)",
+      "baseline_sha256": "cae326bf75fb69185592813daac259f6234be2f8636d4a01fb91ba96d5c93cbb",
+      "baseline_bytes": 11940,
+      "disposition": "moved"
+    },
+    {
+      "id": "10",
+      "heading": "## 10. REFERENCE VOCABULARY (Pattern Names the Agent Should Know)",
+      "baseline_sha256": "243baf44f7dba3e5e668e1d5b0db0f98f6bcd84f7d84aa2020d3dc94b41a8f36",
+      "baseline_bytes": 4296,
+      "disposition": "moved"
+    },
+    {
+      "id": "11",
+      "heading": "## 11. REDESIGN PROTOCOL",
+      "baseline_sha256": "491f0d8aee669b3f3a0b06cf3911e560df9dbc652c8fccb3d1904d93e8483ec2",
+      "baseline_bytes": 3291,
+      "disposition": "moved"
+    },
+    {
+      "id": "12",
+      "heading": "## 12. THE BLOCK LIBRARY (Contract - Implementations Land Here Iteratively)",
+      "baseline_sha256": "1cc553c632eab1409174b511c21a747ce59b35b628dcaaef54fa79e0703430ce",
+      "baseline_bytes": 2053,
+      "disposition": "moved"
+    },
+    {
+      "id": "13",
+      "heading": "## 13. OUT OF SCOPE",
+      "baseline_sha256": "7b69a35b7ea1b3a20491bb5c1cebea0590ea7a6f4d62e70273ea12ac229b1f1b",
+      "baseline_bytes": 697,
+      "disposition": "retained"
+    },
+    {
+      "id": "14",
+      "heading": "## 14. FINAL PRE-FLIGHT CHECK",
+      "baseline_sha256": "e375a143c7eba8cf2af58aae87c1615deed17588502c8e5765de8a82fa86b2bf",
+      "baseline_bytes": 7079,
+      "disposition": "retained"
+    },
+    {
+      "id": "appendices-header",
+      "heading": "# APPENDICES - Real Source-Backed Reference Material",
+      "baseline_sha256": "f7092774c05c9bd0a32f0fa5ede29a0af594f4dab8011f7ab2be2922913c705a",
+      "baseline_bytes": 331,
+      "disposition": "moved"
+    },
+    {
+      "id": "appendix-a",
+      "heading": "## Appendix A - Install Commands per Design System",
+      "baseline_sha256": "42dd1df428bc6280a250b4a3f0d2d371eeffbf278fd358c16426fb57ce5ca824",
+      "baseline_bytes": 1163,
+      "disposition": "moved"
+    },
+    {
+      "id": "appendix-b",
+      "heading": "## Appendix B - Canonical Sources (read these before reinventing)",
+      "baseline_sha256": "ac20f3527504945045475f4b7a0f5f76ad87dd17cd3571d63a9d839403a830f3",
+      "baseline_bytes": 2961,
+      "disposition": "moved"
+    },
+    {
+      "id": "appendix-c",
+      "heading": "## Appendix C - Apple Liquid Glass: Honest Web Approximation",
+      "baseline_sha256": "731ac99e307417fa1ade9beabdd6ccdc23e7a820a5484ff6aecbe1001e346b75",
+      "baseline_bytes": 3078,
+      "disposition": "moved"
+    }
+  ]
+}

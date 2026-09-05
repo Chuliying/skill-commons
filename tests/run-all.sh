@@ -12,8 +12,8 @@
 # so a public payload simply does not contain them and discovery yields the
 # correct smaller roster there.
 #
-# Kept as a shim because README, AGENTS.md, CI and the payload check refer to it.
-# Prefer `bash tests/verify.sh` in new callers.
+# Kept as a shim for older callers, preserving the full source + public gate.
+# Prefer `bash tests/verify.sh --scope source` for local source-only checks.
 set -u
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

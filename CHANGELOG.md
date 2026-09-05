@@ -4,20 +4,42 @@
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-09-06
+
 ### Added
 
+- `sync-work` 新增選用 [Pre-PR Brief](sync-work/references/pre-pr-brief.md)：
+  push／PR 前沿用或補足專案摘要，在全專案 roadmap 標出本次 PR 章節，提供變更清單
+  與可作答、計分、解析及重試的理解測驗。AI 主動詢問一次是否啟用，同意才執行，
+  已選擇啟用或跳過時不重問。沿用既有驗證與
+  交付授權，不新增 workflow owner、mode、必填 artifact 或額外測試 gate。
+  附來源段落與 revision grounding、可改用的摘要範本、選用線上預覽指引與八個
+  maintainer eval cases；網頁發布與存取驗證另依實際授權執行。
+  來源衝突可依授權建立 issue，附修正建議與證據；跨 repo 契約文件也修正
+  `lint-docs.sh` 會驗證連結的過度宣稱。
 - 由 [`flows.json`](flows.json) 與 repository 機器來源生成的離線
   [`repo visual map`](docs/repo-visual.html)，包含產生器、可重現輸出與 drift gate。
 - repo visual map 的公開部署 repo
   [`Chuliying/skill-commons-map`](https://github.com/Chuliying/skill-commons-map)
   與 [Vercel production 站](https://skill-commons-map.vercel.app)；部署頁沿用相同 model，
   source 出口指向公開 `skill-commons` repo。
-- 本機 `payload-check` 通過結果可依 public payload 與 toolchain digest 快取；只改
+- 本機 public gate 通過結果可依 public payload 與 toolchain digest 快取；只改
   export-ignored 內容時可重用，相同 payload／toolchain 以外一律 miss。目錄不可讀、
   digest 為空或 suite 失敗都不留下有效 verdict；CI 以
-  `SKILL_COMMONS_VERIFY_NO_CACHE=1` 強制重跑，快取不作為發布證據。
+  `bash tests/verify.sh --release` 強制重跑，快取不作為發布證據。
+- `tests/verify.sh` 現在把 source 與 clean-public 驗證分成可明確選擇的 scope；失敗的
+  suite 會保留完整 stdout/stderr 記錄與可重跑命令，方便在不重跑整個 release gate 的
+  情況下定位原因。
 
 ### Changed
+
+- Frontend 技能入口由 87,327 縮為 25,854 bytes，移出的內容保留於七份按需讀取的
+  references；新增 context meter。這是結構量測，不宣稱 token、品質或總時間改善。
+- Maintainer source health 會檢查三套生成入口的一致性；project-status 優先顯示
+  可執行的 canonical plan 下一步，並保留 attention 與 unknown 的差異。
+- 整合既有 verification runtime 修正：timeout 驗證使用階段證據與獨立 watchdog，
+  完整 stdout/stderr 在失敗時重播。local public verdict 快取移到獨立 public gate，
+  不再由 reorganization suite 巢狀啟動另一輪完整驗證。
 
 - repo map 首屏先說明適用對象、交付範圍與接手價值，並在安裝 lens 前比較
   personal 與 team-sprint；技能、契約、交付狀態及測試名單收進「工程細節」展開區。
@@ -37,6 +59,9 @@
   邊界；頁首改放採用判斷，schema/build metadata 移到所屬契約區與頁尾。
 - repo map 的「怎麼用」直接指出 `.agent/project-manifest.md`、`delivery_mode`、
   `capability_packs` 與 `bootstrap/onboard.sh`，讓安裝步驟可直接操作。
+- 公開匯出邊界已由 `.gitattributes` 排除 `foundation/`、`orchestration/`、
+  `productscope/` 與 22 個實際匯入它們的 Python 測試；私有原始碼、歷史與開發測試
+  仍保留，v0.11.0 的公開 payload 不再包含上述私有模組；dev 來源仍保留。
 
 ### Fixed
 

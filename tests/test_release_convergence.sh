@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
 . "$REPO/tests/bootstrap/lib/assert.sh"
 
 for removed in tdd grill-me grill-with-docs requesting-code-review rollback ponytail finishing-a-development-branch; do
@@ -78,6 +80,7 @@ changelog_text="$(cat "$REPO/CHANGELOG.md")"
 contributing_text="$(cat "$REPO/CONTRIBUTING.md")"
 artifacts_text="$(cat "$REPO/ARTIFACTS.md")"
 unreleased_text="$(awk '/^## \[Unreleased\]/{p=1;next} p && /^## \[/{exit} p' "$REPO/CHANGELOG.md")"
+release_011_text="$(awk '/^## \[0\.11\.0\]/{p=1;next} p && /^## \[/{exit} p' "$REPO/CHANGELOG.md")"
 release_010_text="$(awk '/^## \[0\.10\.0\]/{p=1;next} p && /^## \[/{exit} p' "$REPO/CHANGELOG.md")"
 release_090_text="$(awk '/^## \[0\.9\.0\]/{p=1;next} p && /^## \[/{exit} p' "$REPO/CHANGELOG.md")"
 release_080_text="$(awk '/^## \[0\.8\.0\]/{p=1;next} p && /^## \[/{exit} p' "$REPO/CHANGELOG.md")"
@@ -98,14 +101,15 @@ fi
 
 assert_contains "$readme_text" "delivery_mode: personal" "README shows an explicit delivery mode before onboarding"
 assert_contains "$readme_text" "capability_packs:" "README documents composable capability packs"
-assert_contains "$readme_text" "checkout v0.10.0" "README pins the v0.10.0 release"
-assert_contains "$readme_en_text" "checkout v0.10.0" "English summary pins the v0.10.0 release"
-assert_contains "$bridge_text" "checkout v0.10.0" "submodule bridge pins v0.10.0"
+assert_contains "$readme_text" "checkout v0.11.0" "README pins the v0.11.0 release"
+assert_contains "$readme_en_text" "checkout v0.11.0" "English summary pins the v0.11.0 release"
+assert_contains "$bridge_text" "checkout v0.11.0" "submodule bridge pins v0.11.0"
 for entrypoint_text in "$readme_text" "$readme_en_text"; do
   assert_contains "$entrypoint_text" ".agent/skills/_shared/scripts/project-status.sh" "README documents the v0.9.0 project-status entry"
   assert_contains "$entrypoint_text" "--json" "README documents project-status machine output"
 done
 assert_contains "$changelog_text" "## [Unreleased]" "changelog keeps an Unreleased section after the release cut"
+assert_contains "$changelog_text" "## [0.11.0] - 2026-09-06" "changelog records the v0.11.0 release cut"
 assert_contains "$changelog_text" "## [0.10.0] - 2026-08-20" "changelog records the v0.10.0 public release date"
 assert_contains "$changelog_text" "## [0.9.0] - 2026-07-15" "changelog records the v0.9.0 release date"
 assert_contains "$changelog_text" "## [0.8.0] - 2026-07-14" "changelog records the v0.8.0 release date"
@@ -114,8 +118,9 @@ assert_contains "$changelog_text" "## [0.7.0] - 2026-07-11" "changelog records t
 for current_change in \
   'repo visual map' \
   '以安裝內容檢視' \
-  'payload-check'; do
-  assert_contains "$unreleased_text" "$current_change" "Unreleased records current work: $current_change"
+  'source 與 clean-public' \
+  '保留完整 stdout/stderr'; do
+  assert_contains "$release_011_text" "$current_change" "v0.11.0 records released work: $current_change"
 done
 for already_released in \
   'DELIVERY_MODE' \
@@ -193,6 +198,101 @@ assert_contains "$gitattributes_text" "**/.env.* export-ignore" "archive attribu
 assert_contains "$gitattributes_text" "**/.env.example -export-ignore" "archive attributes retain synthetic env examples"
 assert_contains "$export_script_text" '"website"' "public export forbidden list rejects the website"
 assert_contains "$export_script_text" "public export contains environment file" "public export rejects environment files after extraction"
+
+# T05 public product boundary: derive every Python test that imports an excluded
+# runtime package from the source AST, then require exactly that set (plus the
+# existing private corpus roster) to be export-ignored. The attributes remain
+# the sole declaration of the boundary; this test only checks their behavior.
+dependent_tests="$(python3 - "$REPO" <<'PY'
+import ast
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+excluded = {"foundation", "orchestration", "productscope"}
+for path in sorted((root / "tests" / "py").rglob("test_*.py")):
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    imported = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name.split(".", 1)[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.add(node.module.split(".", 1)[0])
+    if imported & excluded:
+        print(path.relative_to(root).as_posix())
+PY
+)"
+dependent_count="$(printf '%s\n' "$dependent_tests" | sed '/^$/d' | wc -l | tr -d ' ')"
+expected_dependent_count=0
+if [ -e "$REPO/foundation" ] || [ -L "$REPO/foundation" ] ||
+   [ -e "$REPO/orchestration" ] || [ -L "$REPO/orchestration" ] ||
+   [ -e "$REPO/productscope" ] || [ -L "$REPO/productscope" ]; then
+  expected_dependent_count=22
+fi
+assert_eq "$expected_dependent_count" "$dependent_count" "AST derives the source's 22 excluded-package dependent tests"
+private_tests="$(
+  {
+    printf '%s\n' "$dependent_tests"
+    if [ -f "$REPO/tests/py/integration/test_corpus_completeness.py" ]; then
+      printf '%s\n' "tests/py/integration/test_corpus_completeness.py"
+    fi
+  } | sed '/^$/d' | sort
+)"
+actual_private_tests="$(
+  while IFS= read -r test_path; do
+    [ -n "$test_path" ] || continue
+    attr="$(git -C "$REPO" check-attr export-ignore -- "$test_path" | awk -F': ' '{print $NF}')"
+    [ "$attr" = "set" ] && printf '%s\n' "$test_path"
+  done < <(cd "$REPO" && rg --files tests/py -g 'test_*.py')
+)"
+actual_private_tests="$(printf '%s\n' "$actual_private_tests" | sed '/^$/d' | sort)"
+assert_eq "$private_tests" "$actual_private_tests" "only AST dependents and corpus completeness are private Python tests"
+for package in foundation orchestration productscope; do
+  if [ -e "$REPO/$package/__init__.py" ] || [ -L "$REPO/$package/__init__.py" ]; then
+    package_attr="$(git -C "$REPO" check-attr export-ignore -- "$package/__init__.py" | awk -F': ' '{print $NF}')"
+    assert_eq "set" "$package_attr" "$package is export-ignored by attributes"
+  else
+    TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: $package is absent from the public source tree"
+  fi
+done
+
+validate_public_payload() {
+  payload="$1"
+  for forbidden in foundation orchestration productscope; do
+    if [ -e "$payload/$forbidden" ] || [ -L "$payload/$forbidden" ]; then
+      return 1
+    fi
+  done
+  while IFS= read -r test_path; do
+    [ -n "$test_path" ] || continue
+    if [ -e "$payload/$test_path" ] || [ -L "$payload/$test_path" ]; then
+      return 1
+    fi
+  done <<EOF
+$private_tests
+EOF
+  for layer in unit integration e2e; do
+    count="$(find "$payload/tests/py/$layer" -type f -name 'test_*.py' -print | wc -l | tr -d ' ')"
+    [ "$count" -gt 0 ] || return 1
+  done
+}
+
+public_payload="$TMP/public-payload"
+bash "$REPO/scripts/export-public.sh" "$public_payload" --force --include-worktree \
+  >"$TMP/export.stdout" 2>"$TMP/export.stderr"
+export_rc=$?
+assert_eq "0" "$export_rc" "current worktree exports a temporary public payload"
+if [ "$export_rc" -eq 0 ]; then
+  validate_public_payload "$public_payload"
+  payload_rc=$?
+  assert_eq "0" "$payload_rc" "public payload excludes private roots/tests and keeps all Python layers"
+
+  mkdir -p "$public_payload/foundation"
+  printf 'forbidden fixture\n' > "$public_payload/foundation/fixture.py"
+  validate_public_payload "$public_payload"
+  forbidden_rc=$?
+  assert_neq "0" "$forbidden_rc" "the same public-payload validator rejects a reintroduced forbidden root"
+fi
 
 for stale_version in "v0.5.0" "v0.6.0" "v0.8.0" "v0.9.0"; do
   assert_not_contains "$readme_text" "$stale_version" "README has no stale $stale_version pin"
@@ -354,7 +454,7 @@ for name in sys.argv[1:]:
     section = text[start:] if start >= 0 else ""
     positions = [
         section.find("fetch --tags"),
-        section.find("checkout v0.10.0"),
+        section.find("checkout v0.11.0"),
         section.find("bootstrap/manage.sh update"),
     ]
     if not section or any(position < 0 for position in positions) or positions != sorted(positions):

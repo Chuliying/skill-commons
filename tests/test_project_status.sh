@@ -102,6 +102,97 @@ EOF
 
 echo "project-status v3 contract"
 
+# Bootstrap classification is exercised with a bounded subprocess mock. The
+# real source probe builds all three generated roots and belongs to the final
+# serialized verification, not this focused fixture suite.
+MOCK_CHECK="$TMP/mock-check.sh"
+MOCK_SOURCE="$TMP/mock-source"
+MOCK_CONSUMER="$TMP/mock-consumer"
+mkdir -p "$MOCK_SOURCE" "$MOCK_CONSUMER"
+: > "$MOCK_CHECK"
+BOOTSTRAP_PROBES="$(python3 - "$REPO/scripts/project_status.py" "$MOCK_CHECK" "$MOCK_SOURCE" "$MOCK_CONSUMER" <<'PY'
+import importlib.util
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+module_path = Path(sys.argv[1]).resolve()
+check_path = Path(sys.argv[2]).resolve()
+source_root = Path(sys.argv[3]).resolve()
+consumer_root = Path(sys.argv[4]).resolve()
+spec = importlib.util.spec_from_file_location("project_status_probe_fixture", module_path)
+module = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+spec.loader.exec_module(module)
+module.CHECK_SH = check_path
+module.REPO_ROOT = source_root
+
+def run_case(project_root, returncode, stdout):
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, returncode, stdout, "")
+
+    original_run = module.subprocess.run
+    module.subprocess.run = fake_run
+    try:
+        result = module.probe_bootstrap(project_root)
+    finally:
+        module.subprocess.run = original_run
+    return {"result": result, "command": calls[0]}
+
+payload = {
+    "source_clean": run_case(source_root, 0, ""),
+    "source_attention": run_case(
+        source_root,
+        0,
+        "⚠️ maintainer generated root missing ownership ledger: .claude/skills/.skill-commons-ownership-v1; run: PROFILE=all bash bootstrap/generate.sh\n"
+        "⚠️ maintainer generated content is stale in .codex/skills: stale/SKILL.md; run: PROFILE=all bash bootstrap/generate.sh\n"
+        "⚠️ maintainer generated root contains retired owner output in .agents/skills: ponytail; run: PROFILE=all bash bootstrap/generate.sh\n",
+    ),
+    "source_operational_warning": run_case(
+        source_root,
+        0,
+        "⚠️ maintainer source health check could not build an expected payload; run: PROFILE=all bash bootstrap/generate.sh\n",
+    ),
+    "source_nonzero": run_case(source_root, 7, ""),
+    "consumer_drift": run_case(
+        consumer_root,
+        0,
+        "⚠️ 設定已過期 (stamp 000000000000 ≠ abcdef123456),請執行: bash bootstrap/onboard.sh\n",
+    ),
+}
+expected_states = {
+    "source_clean": "PASS",
+    "source_attention": "attention",
+    "source_operational_warning": "unknown",
+    "source_nonzero": "unknown",
+    "consumer_drift": "attention",
+}
+for name, expected_state in expected_states.items():
+    actual_state = payload[name]["result"]["state"]
+    assert actual_state == expected_state, (name, expected_state, actual_state)
+print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+PY
+)"
+bootstrap_probe_rc=$?
+assert_eq "0" "$bootstrap_probe_rc" "bounded bootstrap probe fixture completes"
+assert_contains "$BOOTSTRAP_PROBES" '"source_clean": {"command": ["bash"' "source probe invokes bootstrap/check.sh"
+bootstrap_state() {
+  printf '%s' "$BOOTSTRAP_PROBES" | python3 -c 'import json,sys;print(json.load(sys.stdin)[sys.argv[1]]["result"]["state"])' "$1"
+}
+assert_eq "PASS" "$(bootstrap_state source_clean)" "clean source health is PASS"
+assert_eq "attention" "$(bootstrap_state source_attention)" "maintainer generated-root warnings are attention"
+assert_eq "unknown" "$(bootstrap_state source_operational_warning)" "source operational warning is unknown"
+assert_eq "unknown" "$(bootstrap_state source_nonzero)" "nonzero bootstrap subprocess is unknown"
+assert_eq "attention" "$(bootstrap_state consumer_drift)" "consumer stamp drift remains attention"
+assert_contains "$BOOTSTRAP_PROBES" '"detail": "maintainer source health requires attention"' "source health warning detail is actionable"
+assert_contains "$BOOTSTRAP_PROBES" '"detail": "maintainer source health check failed operationally"' "source operational warning is unknown"
+assert_contains "$BOOTSTRAP_PROBES" '"detail": "bootstrap check failed (exit status 7)"' "nonzero bootstrap subprocess is unknown"
+assert_contains "$BOOTSTRAP_PROBES" '"detail": "bootstrap configuration is stale (stamp drift)"' "consumer stamp drift remains attention"
+
 # Two active work items must remain ambiguous without guessing a primary item.
 MROOT="$TMP/multi"
 MWORK="$MROOT/docs/work"
@@ -141,6 +232,7 @@ CANONICAL="$(bash "$PS" --project-root "$CROOT" --work-root "$CWORK" --slug cano
 assert_contains "$CANONICAL" '"mode": "canonical"' "canonical plan mode is reported"
 assert_contains "$CANONICAL" '"plan_state": "running"' "planctl running state is preserved"
 assert_contains "$CANONICAL" '"active_task": "T01"' "planctl active task is preserved"
+assert_contains "$CANONICAL" '"next_action": "continue canonical: T01: fixture-task"' "canonical executable task is the continuation hint"
 
 # An active work item without a plan is uncertain, even when bootstrap is healthy.
 NPROOT="$TMP/no-plan"
@@ -162,6 +254,15 @@ make_canonical_item "$UWORK" unstamped
 UNSTAMPED="$(bash "$PS" --project-root "$UROOT" --work-root "$UWORK" --slug unstamped --json)"
 unstamped_bootstrap="$(printf '%s' "$UNSTAMPED" | python3 -c 'import json,sys;print(json.load(sys.stdin)["probes"]["bootstrap"]["state"])')"
 assert_eq "unknown" "$unstamped_bootstrap" "unstamped consuming shim is not bootstrap PASS"
+
+# A consuming root with a stale managed stamp remains bootstrap attention.
+DROOT="$TMP/drift"
+mkdir -p "$DROOT"
+printf 'skill-commons-stamp: 000000000000\n' > "$DROOT/AGENTS.md"
+DRIFT="$(bash "$PS" --project-root "$DROOT" --json)"
+drift_bootstrap="$(printf '%s' "$DRIFT" | python3 -c 'import json,sys;print(json.load(sys.stdin)["probes"]["bootstrap"]["state"])')"
+assert_eq "attention" "$drift_bootstrap" "stamped consuming shim drift remains attention"
+assert_contains "$DRIFT" '\u2260' "stamp drift warning remains visible"
 
 # Invalid v3 metadata drives the global invalid state.
 BROOT="$TMP/bad"
@@ -295,10 +396,5 @@ UNREADABLE_TEXT="$(bash "$PS" --project-root "$UPROOT" --work-root "$UPWORK")"
 assert_contains "$UNREADABLE_TEXT" "participants=gone" "text output keeps the unreadable participant's identity"
 assert_contains "$UNREADABLE_TEXT" "does not exist" "text output reports the unreadable participant"
 assert_not_contains "$UNREADABLE" "$TMP" "unreadable-participant report leaks no host path"
-
-# The private source repo itself remains a bootstrap N/A/unknown context.
-SELF="$(python3 "$REPO/scripts/project_status.py" --project-root "$REPO" --json)"
-self_bootstrap="$(printf '%s' "$SELF" | python3 -c 'import json,sys;print(json.load(sys.stdin)["probes"]["bootstrap"]["state"])')"
-assert_eq "unknown" "$self_bootstrap" "source repository bootstrap is unknown/N/A"
 
 finish
