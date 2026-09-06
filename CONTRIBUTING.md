@@ -51,6 +51,8 @@ Experimental 技能不進 `profiles/core`，不承諾輸入輸出契約穩定，
 5. 新增根目錄文件時同步加入 README 文件連結。
 6. Commit、tag、push 與 PR 依 repository guardrails 執行；未經明確授權不 push。
 
+本機 public 快取只重用 suite verdict；export、generate 與 Git init/add/commit 每次都重新檢查，任一步失敗就清除舊 verdict。
+
 每筆 runner failure 會在系統 temporary 目錄留下獨立 run log，保留 stdout、stderr、完整失敗輸出 與 per-entry retry command；成功 run 會清理該目錄。CI 的 source 與 public jobs 都從 fresh checkout 執行，public job 會重新 export、generate 並建立 temporary commit，不讀取本地 verdict cache。
 
 `sync-work` 在準備 push 或建立 PR 前會主動詢問一次，是否啟用

@@ -9,6 +9,7 @@
 set -u
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cache_file="$ROOT/.verify-cache/public-payload.digest"
 
 usage() {
   cat <<'EOF'
@@ -16,7 +17,7 @@ usage: bash tests/verify-public.sh [--cached]
 
 Run a fresh public export from the current worktree, generate its adapters,
 commit the payload in a temporary repository, and verify its public tree.
---cached permits an identical local verdict to be reused before generation.
+--cached may reuse the suite verdict after generation and Git setup succeed.
 EOF
 }
 
@@ -52,6 +53,11 @@ if [ "${VERIFY_PUBLIC_KEEP:-0}" = "1" ]; then
   KEEP=1
 fi
 cleanup() {
+  cleanup_rc=$?
+  # Setup/export failures must invalidate an old successful suite verdict too.
+  if [ "$cleanup_rc" -ne 0 ] && [ ! -L "$ROOT/.verify-cache" ]; then
+    rm -f "$cache_file"
+  fi
   if [ "$KEEP" -eq 0 ]; then
     rm -rf "$GATE_DIR"
   fi
@@ -69,8 +75,9 @@ if ! bash "$ROOT/scripts/export-public.sh" "$TARGET" --force --include-worktree 
   exit 1
 fi
 
-# Cache only the explicit local path, after a fresh export and before generation.
-# Any identity error forces a real run. The release/default public path never hits.
+# Identify the exported input before generation adds adapters. Cache reuse is
+# considered only after generation and Git setup succeed below. Identity errors
+# force a real suite run; release/default public verification never hits.
 payload_id="$(python3 - "$TARGET" "$BASH_VERSION" <<'CACHEPY'
 import hashlib, os, pathlib, platform, stat, sys
 root=pathlib.Path(sys.argv[1]); h=hashlib.sha256()
@@ -89,16 +96,6 @@ except OSError:
     pass
 CACHEPY
 )"
-cache_file="$ROOT/.verify-cache/public-payload.digest"
-if [ "$use_cache" -eq 1 ] && [ "${SKILL_COMMONS_VERIFY_NO_CACHE:-0}" != "1" ] &&
-   [ ! -L "$ROOT/.verify-cache" ] && [ -n "$payload_id" ] && [ -f "$cache_file" ] && [ ! -L "$cache_file" ] &&
-   [ "$(cat "$cache_file")" = "$payload_id" ]; then
-  echo "PUBLIC_GATE scope=public reused=identical-payload-and-toolchain digest=$payload_id rc=0 (no fresh public suite executed)"
-  exit 0
-fi
-# A failed fresh run must not leave a previously cached verdict eligible.
-if [ ! -L "$ROOT/.verify-cache" ]; then rm -f "$cache_file"; fi
-
 generate_log="$GATE_DIR/generate.stdout.log"
 generate_err="$GATE_DIR/generate.stderr.log"
 if ! (cd "$TARGET" && PROFILE=all bash bootstrap/generate.sh) >"$generate_log" 2>"$generate_err"; then
@@ -123,6 +120,17 @@ if ! git -C "$TARGET" init -q ||
   echo "target commit failed"
   exit 1
 fi
+
+# Cache only the expensive suite; setup and commit are always checked.
+if [ "$use_cache" -eq 1 ] && [ "${SKILL_COMMONS_VERIFY_NO_CACHE:-0}" != "1" ] &&
+   [ ! -L "$ROOT/.verify-cache" ] && [ -n "$payload_id" ] && [ -f "$cache_file" ] && [ ! -L "$cache_file" ] &&
+   [ "$(cat "$cache_file")" = "$payload_id" ]; then
+  if [ "$KEEP" -eq 1 ]; then echo "PUBLIC_LOGS dir=$GATE_DIR target=$TARGET"; fi
+  echo "PUBLIC_GATE scope=public reused=identical-payload-and-toolchain digest=$payload_id rc=0 (no fresh public suite executed)"
+  exit 0
+fi
+# A failed fresh run must not leave a previously cached verdict eligible.
+if [ ! -L "$ROOT/.verify-cache" ]; then rm -f "$cache_file"; fi
 
 verify_log="$GATE_DIR/verify.stdout.log"
 verify_err="$GATE_DIR/verify.stderr.log"

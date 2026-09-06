@@ -65,6 +65,9 @@
 
 ### Fixed
 
+- 本機 public 快取只重用 suite verdict；export、generate 與 Git init/add/commit
+  每次都必須成功。setup 失敗會清除舊 verdict，避免 Git 環境故障仍因暖快取回報成功；
+  新增三種 Git setup 故障的回歸檢查。正式 `--release` 仍強制完整重新驗證。
 - repo map 在 640px 以下把安裝 lens 固定為單列橫向捲動，並替 section heading 保留
   sticky offset；待處理工作改為單欄卡片，避免標題被遮住及三欄內容逐字斷行。
 - clean checkout 的 CI 會先生成受管 fan-out，再執行 canonical Verify chain。

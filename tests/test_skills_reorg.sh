@@ -759,6 +759,44 @@ if SKILL_COMMONS_VERIFY_NO_CACHE=0 bash "$PUBLIC_PROBE_ROOT/tests/verify-public.
 else
   fail "local public cache announces reuse without claiming a fresh run"
 fi
+# Cache reuse must still validate Git setup in the current environment.
+PUBLIC_REAL_GIT="$(command -v git)"
+mkdir -p "$PUBLIC_PROBE_ROOT/bin"
+cat > "$PUBLIC_PROBE_ROOT/bin/git" <<'EOF'
+#!/usr/bin/env bash
+case " $* " in
+  *" ${PUBLIC_FAIL_GIT_STEP} "*)
+    echo "fixture Git ${PUBLIC_FAIL_GIT_STEP} regression" >&2
+    exit 91
+    ;;
+esac
+exec "$PUBLIC_REAL_GIT" "$@"
+EOF
+chmod +x "$PUBLIC_PROBE_ROOT/bin/git"
+for public_git_step in init add commit; do
+  if ! VERIFY_PUBLIC_KEEP=0 SKILL_COMMONS_VERIFY_NO_CACHE=0 bash "$PUBLIC_PROBE_ROOT/tests/verify-public.sh" >"$TMP/cache-setup-warm.log" 2>&1; then
+    fail "warm public verdict before changed Git $public_git_step"
+    continue
+  fi
+  public_git_log="$TMP/cache-git-$public_git_step.log"
+  if ! PATH="$PUBLIC_PROBE_ROOT/bin:$PATH" PUBLIC_REAL_GIT="$PUBLIC_REAL_GIT" \
+      PUBLIC_FAIL_GIT_STEP="$public_git_step" SKILL_COMMONS_VERIFY_NO_CACHE=0 \
+      bash "$PUBLIC_PROBE_ROOT/tests/verify-public.sh" --cached >"$public_git_log" 2>&1 &&
+     grep -q "fixture Git $public_git_step regression" "$public_git_log" &&
+     grep -q 'target commit failed' "$public_git_log"; then
+    TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: cached public gate detects changed Git $public_git_step failure"
+  else
+    fail "cached public gate detects changed Git $public_git_step failure"
+  fi
+  if [ ! -e "$PUBLIC_PROBE_ROOT/.verify-cache/public-payload.digest" ]; then
+    TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: Git $public_git_step failure invalidates the old public verdict"
+  else
+    fail "Git $public_git_step failure invalidates the old public verdict"
+  fi
+  public_git_dir="$(sed -n 's/^PUBLIC_DIAGNOSTICS dir=\([^ ]*\).*/\1/p' "$public_git_log")"
+  if [ -n "$public_git_dir" ]; then rm -rf "$public_git_dir"; fi
+done
+
 printf '\n# changed payload\n' >> "$PUBLIC_PROBE_ROOT/tests/verify.sh"
 if SKILL_COMMONS_VERIFY_NO_CACHE=0 bash "$PUBLIC_PROBE_ROOT/tests/verify-public.sh" --cached >"$TMP/cache-miss.log" 2>&1 &&
    grep -q 'PUBLIC_GATE scope=public inner=' "$TMP/cache-miss.log"; then
