@@ -65,6 +65,8 @@
 
 ### Fixed
 
+- release boundary 測試以標準 `find` 列出 Python 測試，移除對額外安裝 `rg` 的依賴，
+  讓乾淨的 GitHub runner 也能完整驗證 private test 排除名單。
 - 本機 public 快取只重用 suite verdict；export、generate 與 Git init/add/commit
   每次都必須成功。setup 失敗會清除舊 verdict，避免 Git 環境故障仍因暖快取回報成功；
   新增三種 Git setup 故障的回歸檢查。正式 `--release` 仍強制完整重新驗證。

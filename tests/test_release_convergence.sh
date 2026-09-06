@@ -243,7 +243,7 @@ actual_private_tests="$(
     [ -n "$test_path" ] || continue
     attr="$(git -C "$REPO" check-attr export-ignore -- "$test_path" | awk -F': ' '{print $NF}')"
     [ "$attr" = "set" ] && printf '%s\n' "$test_path"
-  done < <(cd "$REPO" && rg --files tests/py -g 'test_*.py')
+  done < <(cd "$REPO" && find tests/py -type f -name 'test_*.py' -print)
 )"
 actual_private_tests="$(printf '%s\n' "$actual_private_tests" | sed '/^$/d' | sort)"
 assert_eq "$private_tests" "$actual_private_tests" "only AST dependents and corpus completeness are private Python tests"
