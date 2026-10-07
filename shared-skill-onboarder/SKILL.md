@@ -20,8 +20,6 @@ stage: infra
 3. 把這些模式建立成 domain skills
 4. 讓 manifest 串起 shared skills 和 project skills
 
-> **Announce at start:** 「我正在使用 shared-skill-onboarder 來檢查或建立 shared skills 接入條件。」
-
 ---
 
 ## Skill 的兩種類型
@@ -110,10 +108,10 @@ Capability 為 false 的條件式文件記為 N/A，不阻擋 Full track。這�
 
 #### 3.1 粗篩（scan-project.js）
 
-執行：
+執行（`<shared-skill-onboarder-dir>` 為本 skill 的實際安裝目錄）：
 
 ```bash
-node .agent/skills/_shared/shared-skill-onboarder/scripts/scan-project.js
+node <shared-skill-onboarder-dir>/scripts/scan-project.js
 ```
 
 腳本輸出：

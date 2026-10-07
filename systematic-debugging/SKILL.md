@@ -1,8 +1,8 @@
 ---
 name: systematic-debugging
 description: |
-  系統化除錯流程。Use when: (1) 遇到任何 bug 或測試失敗, (2) 行為不如預期, (3) 連續修復失敗 2+ 次, (4) 遇到建置或整合錯誤。
-  禁止: 在完成 Phase 1 (根因調查) 前提出修復方案。
+  系統化除錯流程。Use when: (1) 遇到任何 bug 或測試失敗, (2) 行為不如預期, (3) 連續修復失敗, (4) 遇到建置或整合錯誤。
+  完成 Phase 1（根因調查）前不提出修復方案。
   觸發關鍵字: bug, 測試失敗, 除錯, debug, unexpected behavior, 修不好, 一直失敗
 source: obra/superpowers@d884ae04edebef577e82ff7c4e143debd0bbec99
 source_kind: adapted
@@ -47,15 +47,14 @@ Use for ANY technical issue:
 **Don't skip when:**
 - Issue seems simple (simple bugs have root causes too)
 - You're in a hurry (rushing guarantees rework)
-- Manager wants it fixed NOW (systematic is faster than thrashing)
 
 ## The Four Phases
 
-You MUST complete each phase before proceeding to the next.
+Complete Phases 1–4 in order; Phase 0 is optional.
 
-### Phase 0: 查詢 Memory 知識庫（強制）
+### Phase 0: 查詢 Memory 知識庫（選用）
 
-**進入 Phase 1 之前，先查是否有相似症狀的歷史記錄：**
+若使用者有保留 debug 記錄（見 [`references/memory.md`](references/memory.md)），進入 Phase 1 前先查相似症狀：
 
 ```bash
 # 查看最近 10 個 debug session
@@ -218,7 +217,7 @@ grep -i "[symptom keyword]" ~/.skill-memory/systematic-debugging/debug-sessions.
    - **If ≥ 3: STOP and question the architecture (step 5 below)**
    - DON'T attempt Fix #4 without architectural discussion
 
-5. **If 3+ Fixes Failed: Question Architecture**
+5. **Phase 4.5 — If 3+ Fixes Failed: Question Architecture**
 
    **Pattern indicating architectural problem:**
    - Each fix reveals new shared state/coupling/problem in different place
@@ -295,7 +294,7 @@ If systematic investigation reveals issue is truly environmental, timing-depende
 3. Implement appropriate handling (retry, timeout, error message)
 4. Add monitoring/logging for future investigation
 
-**But:** 95% of "no root cause" cases are incomplete investigation.
+**But:** most "no root cause" conclusions turn out to be incomplete investigation; re-check Phase 1 evidence before settling on this.
 
 ## Supporting Techniques
 
@@ -309,14 +308,6 @@ These techniques are part of systematic debugging and available in this director
 - **`implement`**（本 repo 版）- For creating the failing test and implementing the fix (Phase 4)
 - **`verification-before-completion`**（本 repo 版）- Verify fix worked before claiming success
 
-## Real-World Impact
-
-From debugging sessions:
-- Systematic approach: 15-30 minutes to fix
-- Random fixes approach: 2-3 hours of thrashing
-- First-time fix rate: 95% vs 40%
-- New bugs introduced: Near zero vs common
-
 ---
 
 ## Execution Checklist（必填輸出）
@@ -329,7 +320,7 @@ Executed At: YYYY-MM-DD HH:MM
 Files: [修復的檔案]
 
 Steps:
-Phase 0: 查詢 Memory 知識庫 - [完成]
+Phase 0: 查詢 Memory 知識庫 - [PASS/N/A]
    └─ 發現: [無歷史 / 找到相似記錄: X]
 Phase 1: Root Cause Investigation - [PASS/SKIP]
    Evidence: [錯誤訊息, 重現步驟, 最近變更]
@@ -340,7 +331,7 @@ Phase 3: Hypothesis and Testing - [PASS/SKIP]
    Evidence: [假設內容, 測試結果]
 Phase 4: Implementation - [PASS/SKIP]
    Evidence: [failing test → fix → passing test]
-Phase 完成後: 寫入 Memory - [完成]
+Phase 完成後: 寫入 Memory - [PASS/N/A]
    └─ 路徑: ~/.skill-memory/systematic-debugging/debug-sessions.log
 
  Debug 結果:
@@ -359,7 +350,7 @@ Phase 完成後: 寫入 Memory - [完成]
 
 ## Memory — 累積 Debug 知識庫
 
-每次成功解決問題後，將根因與修復方式記錄下來，讓 AI 能識別重複出現的 bug 模式。Phase 0 進入前先查、修復成功後寫入。
+每次成功解決問題後，將根因與修復方式記錄下來，讓 AI 能識別重複出現的 bug 模式。選用：有保留記錄時，Phase 0 先查、修復成功後寫入。
 
 > 完整讀寫格式、路徑與**選用/opt-out 說明**見 [`references/memory.md`](references/memory.md)。Phase 0 的快速讀取指令已內嵌於上方 Phase 0。
 

@@ -49,6 +49,20 @@ assert_file "$TARGET/FOREIGN.md" "generate preserves a foreign root fragment"
 assert_file "$TARGET/scripts/foreign-helper.sh" "generate preserves a foreign shared helper"
 assert_file "$TARGET/.skill-commons-ownership-v1" "generate writes an ownership ledger"
 
+# Consumers run the fanned-out helpers from their own repo, so each one must
+# start from the generated tree alone. A sibling-module import that is missing
+# from the fan-out list only shows up here, never in the source checkout.
+for helper in "$TARGET"/scripts/*.py "$TARGET/scripts/work-items.sh"; do
+  case "$helper" in *.py) helper_runner=python3 ;; *) helper_runner=bash ;; esac
+  helper_rc=0
+  helper_out="$(cd "$TMP" && "$helper_runner" "$helper" --help 2>&1)" || helper_rc=$?
+  if [ "$helper_rc" -eq 0 ]; then
+    TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: fanned-out $(basename "$helper") runs from the generated tree"
+  else
+    fail "fanned-out $(basename "$helper") fails from the generated tree (rc=$helper_rc): $(printf '%s' "$helper_out" | tail -1)"
+  fi
+done
+
 # Onboarding uses the generator's real preflight before publishing any adapter.
 # The preflight exercises discovery, locks, ledgers, and collisions without
 # writing the target.
@@ -224,6 +238,9 @@ printf 'old artifacts\n' > "$LEGACY_DRIFT_TARGET/ARTIFACTS.md"
 printf 'old graph context\n' > "$LEGACY_DRIFT_TARGET/graph-context-check.md"
 printf 'old sources\n' > "$LEGACY_DRIFT_TARGET/SOURCES.md"
 printf 'old checklist\n' > "$LEGACY_DRIFT_TARGET/CHECKLIST-CONVENTION.md"
+# Older fan-outs also shipped scripts/run-gate.sh, a helper no longer distributed.
+mkdir -p "$LEGACY_DRIFT_TARGET/scripts"
+printf 'old gate\n' > "$LEGACY_DRIFT_TARGET/scripts/run-gate.sh"
 printf 'foreign\n' > "$LEGACY_DRIFT_TARGET/foreign-skill/KEEP"
 legacy_before="$(shasum -a 256 "$LEGACY_DRIFT_TARGET/skill-router/SKILL.md" | awk '{print $1}')"
 set +e
@@ -243,6 +260,11 @@ for retired_skill in dev-kickoff finishing-a-development-branch grill-me grill-w
     fail "legacy migration left historical $retired_skill output discoverable"
   fi
 done
+if [ ! -e "$LEGACY_DRIFT_TARGET/scripts/run-gate.sh" ]; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: legacy migration removes the retired run-gate.sh helper"
+else
+  fail "legacy migration left the retired run-gate.sh helper unowned"
+fi
 
 # Canonical generation targets may not overlap. Otherwise an outer target can
 # replace a nested target created earlier in the same successful run.

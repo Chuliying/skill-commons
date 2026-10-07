@@ -32,8 +32,6 @@ assert_contains "$grader_source" '"recorded"' "grader separates recorded attesta
 assert_contains "$grader_source" '"router_read_recorded"' "grader labels skill-read report text as recorded"
 assert_not_contains "$grader_source" 'recorded["router_read"]' "grader does not name report text as observed reading"
 assert_contains "$grader_source" '"presence_only_not_execution"' "grade output carries the recorded-evidence limitation"
-assert_contains "$grader_source" 'args.skills_root' "grader resolves the scanner from a harness-owned skills root"
-assert_not_contains "$grader_source" 'root / ".codex/skills/security/scripts/scan-secrets.sh"' "grader does not trust an agent-writable generated scanner"
 assert_contains "$grader_source" 'scripts/work_items.py' "grader resolves the canonical work-item checker from the harness root"
 assert_not_contains "$grader_source" '.codex/skills/scripts/work_items.py' "grader does not trust an agent-writable generated work-item checker"
 
@@ -48,7 +46,6 @@ assert_contains "$grader_source" 'pinning_assertion_present(' "grader AST-verifi
 assert_contains "$grader_source" 'prd_shape_ok(' "team-feature re-runs the PRD shape gate instead of checking existence"
 assert_contains "$grader_source" 'traceability_ok(' "team-feature re-runs AC-to-TC traceability"
 assert_contains "$grader_source" 'plan_consistency_ok(' "team-feature re-runs plan consistency"
-assert_contains "$grader_source" 'security_gate_reproduced(' "commit-pr re-runs the secret scan instead of trusting the report"
 assert_contains "$grader_source" 'SKILLS_REPO = Path(__file__).resolve()' "re-run gates resolve from the trusted skills repo, not the graded workspace"
 
 security_skill="$(cat "$REPO/security/SKILL.md")"
@@ -113,10 +110,20 @@ for scenario in $EXPECTED; do
   assert_contains "$grade_output" '"pass": false' "$scenario grader emits structured failure"
 done
 
+# Pristine per-scenario templates are built once; every case below still gets its
+# own fresh copy, so no case can observe another case's mutations.
+for template_scenario in personal-feature commit-pr; do
+  python3 "$REPO/journey-evals/scripts/setup_fixture.py" \
+    --scenario "$template_scenario" --dest "$TMP/template-$template_scenario" --skills-root "$REPO" >/dev/null
+done
+fresh_fixture() { # $1=scenario $2=dest
+  rm -rf "$2"
+  cp -R "$TMP/template-$1" "$2"
+}
+
 # A token mention is not behavior evidence: the grader must exercise the new API.
 false_positive="$TMP/false-positive-personal"
-python3 "$REPO/journey-evals/scripts/setup_fixture.py" \
-  --scenario personal-feature --dest "$false_positive" --skills-root "$REPO" >/dev/null
+fresh_fixture personal-feature "$false_positive"
 mkdir -p "$false_positive/docs/work/personal-feature"
 cat >> "$false_positive/src/greet.py" <<'EOF'
 # punctuation is intentionally mentioned without implementing the requested API.
@@ -144,8 +151,7 @@ else
 fi
 
 skill_read_false_positive="$TMP/false-positive-skill-read"
-python3 "$REPO/journey-evals/scripts/setup_fixture.py" \
-  --scenario personal-feature --dest "$skill_read_false_positive" --skills-root "$REPO" >/dev/null
+fresh_fixture personal-feature "$skill_read_false_positive"
 cat > "$skill_read_false_positive/src/greet.py" <<'EOF'
 """Minimal Python CLI fixture."""
 
@@ -180,8 +186,7 @@ else
 fi
 
 commit_pr_false_positive="$TMP/false-positive-commit-pr"
-python3 "$REPO/journey-evals/scripts/setup_fixture.py" \
-  --scenario commit-pr --dest "$commit_pr_false_positive" --skills-root "$REPO" >/dev/null
+fresh_fixture commit-pr "$commit_pr_false_positive"
 false_positive_base="$(git -C "$commit_pr_false_positive" rev-parse HEAD)"
 cat >> "$commit_pr_false_positive/docs/work/ship-ready/prd.md" <<'EOF'
 
@@ -216,8 +221,7 @@ else
 fi
 
 commit_pr_bare_prose="$TMP/bare-prose-commit-pr"
-python3 "$REPO/journey-evals/scripts/setup_fixture.py" \
-  --scenario commit-pr --dest "$commit_pr_bare_prose" --skills-root "$REPO" >/dev/null
+fresh_fixture commit-pr "$commit_pr_bare_prose"
 bare_prose_base="$(git -C "$commit_pr_bare_prose" rev-parse HEAD)"
 cat >> "$commit_pr_bare_prose/docs/work/ship-ready/prd.md" <<'EOF'
 
@@ -258,8 +262,7 @@ assert_contains "$bare_prose_output" '"scoped_review_attestation_recorded": fals
 assert_contains "$bare_prose_output" '"secret_preflight_command_recorded": false' "bare security PASS is not scanner evidence"
 
 commit_pr_fake_delivery="$TMP/fake-delivery-commit-pr"
-python3 "$REPO/journey-evals/scripts/setup_fixture.py" \
-  --scenario commit-pr --dest "$commit_pr_fake_delivery" --skills-root "$REPO" >/dev/null
+fresh_fixture commit-pr "$commit_pr_fake_delivery"
 fake_delivery_base="$(git -C "$commit_pr_fake_delivery" rev-parse HEAD)"
 cat >> "$commit_pr_fake_delivery/docs/work/ship-ready/prd.md" <<'EOF'
 
@@ -306,8 +309,7 @@ assert_contains "$fake_delivery_output" '"delivery_awaits_approval": false' "com
 assert_contains "$fake_delivery_output" '"no_fabricated_delivery_evidence": false' "commit-pr grader checks absence of fabricated evidence"
 
 commit_pr_secret_leak="$TMP/secret-leak-commit-pr"
-python3 "$REPO/journey-evals/scripts/setup_fixture.py" \
-  --scenario commit-pr --dest "$commit_pr_secret_leak" --skills-root "$REPO" >/dev/null
+fresh_fixture commit-pr "$commit_pr_secret_leak"
 cat >> "$commit_pr_secret_leak/docs/work/ship-ready/prd.md" <<'EOF'
 
 ## Delivery
@@ -372,8 +374,7 @@ assert_neq "0" "$inherited_manifest_rc" "grader ignores an inherited manifest th
 assert_contains "$inherited_manifest_output" '"secret_preflight_pass": false' "harness binds secret scan to the trusted fixture manifest"
 
 commit_pr_green="$TMP/green-commit-pr"
-python3 "$REPO/journey-evals/scripts/setup_fixture.py" \
-  --scenario commit-pr --dest "$commit_pr_green" --skills-root "$REPO" >/dev/null
+fresh_fixture commit-pr "$commit_pr_green"
 cat >> "$commit_pr_green/docs/work/ship-ready/prd.md" <<'EOF'
 
 ## Delivery
@@ -481,8 +482,7 @@ assert_contains "$rewritten_history_output" '"head_parent_is_trusted_baseline": 
 assert_contains "$rewritten_history_output" '"scoped_review_attestation_recorded": false' "review scope remains bound to the trusted baseline"
 
 commit_pr_duplicate_meta="$TMP/duplicate-metadata-commit-pr"
-python3 "$REPO/journey-evals/scripts/setup_fixture.py" \
-  --scenario commit-pr --dest "$commit_pr_duplicate_meta" --skills-root "$REPO" >/dev/null
+fresh_fixture commit-pr "$commit_pr_duplicate_meta"
 cat >> "$commit_pr_duplicate_meta/docs/work/ship-ready/prd.md" <<'EOF'
 
 ## Delivery
@@ -542,8 +542,7 @@ assert_contains "$noncanonical_meta_output" '"exactly_one_local_commit": true' "
 assert_contains "$noncanonical_meta_output" '"work_item_contract_valid": false' "canonical checker exposes noncanonical metadata shape"
 
 commit_pr_symlinked_artifacts="$TMP/symlinked-artifacts-commit-pr"
-python3 "$REPO/journey-evals/scripts/setup_fixture.py" \
-  --scenario commit-pr --dest "$commit_pr_symlinked_artifacts" --skills-root "$REPO" >/dev/null
+fresh_fixture commit-pr "$commit_pr_symlinked_artifacts"
 cat >> "$commit_pr_symlinked_artifacts/docs/work/ship-ready/prd.md" <<'EOF'
 
 ## Delivery

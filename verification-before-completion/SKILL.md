@@ -1,6 +1,6 @@
 ---
 name: verification-before-completion
-description: Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands and confirming output before making any success claims; evidence before assertions always
+description: Use before claiming work is complete, fixed or passing, and before commits or PRs. Runs the manifest-driven verify script and checks handoff checklists; overrides superpowers:verification-before-completion.
 source: obra/superpowers@d884ae04edebef577e82ff7c4e143debd0bbec99
 source_kind: adapted
 stage: infra
@@ -12,11 +12,8 @@ stage: infra
 
 ## Overview
 
-Claiming work is complete without verification is dishonesty, not efficiency.
-
-**Core principle:** Evidence before claims, always.
-
-**Violating the letter of this rule is violating the spirit of this rule.**
+完成宣稱要附上本次變更後實際跑過的驗證輸出。過期或部分的證據會讓使用者以為工作已完成，
+回頭重工的成本遠高於多跑一次命令。
 
 ## Available Script
 
@@ -34,18 +31,14 @@ bash <skill-dir>/scripts/verify.sh --skip-test
 > 腳本從 consuming repo 的 `.agent/project-manifest.md` 讀取 capability flags 與 stack commands；
 > `typed_contracts: false` 時 type-check 為 N/A，不假設 package manager。
 
-## The Iron Law
+## Core Rule
 
-```
-NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE
-```
-
-If you haven't run the verification command in this message, you cannot claim it passes.
+最後一次程式變更之後沒有跑過的驗證，不能拿來宣稱通過。
 
 ## The Gate Function
 
 ```
-BEFORE claiming any status or expressing satisfaction:
+Before claiming any status:
 
 1. IDENTIFY: What command proves this claim?
 2. RUN: Execute the FULL command (fresh, complete)
@@ -53,9 +46,7 @@ BEFORE claiming any status or expressing satisfaction:
 4. VERIFY: Does output confirm the claim?
    - If NO: State actual status with evidence
    - If YES: State claim WITH evidence
-5. ONLY THEN: Make the claim
-
-Skip any step = lying, not verifying
+5. Make the claim, citing the command and result
 ```
 
 ## Common Failures
@@ -70,94 +61,18 @@ Skip any step = lying, not verifying
 | Agent completed | VCS diff shows changes | Agent reports "success" |
 | Requirements met | Line-by-line checklist | Tests passing |
 
-## Red Flags - STOP
-
-- Using "should", "probably", "seems to"
-- Expressing satisfaction before verification ("Great!", "Perfect!", "Done!", etc.)
-- About to commit/push/PR without verification
-- Trusting agent success reports
-- Relying on partial verification
-- Thinking "just this once"
-- Tired and wanting work over
-- **ANY wording implying success without having run verification**
-
-## Rationalization Prevention
-
-| Excuse | Reality |
-|--------|---------|
-| "Should work now" | RUN the verification |
-| "I'm confident" | Confidence ≠ evidence |
-| "Just this once" | No exceptions |
-| "Linter passed" | Linter ≠ compiler |
-| "Agent said success" | Verify independently |
-| "I'm tired" | Exhaustion ≠ excuse |
-| "Partial check is enough" | Partial proves nothing |
-| "Different words so rule doesn't apply" | Spirit over letter |
-
 ## Key Patterns
 
-**Tests:**
-```
- [Run test command] [See: 34/34 pass] "All tests pass"
- "Should pass now" / "Looks correct"
-```
+- **Regression test:** write → run (pass) → revert fix → run (must fail) → restore → run (pass).
+  A test that never failed has not been shown to catch the bug.
+- **Delegated work:** a subagent's "success" is a claim, not evidence; check the diff and rerun
+  the relevant command yourself.
+- **Requirements:** re-read the plan or PRD and check each item; passing tests do not show
+  that every requirement was implemented.
+- **Hedged wording** ("should pass", "looks correct") is a signal that verification has not run yet.
+  Run it, or report the status as unverified.
 
-**Regression tests (TDD Red-Green):**
-```
- Write → Run (pass) → Revert fix → Run (MUST FAIL) → Restore → Run (pass)
- "I've written a regression test" (without red-green verification)
-```
-
-**Build:**
-```
- [Run build] [See: exit 0] "Build passes"
- "Linter passed" (linter doesn't check compilation)
-```
-
-**Requirements:**
-```
- Re-read plan → Create checklist → Verify each → Report gaps or completion
- "Tests pass, phase complete"
-```
-
-**Agent delegation:**
-```
- Agent reports success → Check VCS diff → Verify changes → Report actual state
- Trust agent report
-```
-
-## Why This Matters
-
-From 24 failure memories:
-- your human partner said "I don't believe you" - trust broken
-- Undefined functions shipped - would crash
-- Missing requirements shipped - incomplete features
-- Time wasted on false completion → redirect → rework
-- Violates: "Honesty is a core value. If you lie, you'll be replaced."
-
-## When To Apply
-
-**ALWAYS before:**
-- ANY variation of success/completion claims
-- ANY expression of satisfaction
-- ANY positive statement about work state
-- Committing, PR creation, task completion
-- Moving to next task
-- Delegating to agents
-
-**Rule applies to:**
-- Exact phrases
-- Paraphrases and synonyms
-- Implications of success
-- ANY communication suggesting completion/correctness
-
-## The Bottom Line
-
-**No shortcuts for verification.**
-
-Run the command. Read the output. THEN claim the result.
-
-This is non-negotiable.
+Apply this before commits, PRs, handing off, or moving to the next task.
 
 ---
 

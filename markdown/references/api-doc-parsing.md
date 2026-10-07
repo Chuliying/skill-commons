@@ -45,9 +45,11 @@ description: |
 
 **Agent 執行方式**（PM 不應手動貼腳本）：在 workspace 內呼叫 `convert-markitdown.sh` 或等效的 `markitdown <input> -o <output>`，路徑由使用者 Prompt 指定。
 
+`<markdown-skill-dir>` 為 markdown skill 的實際安裝目錄。
+
 ```bash
 DOCS_ROOT="<manifest paths.docs_root; default: docs>"
-bash .agent/skills/_shared/markdown/scripts/convert-markitdown.sh path/to/source.pdf "$DOCS_ROOT/reference/source.md"
+bash <markdown-skill-dir>/scripts/convert-markitdown.sh path/to/source.pdf "$DOCS_ROOT/reference/source.md"
 # 圖片範例：path/to/screenshot.png → path/to/screenshot.md
 ```
 

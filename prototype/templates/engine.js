@@ -4,9 +4,9 @@
  *
  * ⚠️  READONLY — AI 不得修改此檔案
  * 此檔案包含所有 runtime JS 邏輯，從 templates/ 複製到 output/ 使用。
- * AI 在 G5 僅需填入 DATA_JS 區塊（PROTOTYPE_MAP、衍生變數、FRAME_REGISTRY）。
+ * G5 的 runtime-data.js 產生資料，frames.js 提供 FRAME_REGISTRY。
  *
- * 依賴的全域變數（由 DATA_JS 提供，必須在本檔案之前載入）：
+ * 依賴的全域變數（由 runtime-data.js / frames.js 提供，先於本檔案載入）：
  *   - PROTOTYPE_MAP   : Object  (G4 凍結 JSON)
  *   - SCENARIO_TITLES  : Object  { sid: "名稱" }
  *   - NAV_PATH         : Object  { sid: ["pageId", ...] }
@@ -17,6 +17,13 @@
  *   - SCENARIO_STATE   : Object  { sid: { ...data } }
  *   - FRAME_REGISTRY   : Object  { frameRef: function(ctx) → HTML string }
  * ==================================================================== */
+
+// Map fields and reviewer notes are text, never markup. Frame renderers remain code.
+function escapeText(value) {
+  return String(value == null ? '' : value).replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 
 /* =============================================================
    STATE
@@ -210,7 +217,7 @@ function updateMiddlePanel() {
       if (i < activeIdx) lineClass += ' is-done';
       html += '<span class="' + lineClass + '"></span>';
     }
-    html += '</div><span class="' + labelClass + '">' + labels[i] + '</span></div>';
+    html += '</div><span class="' + labelClass + '">' + escapeText(labels[i]) + '</span></div>';
   }
   stepperEl.innerHTML = html;
 
@@ -222,7 +229,7 @@ function updateMiddlePanel() {
   var notes = getAcNotes();
   for (var j = 0; j < acItems.length; j++) {
     var item = acItems[j];
-    var acText = (typeof item === 'string') ? item : item.text;
+    var acText = escapeText((typeof item === 'string') ? item : item.text);
     var acIdTag = '<span class="c-ac-item__id">' + (j + 1) + '</span>';
     var acKey = sid + '__' + stepId + '__' + j;
 
@@ -236,7 +243,7 @@ function updateMiddlePanel() {
       popover = '<div class="c-ac-prd-popover" id="' + popId + '">' +
         '<div class="c-ac-prd-popover__label">PRD 原文</div>' +
         '<div class="c-ac-prd-popover__text">' + escapedPrd + '</div>' +
-        (item.src ? '<div class="c-ac-prd-popover__src">來源：' + item.src + '</div>' : '') +
+        (item.src ? '<div class="c-ac-prd-popover__src">來源：' + escapeText(item.src) + '</div>' : '') +
         '</div>';
     }
 
@@ -258,7 +265,7 @@ function updateMiddlePanel() {
         '</li>' + popover;
       // Note editor (hidden by default)
       acHtml += '<div class="c-ac-note-editor" id="note-editor-' + acKey + '" style="display:none;">' +
-        '<textarea class="c-ac-note-editor__input" placeholder="輸入備註..." onblur="saveAcNote(\'' + acKey + '\', this.value)">' + (notes[acKey] || '') + '</textarea>' +
+        '<textarea class="c-ac-note-editor__input" placeholder="輸入備註..." onblur="saveAcNote(\'' + acKey + '\', this.value)">' + escapeText(notes[acKey] || '') + '</textarea>' +
         '</div>';
     }
   }
@@ -383,17 +390,17 @@ function buildReportHtml() {
   });
 
   var meta = PROTOTYPE_MAP.meta || {};
-  var coverageRate = meta.coverageRate !== undefined ? meta.coverageRate : 100;
+  var coverageLabel = meta.coverageRate !== undefined ? meta.coverageRate + '%' : '未計算';
 
   var html = '<div class="c-print-report">';
 
   // Header
   html += '<div class="c-print-report__header">' +
-    '<h1 class="c-print-report__title">' + (meta.projectName || 'Prototype') + ' — 確認報告</h1>' +
+    '<h1 class="c-print-report__title">' + escapeText(meta.projectName || 'Prototype') + ' — 確認報告</h1>' +
     '<div class="c-print-report__meta">' +
-      '<span>PRD 版本：' + (meta.prdVersion || '-') + '</span>' +
+      '<span>PRD 版本：' + escapeText(meta.prdVersion || '-') + '</span>' +
       '<span>匯出時間：' + now + '</span>' +
-      '<span>AC 覆蓋率：' + coverageRate + '%</span>' +
+      '<span>AC 覆蓋率：' + escapeText(coverageLabel) + '</span>' +
     '</div>' +
   '</div>';
 
@@ -407,7 +414,7 @@ function buildReportHtml() {
   // Per route → per page → per AC
   routeKeys.forEach(function(sid) {
     html += '<div class="c-print-report__route">' +
-      '<h2 class="c-print-report__route-title">' + SCENARIO_TITLES[sid] + '</h2>';
+      '<h2 class="c-print-report__route-title">' + escapeText(SCENARIO_TITLES[sid]) + '</h2>';
 
     var stepAcs = AC_DATA[sid] || {};
     var path = NAV_PATH[sid] || [];
@@ -418,17 +425,17 @@ function buildReportHtml() {
       var stepLabel = stepMeta ? stepMeta.label : stepId;
 
       html += '<div class="c-print-report__step">' +
-        '<h3 class="c-print-report__step-title">' + stepLabel + '</h3>';
+        '<h3 class="c-print-report__step-title">' + escapeText(stepLabel) + '</h3>';
 
       items.forEach(function(item, idx) {
         if (item.isHint) return;
         var key = sid + '__' + stepId + '__' + idx;
         var status = checked[key] ? '&#x2705;' : '&#x2B1C;';
-        var noteText = notes[key] ? '<div class="c-print-report__note">&#x1F4DD; ' + notes[key] + '</div>' : '';
+        var noteText = notes[key] ? '<div class="c-print-report__note">&#x1F4DD; ' + escapeText(notes[key]) + '</div>' : '';
         html += '<div class="c-print-report__ac-item">' +
           '<span class="c-print-report__ac-status">' + status + '</span>' +
-          '<span class="c-print-report__ac-id">' + item.id + '</span>' +
-          '<span class="c-print-report__ac-text">' + (item.text || item) + '</span>' +
+          '<span class="c-print-report__ac-id">' + escapeText(item.id) + '</span>' +
+          '<span class="c-print-report__ac-text">' + escapeText(item.text || item) + '</span>' +
           noteText +
         '</div>';
       });
@@ -445,8 +452,8 @@ function buildReportHtml() {
       '<h2 class="c-print-report__gaps-title">缺口說明</h2>';
     meta.gaps.forEach(function(gap) {
       html += '<div class="c-print-report__gap-item">' +
-        '<strong>' + gap.prdAcId + '</strong>：' + gap.description +
-        (gap.reason ? ' — ' + gap.reason : '') +
+        '<strong>' + escapeText(gap.prdAcId) + '</strong>：' + escapeText(gap.description) +
+        (gap.reason ? ' — ' + escapeText(gap.reason) : '') +
       '</div>';
     });
     html += '</div>';

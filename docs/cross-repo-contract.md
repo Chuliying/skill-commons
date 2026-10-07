@@ -130,3 +130,9 @@ VERIFY_ROSTER_FILE=/tmp/roster bash tests/verify.sh
 `export-ignore` 排除在公開 payload 之外。維護者專用的測試 suite 同樣如此宣告，
 所以公開 payload 的 roster 會自然變小，不需要 runner 另外判斷。公開/私有邊界
 只宣告在 `.gitattributes` 一處。
+
+公開 snapshot 不保留私有 commit 歷史，貢獻者能見度改由 commit trailer 承擔：
+發布時用 `scripts/export-coauthors.sh <上次匯出的 dev SHA>` 收集自上次 export
+以來的作者，把輸出的 `Co-authored-by` 行附在公開 snapshot commit message 結尾
+（匯出者本人預設排除）。上次匯出的 dev SHA 記錄於 `docs/STATUS.md` 的公開推送
+段落。

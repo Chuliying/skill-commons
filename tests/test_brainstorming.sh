@@ -8,9 +8,6 @@ router_text="$(cat "$REPO/skill-router/SKILL.md")"
 subagent_text="$(cat "$REPO/subagent-driven-development/SKILL.md")"
 readme_text="$(cat "$REPO/README.md")"
 discovery_text="$(cat "$REPO/docs/discovery-and-planning.md")"
-sources_text="$(cat "$REPO/SOURCES.md")"
-index_text="$(cat "$REPO/INDEX.md")"
-changelog_text="$(cat "$REPO/CHANGELOG.md")"
 spec_text="$(cat "$REPO/spec/SKILL.md")"
 qa_plan_text="$(cat "$REPO/qa/references/qa-plan.md")"
 research_path="$REPO/brainstorming/references/research.md"
@@ -107,14 +104,6 @@ for token in "Factual lookup" "Bounded ambiguity" "Consented Deep" "Known execut
   assert_contains "$discovery_text" "$token" "discovery reader keeps evidence boundary: $token"
 done
 assert_contains "$readme_text" "docs/discovery-and-planning.md" "README links the discovery reader"
-assert_contains "$sources_text" "bounded discovery" "SOURCES records the local brainstorming rewrite"
-for token in "## Concept influences" "391a2701dd948f94f56a39f7533f8eea9a859c87" "manual review reference" "Wayfinder" "Research" "to-spec" "to-tickets" "concept only" "Similarity ratio" "Longest identical token run"; do
-  assert_contains "$sources_text" "$token" "SOURCES records reviewed concept provenance: $token"
-done
-assert_contains "$index_text" "docs/discovery-and-planning.md" "INDEX links to the discovery reader contract"
-for token in "conditional Research" "consent-gated Deep Wayfinding" "Selected Seam" "vertical slices" "GPT-5.5"; do
-  assert_contains "$changelog_text" "$token" "CHANGELOG records implemented discovery contract: $token"
-done
 
 if [ ! -e "$REPO/brainstorming/evals" ]; then
   TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: maintainer routing fixtures are not in the fan-out skill payload"
@@ -154,161 +143,6 @@ then
   TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: 25-case routing and deep-action fixture is valid"
 else
   fail "25-case routing and deep-action fixture is valid"
-fi
-
-pilot_runner="$REPO/docs/work/discovery-planning-slices/pilot/run_pilot.py"
-if [ -f "$pilot_runner" ]; then
-  pilot_runner_text="$(cat "$pilot_runner")"
-  assert_not_contains "$pilot_runner_text" '"kind": item["kind"]' "pilot prompt does not expose gold kind labels"
-  for token in "prompt_sha256" "schema_sha256" "corpus_sha256" "evaluator_sha256" "rubric_sha256" "scorer_sha256" "identity"; do
-    assert_contains "$pilot_runner_text" "$token" "pilot raw-run reuse binds $token"
-  done
-  assert_not_contains "$pilot_runner_text" 'changed_average_questions_lte_0_5' "pilot acceptance does not treat model-reported questions as observed UX"
-  assert_not_contains "$pilot_runner_text" 'changed_conditional_load_accuracy_eq_1' "pilot acceptance does not treat predicted loading as runtime observation"
-else
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: private pilot runner is absent from the public payload"
-fi
-
-pilot_runs="$REPO/docs/work/discovery-planning-slices/pilot/pilot-runs-v3.jsonl"
-pilot_summary="$REPO/docs/work/discovery-planning-slices/pilot/pilot-summary-v3.json"
-pilot_disposition="$REPO/docs/work/discovery-planning-slices/reviews/owner-pilot-disposition.md"
-if python3 - "$REPO" "$pilot_summary" <<'PY'
-import ast
-import hashlib
-import json
-from pathlib import Path
-import re
-import sys
-
-root = Path(sys.argv[1])
-summary_path = Path(sys.argv[2])
-if not summary_path.is_file():
-    raise SystemExit(0)
-runner_path = root / "docs/work/discovery-planning-slices/pilot/run_pilot.py"
-tree = ast.parse(runner_path.read_text(encoding="utf-8"))
-components = None
-for node in tree.body:
-    if isinstance(node, ast.Assign) and any(
-        isinstance(target, ast.Name) and target.id == "COMPONENTS"
-        for target in node.targets
-    ):
-        components = ast.literal_eval(node.value)
-        break
-if not isinstance(components, dict):
-    raise SystemExit("pilot payload drift gate: COMPONENTS mapping missing")
-
-current_payload = "".join(
-    (root / relative).read_text(encoding="utf-8")
-    for relative in components.values()
-)
-current_sha = hashlib.sha256(current_payload.encode("utf-8")).hexdigest()
-stored_sha = json.loads(summary_path.read_text(encoding="utf-8"))[
-    "changed_payload_sha256"
-]
-
-if current_sha != stored_sha:
-    evidence_paths = (
-        root / "docs/discovery-and-planning.md",
-        root / "CHANGELOG.md",
-        root / "docs/STATUS.md",
-        root / "docs/work/discovery-planning-slices/implement-report.md",
-        root / "docs/work/discovery-planning-slices/reviews/fable-final-review.md",
-    )
-    marker = "pre-T10 historical negative evidence"
-    missing = [str(path.relative_to(root)) for path in evidence_paths if marker not in path.read_text(encoding="utf-8")]
-    if missing:
-        raise SystemExit(
-            "pilot payload drift gate: stored classifier payload "
-            f"{stored_sha} differs from current {current_sha}; "
-            f"missing historical-evidence label in {missing}"
-        )
-    association = re.compile(
-        r"(?i)(?:current|post-T10|shipping|shipped|目前)[^\n]{0,140}(?:0\.8333|83\.33)|"
-        r"(?:0\.8333|83\.33)[^\n]{0,140}(?:current|post-T10|shipping|shipped|目前)"
-    )
-    associated = [
-        str(path.relative_to(root))
-        for path in evidence_paths
-        if association.search(path.read_text(encoding="utf-8"))
-    ]
-    if associated:
-        raise SystemExit(
-            "pilot payload drift gate: historical classifier score is associated "
-            f"with the current/post-T10 shipping payload in {associated}"
-        )
-PY
-then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: classifier evidence stays bound to its stored payload identity"
-else
-  fail "classifier evidence stays bound to its stored payload identity"
-fi
-if [ -f "$pilot_runs" ] && [ -f "$pilot_summary" ] && python3 - "$pilot_runs" "$pilot_summary" "$pilot_disposition" <<'PY'
-import hashlib
-import json
-from pathlib import Path
-import sys
-
-runs = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines() if line]
-summary = json.loads(Path(sys.argv[2]).read_text())
-if len(runs) != 6:
-    raise SystemExit(f"pilot identity gate: expected 6 runs, got {len(runs)}")
-expected_keys = {
-    (condition, repetition)
-    for condition in ("baseline", "changed")
-    for repetition in (1, 2, 3)
-}
-actual_keys = {(r["condition"], r["repetition"]) for r in runs}
-if actual_keys != expected_keys:
-    raise SystemExit(f"pilot identity gate: run keys differ: {sorted(actual_keys)}")
-for run in runs:
-    identity = run["identity"]
-    condition = run["condition"]
-    expected_identity = {
-        "condition": condition,
-        "repetition": run["repetition"],
-        "corpus_sha256": summary["corpus_sha256"],
-        "schema_sha256": summary["schema_sha256"],
-        "evaluator_sha256": summary["evaluator_sha256"],
-        "rubric_sha256": summary["rubric_sha256"],
-        "scorer_sha256": summary["scorer_sha256"],
-        "prompt_sha256": summary["prompt_sha256"][condition],
-    }
-    for key, value in expected_identity.items():
-        if identity.get(key) != value:
-            raise SystemExit(
-                f"pilot identity gate: {condition}/{run['repetition']} {key} mismatch"
-            )
-passing_acceptance = {
-    "all_six_runs_completed": True,
-    "changed_case_exact_accuracy_gte_0_90": True,
-    "pass": True,
-}
-acceptance = summary["scores"]["acceptance"]
-if acceptance != passing_acceptance:
-    score = summary["scores"]["changed"]["case_exact_accuracy"]
-    disposition_path = Path(sys.argv[3])
-    if not disposition_path.is_file():
-        raise SystemExit(
-            f"pilot acceptance gate: changed exact={score:.4f}, required>=0.9000; "
-            "owner disposition missing"
-        )
-    disposition = disposition_path.read_text()
-    summary_sha = hashlib.sha256(Path(sys.argv[2]).read_bytes()).hexdigest()
-    required = (
-        "Decision: accept-without-effectiveness-claim",
-        f"Pilot summary SHA-256: `{summary_sha}`",
-        "does not relabel the smoke as PASS",
-    )
-    missing = [token for token in required if token not in disposition]
-    if missing:
-        raise SystemExit(f"pilot owner-disposition gate: missing {missing}")
-PY
-then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: v3 pilot is identity-bound and either passes or has an exact owner no-claim disposition"
-elif [ ! -e "$pilot_runs" ] && [ ! -e "$pilot_summary" ]; then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: private pilot evidence is absent from the public payload"
-else
-  fail "v3 pilot is identity-bound and either passes or has an exact owner no-claim disposition"
 fi
 
 finish

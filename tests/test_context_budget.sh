@@ -205,10 +205,10 @@ assert_contains "$negative_output" "excess=" "ceiling failure names the excess"
 
 router_lines="$(wc -l < "$REPO/skill-router/SKILL.md" | tr -d ' ')"
 router_bytes="$(wc -c < "$REPO/skill-router/SKILL.md" | tr -d ' ')"
-if [ "$router_lines" -le 180 ] && [ "$router_bytes" -le 7600 ]; then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: context budget suite owns router 180-line/7600-byte gate"
+if [ "$router_lines" -le 180 ] && [ "$router_bytes" -lt 6747 ]; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: context budget suite owns router 180-line/6747-byte gate"
 else
-  fail "context budget suite owns router 180-line/7600-byte gate"
+  fail "context budget suite owns router 180-line/6747-byte gate"
 fi
 
 if python3 - "$REPO" "$SECTIONS" <<'PY'
@@ -226,18 +226,19 @@ assert main.stat().st_size < 30000
 assert fixture["baseline_bytes"] == 87327
 assert len(fixture["baseline_sha256"]) == 64
 
-# Preserve the original preamble/frontmatter before the separately inserted
-# disclosure links.
-preamble_text = main_text.split("## Conditional references\n", 1)[0]
-assert preamble_text.endswith("\n\n\n")
-preamble = preamble_text[:-1].encode("utf-8")
-assert len(preamble) == fixture["preamble_bytes"]
-assert hashlib.sha256(preamble).hexdigest() == fixture["preamble_sha256"]
-
 retained = [item for item in fixture["sections"] if item["disposition"] == "retained"]
 moved = [item for item in fixture["sections"] if item["disposition"] == "moved"]
 files = [main] + sorted((root / "design-taste-frontend/references").glob("*.md"))
 combined = "\n".join(path.read_text(encoding="utf-8") for path in files)
+
+# The original upstream preamble/frontmatter survives verbatim exactly once, either
+# at the top of the entry or in a reference that holds the upstream core.
+preamble_owner = root / fixture.get("preamble_location", fixture["source"])
+owner_bytes = preamble_owner.read_bytes()
+pre_start = owner_bytes.index(b"---\nname: design-taste-frontend\n")
+preamble = owner_bytes[pre_start:pre_start + fixture["preamble_bytes"]]
+assert hashlib.sha256(preamble).hexdigest() == fixture["preamble_sha256"]
+assert combined.count(preamble.decode("utf-8")) == 1
 for item in fixture["sections"]:
     assert combined.count(item["heading"]) == 1, item["heading"]
 

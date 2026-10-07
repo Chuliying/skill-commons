@@ -51,17 +51,11 @@
 /tests/py/unit/test_foundation_graph.py export-ignore
 /tests/py/unit/test_foundation_schema.py export-ignore
 
-# Benchmark result payloads are immutable verbatim host/model evidence. Preserve
-# Markdown hard-break spaces and other source formatting without normalizing it.
-/docs/work/skill-bundle-effect-benchmark/benchmark/results/** -whitespace
-
 # Maintainer-only test suites. They read private inventories that a public
 # payload does not contain, so the payload must not carry them: tests/verify.sh
 # discovers suites from the tree, and this is the single place the public/private
 # test boundary is declared.
 /tests/test_skill_inventory.sh export-ignore
-/tests/test_skill_surface.sh export-ignore
-/tests/test_skill_bundle_benchmark.sh export-ignore
 
 # Maintainer-only test: it reads the QA corpus roster from docs/work/**, which is
 # itself export-ignore, so a public payload cannot satisfy it. Keeping it in the

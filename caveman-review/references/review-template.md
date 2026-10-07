@@ -39,6 +39,8 @@ Use for missing required behavior, fragile architecture, meaningful test gaps, o
 
 Use for low-risk cleanup. Omit this section if empty.
 
+These map to the one-line prefixes in `SKILL.md`: Critical/Important → `bug`/`risk`, Minor → `nit`.
+
 For each issue:
 
 ```text

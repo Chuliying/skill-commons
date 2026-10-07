@@ -33,8 +33,6 @@ change-scope evidence.
 
 ## Applies to
 
-- `caveman-review`: inspect module boundaries and change scope.
-- `plan-sync`: identify implementation and test paths.
 - `systematic-debugging`: find candidate related modules before direct tracing.
 - `spec`: find similar implementations and related files.
 - `codebase-understanding`: support focused architecture analysis.

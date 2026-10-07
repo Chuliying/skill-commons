@@ -340,9 +340,9 @@ skill_commons_shared_fragments() {
 skill_commons_shared_scripts() {
   printf '%s\n' \
     manifest-stack.sh \
-    run-gate.sh \
     work-items.sh \
     work_items.py \
+    execution_modes.py \
     check-prd.py \
     check_protocol_registry.py
 }

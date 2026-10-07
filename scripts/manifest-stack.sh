@@ -10,7 +10,10 @@ manifest_stack_value() {
   manifest="$(manifest_stack_file)"
   key="$1"
   [ -f "$manifest" ] || return 0
-  sed -nE "s/^- *\`?${key}\`? *: *//p" "$manifest" | head -1 | tr -d '\r'
+  # Onboarding writes values as inline code (`npm test`); strip one surrounding
+  # pair so the command is not run as a command substitution.
+  sed -nE "s/^- *\`?${key}\`? *: *//p" "$manifest" | head -1 | tr -d '\r' |
+    sed -E 's/^`(.*)`[[:space:]]*$/\1/'
 }
 
 manifest_stack_capability() {

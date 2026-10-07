@@ -357,8 +357,16 @@ if command -v jq >/dev/null 2>&1; then
   marker="$TMP/pwned-marker"
   rm -f "$marker"
   printf '## skill-commons bootstrap\n- submodule_path: .agent/skills/_shared; touch %s; true\n- platforms: claude-code\n- delivery_mode: personal\n' "$marker" > "$INJ_PROJECT/.agent/project-manifest.md"
-  bash "$REPO/bootstrap/onboard.sh" "$INJ_PROJECT" >/dev/null 2>&1 || true
+  inj_rc=0
+  bash "$REPO/bootstrap/onboard.sh" "$INJ_PROJECT" >/dev/null 2>&1 || inj_rc=$?
   hook_cmd="$(jq -r '.hooks.SessionStart[0].hooks[0].command // ""' "$INJ_PROJECT/.claude/settings.json" 2>/dev/null || true)"
+  # Rejecting the hostile path is fine; accepting it must still produce a real hook
+  # command, or both injection checks below would pass vacuously.
+  if [ "$inj_rc" -ne 0 ] || [ -n "$hook_cmd" ]; then
+    TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: onboard either rejects the hostile path or writes a hook command to check"
+  else
+    fail "onboard accepted the hostile path but wrote no SessionStart hook command"
+  fi
   assert_not_contains "$hook_cmd" "; touch $marker" "malicious submodule_path is quoted, not spliced as shell syntax"
   bash -c "$hook_cmd" >/dev/null 2>&1 || true
   if [ -f "$marker" ]; then

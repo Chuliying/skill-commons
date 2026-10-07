@@ -442,6 +442,7 @@ def check(args: argparse.Namespace) -> tuple[list[str], dict[str, int]]:
         if missing or extra:
             errors.append(
                 f"generated owner set mismatch: {generated_root} missing={','.join(missing) or 'none'} extra={','.join(extra) or 'none'}"
+                " (Verify needs the full fan-out: PROFILE=all bash bootstrap/generate.sh)"
             )
         for name in sorted(workflow):
             source_files = file_map(root / name)

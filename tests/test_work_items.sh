@@ -443,4 +443,18 @@ assert_neq "0" "$j6_rc" "an authored PASS does not advance work to complete"
 assert_contains "$j6_output" "completed work requires exactly one documentation_impact result" "failed completion check names the failed check"
 assert_contains "$j6_output" "n/a:<bounded reason>" "failed completion check names what to do next"
 
+# A folder holding a lifecycle artifact but no meta.yml is a work item the checker
+# cannot see; reporting "passed" for it hides the missing metadata. Folders with
+# only supporting notes are not work items and stay out of the count.
+ORPHAN_ROOT="$TMP/orphan-ws/docs/work"
+mkdir -p "$ORPHAN_ROOT/demo" "$ORPHAN_ROOT/notes-only"
+git init -q "$TMP/orphan-ws" >/dev/null 2>&1
+printf '# PRD\n' > "$ORPHAN_ROOT/demo/prd.md"
+printf '# Notes\n' > "$ORPHAN_ROOT/notes-only/inventory.md"
+orphan_rc=0
+orphan_output="$(bash "$REPO/scripts/work-items.sh" --work-root "$ORPHAN_ROOT" check 2>&1)" || orphan_rc=$?
+assert_neq "0" "$orphan_rc" "a lifecycle artifact without meta.yml fails the check"
+assert_contains "$orphan_output" "demo" "the orphaned work item is named"
+assert_not_contains "$orphan_output" "notes-only" "a supporting-notes folder is not treated as a work item"
+
 finish

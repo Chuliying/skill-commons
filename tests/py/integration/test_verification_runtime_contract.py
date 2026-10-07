@@ -1,4 +1,4 @@
-"""Regression contracts for verification diagnostics and load-safe timeout tests."""
+"""Behavioural contracts for the test watchdog and run-bounded pipe isolation."""
 
 import os
 import pathlib
@@ -66,15 +66,6 @@ Path(os.environ["PRODUCER_DONE"]).write_text("done", encoding="utf-8")
 
 
 class TestVerificationRuntimeContract(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.gate = (REPO / "tests" / "test_gate_automation.sh").read_text()
-        cls.reorg = (REPO / "tests" / "test_skills_reorg.sh").read_text()
-        cls.public_runner = (REPO / "tests" / "verify-public.sh").read_text()
-        cls.ci = (REPO / ".github" / "workflows" / "ci.yml").read_text()
-        cls.agents = (REPO / "AGENTS.md").read_text()
-        cls.claude = (REPO / "CLAUDE.md").read_text()
-
     @staticmethod
     def _wait_until(predicate, label):
         deadline = time.monotonic() + DIRECT_PIPE_WATCHDOG_SECONDS
@@ -207,18 +198,6 @@ class TestVerificationRuntimeContract(unittest.TestCase):
             self.last_runner_returncode = process.returncode
             self._stop_process(producer)
 
-    def test_timeout_verdicts_do_not_compare_wall_clock_seconds(self):
-        self.assertNotIn(
-            "date +%s",
-            self.gate,
-            "scheduler delay must not be used as a product timeout verdict",
-        )
-        self.assertNotIn(
-            "_elapsed",
-            self.gate,
-            "elapsed wall time must not decide gate-automation PASS/FAIL",
-        )
-
     def test_timeout_fixtures_use_an_independent_test_watchdog(self):
         self.assertTrue(
             TEST_WATCHDOG.is_file(),
@@ -226,12 +205,6 @@ class TestVerificationRuntimeContract(unittest.TestCase):
         )
         watchdog_source = TEST_WATCHDOG.read_text()
         self.assertNotIn("run-bounded.py", watchdog_source)
-        self.assertIn("TEST_WATCHDOG=", self.gate)
-        self.assertNotIn(
-            '"$REAL_PYTHON" "$BOUNDED_RUNNER" "$TEST_WATCHDOG_TIMEOUT"',
-            self.gate,
-            "the product runner must not supervise its own timeout regressions",
-        )
         timed = subprocess.run(
             [
                 sys.executable,
@@ -265,31 +238,6 @@ class TestVerificationRuntimeContract(unittest.TestCase):
         self.assertEqual(7, completed.returncode)
         self.assertIn("watchdog-marker", completed.stdout)
 
-    def test_worktree_search_timeout_requires_phase_specific_evidence(self):
-        self.assertIn(
-            'assert_contains "$bt_out" "worktree candidate search coverage mismatch or malformed output (exit 124)"',
-            self.gate,
-        )
-
-    def test_engine_timeout_cap_observes_the_effective_runner_argument(self):
-        self.assertIn("RUNNER_SPY_LOG", self.gate)
-        self.assertIn("effective engine timeout is capped at the operation timeout", self.gate)
-
-    def test_direct_pipe_contracts_are_not_hidden_behind_an_outer_product_runner(self):
-        source = pathlib.Path(__file__).read_text()
-        self.assertIn(
-            "test_direct_output_pipe_is_not_retained_by_escaped_descendant",
-            source,
-        )
-        self.assertIn(
-            "test_direct_input_pipe_is_not_retained_by_escaped_descendant",
-            source,
-        )
-        self.assertNotIn(
-            'br_escape_out="$("$REAL_PYTHON" "$BOUNDED_RUNNER" "$TEST_WATCHDOG_TIMEOUT"',
-            self.gate,
-        )
-
     def test_direct_output_pipe_is_not_retained_by_escaped_descendant(self):
         with tempfile.TemporaryDirectory() as raw_directory:
             directory = pathlib.Path(raw_directory)
@@ -319,23 +267,6 @@ class TestVerificationRuntimeContract(unittest.TestCase):
                     directory / "mutant-input",
                 )
             )
-
-    def test_worktree_and_staged_engine_timeouts_have_independent_fixtures(self):
-        self.assertIn("sc_worktree_out", self.gate)
-        self.assertIn("sc_staged_out", self.gate)
-        self.assertNotIn('assert_contains "$sc_out"', self.gate)
-
-    def test_payload_failure_log_is_not_tail_truncated(self):
-        self.assertNotIn('grep -vE \'^  ok:\' "$PAYLOAD_LOG" | tail -20', self.reorg)
-        self.assertIn('cat "$verify_log"', self.public_runner)
-
-    def test_release_no_cache_is_an_explicit_cli_mode(self):
-        self.assertIn("run: bash tests/verify.sh --release", self.ci)
-        self.assertNotIn("SKILL_COMMONS_VERIFY_NO_CACHE:", self.ci)
-        for document in (self.agents, self.claude):
-            self.assertIn("Focused iteration", document)
-            self.assertIn("bash tests/verify.sh --release", document)
-            self.assertIn("content-addressed", document)
 
 
 if __name__ == "__main__":

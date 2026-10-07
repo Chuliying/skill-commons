@@ -680,9 +680,31 @@ def command_stale(args: argparse.Namespace) -> int:
     return 0
 
 
+def orphaned_work_items(work_root: Path) -> list[Path]:
+    """Folders holding a lifecycle artifact but no meta.yml.
+
+    Each work item has exactly one meta.yml (ARTIFACTS.md). A folder that already
+    carries a stage file is a work item the metadata check would otherwise skip;
+    folders with only supporting notes are not work items.
+    """
+    stage_files = {file for _, file in execution_modes.ARTIFACT_STAGES.values()}
+    return sorted(
+        child
+        for child in work_root.iterdir()
+        if child.is_dir()
+        and child.name != "_archive"
+        and not (child / "meta.yml").is_file()
+        and any((child / file).is_file() for file in stage_files)
+    )
+
+
 def command_check(args: argparse.Namespace) -> int:
     failures = 0
     items = load_items(args.work_root)
+    orphans = orphaned_work_items(args.work_root)
+    for orphan in orphans:
+        failures += 1
+        print(f"FAIL {orphan}: lifecycle artifact present but meta.yml is missing")
     for item, errors in items:
         if not errors:
             print(f"PASS {item.path}")
@@ -691,7 +713,7 @@ def command_check(args: argparse.Namespace) -> int:
         for error in errors:
             print(f"FAIL {item.path}: {error}")
     if failures:
-        print(f"work-item check failed: {failures}/{len(items)} invalid")
+        print(f"work-item check failed: {failures}/{len(items) + len(orphans)} invalid")
         return 1
     print(f"work-item check passed: {len(items)} valid")
     return 0

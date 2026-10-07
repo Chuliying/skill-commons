@@ -1,7 +1,6 @@
 ---
 name: to-prd
-description: Turn the current conversation into a PRD and publish it to the project issue tracker — no interview, just synthesis of what you've already discussed.
-disable-model-invocation: true
+description: Turn the current conversation into a core-tier PRD at <work_root>/<slug>/prd.md — no interview, just synthesis of what you've already discussed. Optionally publish it to the project issue tracker.
 source: mattpocock/skills@2454c95dc305
 source_kind: vendored
 stage: docs
@@ -38,7 +37,7 @@ team-tier precondition (it omits NFR, dependencies, and the metadata table).
    python3 <shared_skills_root>/scripts/check-prd.py --prd "<work_root>/<slug>/prd.md" --tier core
    ```
 
-5. If an issue tracker and `ready-for-agent` label are configured, publish the PRD after the local files exist and the shape gate passes.
+5. If an issue tracker and `ready-for-agent` label are configured and the user asks for or approves publication, publish the PRD after the local files exist and the shape gate passes. Otherwise report that publication was skipped.
 
 ## Execution Checklist（必填輸出）
 

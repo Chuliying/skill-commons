@@ -2,7 +2,7 @@
 name: implement
 description: |
   使用 RED-GREEN-REFACTOR 實作 feature、bug fix 或 refactor。Use when: router 已指定 Execution Mode，且需要測試先行的程式碼變更。
-  觸發關鍵字: implement, 實作, TDD, test first, coding, 開發
+  觸發關鍵字: implement, 實作, TDD, test first
 source: obra/superpowers@d884ae04edebef577e82ff7c4e143debd0bbec99
 source_kind: adapted
 stage: implement
@@ -71,7 +71,7 @@ Artifact requirement 的語意只有：
 2. 每次調整後重跑測試，保持 GREEN。
 3. 有 UI 變更時，同步執行適用的 design-token gate。
 
-測試優先使用真實 code；mock 無法避免時，先讀 [`references/testing-anti-patterns.md`](references/testing-anti-patterns.md)。連續失敗超過五次，停止並回到 `systematic-debugging`。
+測試優先使用真實 code；mock 無法避免時，先讀 [`references/testing-anti-patterns.md`](references/testing-anti-patterns.md)。同一問題連續三次修復失敗，停止並回到 `systematic-debugging` 的 Phase 4.5。
 
 ## Step 3：專案模式與完整驗證
 

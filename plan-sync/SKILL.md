@@ -109,9 +109,9 @@ implement report, or QA report; link each short event to its task or source.
 Resolve `<plan-sync-dir>` from the actual skill location:
 
 ```bash
-python <plan-sync-dir>/scripts/planctl.py check --plan-dir <plan-dir>
-python <plan-sync-dir>/scripts/planctl.py status --plan-dir <plan-dir> [--json]
-python <plan-sync-dir>/scripts/planctl.py status --plan-dir <plan-dir> --goal-status
+python3 <plan-sync-dir>/scripts/planctl.py check --plan-dir <plan-dir>
+python3 <plan-sync-dir>/scripts/planctl.py status --plan-dir <plan-dir> [--json]
+python3 <plan-sync-dir>/scripts/planctl.py status --plan-dir <plan-dir> --goal-status
 ```
 
 `check` covers format, tasks, references, dependencies, cycles, sibling plan stage, and

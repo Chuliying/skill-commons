@@ -2,7 +2,7 @@
 name: codebase-understanding
 description: |
   程式碼庫全局理解專家。Use when: (1) 進入大型 / 陌生 codebase, (2) 需要產出 architecture map, (3) 需要發現 domain skill 候選, (4) 重構前需要整理模組引用證據, (5) Code Review 需要確認影響範圍。互動式 knowledge graph 或 dashboard 僅在使用者明確要求時走 optional visualization。
-  觸發關鍵字: 理解程式碼, codebase 分析, 架構圖, repo map, knowledge graph, 探索專案, 了解系統, 看看架構, understand
+  觸發關鍵字: 理解程式碼, codebase 分析, 架構圖, repo map, 探索專案, 了解系統, 看看架構
 source_kind: original
 stage: infra
 ---
@@ -12,8 +12,6 @@ stage: infra
 以可重建的 Repo Map、repository search 與直接讀檔建立架構理解。Repo Map
 是 deterministic repository evidence extractor，不是 knowledge graph，也不會
 自動產生架構結論。
-
-> **Announce at start:** 「我正在使用 codebase-understanding 來分析整體程式碼架構。」
 
 ## 適用邊界
 
@@ -74,29 +72,10 @@ $(git rev-parse --git-path skill-commons/repo-map/v1)/
 
 ## Evidence semantics
 
-Repo Map inventory 包含 Git tracked 與未 ignored 的 untracked paths。Symlink
-不 follow，submodule 不遞迴；supported source 超過 2 MB 只 hash、不 parse。
-
-- Python `.py` / `.pyi` import 使用 AST，precision 為 `syntax_exact`。
-- JS/TS 使用 line-oriented literal specifier candidates，precision 永遠是
-  `textual_candidate`。包含 `} from "x"` 這類 multiline tail；specifier
-  自己拆到下一行時不保證命中。
-- Edge kind 是 `module_reference`，不提供 resolved target，也不代表
-  `depends_on`。
-- Unsupported、syntax error、decode error、too-large 都會反映在 coverage，
-  不得偽裝 complete。
-
-Freshness 以 scoped inventory shape、supported source content 與 extractor
-fingerprint 為準，不以 commit 狀態代替內容：
-
-- bytes 不變的 `git add` 或 commit 不會使 cache stale。
-- supported source content、path add/delete/rename 會 stale。
-- unsupported file 內容改變不 stale；它的 add/delete/rename 會改 inventory，
-  因此 stale。
-
-`status` 每次仍需重 hash supported inputs，成本為 O(repo)。v1 保持 full
-rebuild；若 pilot 證明需要加速，只允許 stat shortcut 加 content-hash fallback，
-不引入 incremental parser/database。
+Python import 是 `syntax_exact`；JS/TS 是 `textual_candidate`，edge 只代表
+`module_reference`，不代表已解析 dependency。Coverage 缺口照實回報，不得偽裝
+complete。Freshness 規則、size limit 與 rebuild policy 見
+[`references/repo-map.md`](references/repo-map.md)。
 
 ## Process
 

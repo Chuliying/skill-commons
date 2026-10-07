@@ -249,12 +249,13 @@ Before requesting release approval, a completed work item must:
 2. Set `work_status: completed`, `delivery_status: awaiting_approval`, and mark
    completed stages done/validated. Do not add delivery evidence yet.
 3. Promote still-valid decisions or terminology from `adr.md` / `glossary.md`
-   to the project-level ADR or domain-model files, leaving originals in place.
+   to the project-level files `domain-modeling` maintains (`CONTEXT.md` and
+   `docs/adr/NNNN-<title>.md`), leaving originals in place.
    At the corresponding original section, add a blockquote marker using the
    workspace-relative destination, for example:
 
    ```markdown
-   > promoted-to: docs/decisions/adr-012-api-versioning.md
+   > promoted-to: docs/adr/0012-api-versioning.md
    ```
 
    The marker records provenance and prevents an unmarked second source of truth.

@@ -5,10 +5,6 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 . "$REPO/tests/bootstrap/lib/assert.sh"
 
-run_gate_text="$(cat "$REPO/scripts/run-gate.sh")"
-run_gate_extended_filters="$(printf '%s\n' "$run_gate_text" | grep -c 'grep -vE "test|spec')"
-assert_eq "3" "$run_gate_extended_filters" "run-gate uses portable ERE alternation for all three exclusion filters"
-
 artifacts_text="$(cat "$REPO/ARTIFACTS.md")"
 assert_not_contains "$artifacts_text" "brainstorm: { skill: brainstorming" "artifact contract keeps Deep control outside lifecycle stages"
 assert_contains "$artifacts_text" "brainstorm.md" "artifact contract recognizes the optional discovery document"
@@ -31,10 +27,6 @@ printf '%s\n' \
   '- docs_root: docs' \
   > "$TMP/project/.agent/project-manifest.md"
 printf '# Guardrails\n- workspace-only writes\n' > "$TMP/project/.agent/guardrails.md"
-
-PROFILE=all bash "$REPO/bootstrap/generate.sh" \
-  "$TMP/project/.claude/skills" \
-  "$TMP/project/.codex/skills" >/dev/null
 
 WORK="$TMP/project/docs/work/hello"
 mkdir -p "$WORK/plan"
@@ -206,23 +198,6 @@ assert_contains "$artifacts_contract" "never by itself proof that the work is co
 assert_contains "$artifacts_contract" "no-QA execution mode" "closeout evidence is mode-conditional on QA-stage presence"
 assert_contains "$artifacts_contract" "mode-conditional" "closeout Delivery acceptance evidence is documented as mode-conditional"
 
-claude_count="$(find "$TMP/project/.claude/skills" -mindepth 2 -maxdepth 2 -name SKILL.md -type f | wc -l | tr -d ' ')"
-codex_count="$(find "$TMP/project/.codex/skills" -mindepth 2 -maxdepth 2 -name SKILL.md -type f | wc -l | tr -d ' ')"
-expected_workflow_count="$(
-  find "$REPO" -mindepth 2 -maxdepth 2 -type f -name SKILL.md \
-    -not -path "$REPO/_archive/*" \
-    -not -path "$REPO/.claude/*" \
-    -not -path "$REPO/.codex/*" \
-    -not -path "$REPO/.agents/*" \
-    -print |
-    sed "s#^$REPO/##;s#/SKILL.md##" |
-    grep -vx 'skill-creator' |
-    wc -l |
-    tr -d ' '
-)"
-assert_eq "$expected_workflow_count" "$claude_count" "artifact-contract smoke consuming repo has all Claude workflow skills"
-assert_eq "$expected_workflow_count" "$codex_count" "artifact-contract smoke consuming repo has all Codex workflow skills"
-
 # The same manifest-driven pipeline must work for different stacks without
 # language-specific profiles.
 for fixture_name in python-cli ts-web; do
@@ -240,10 +215,6 @@ for fixture_name in python-cli ts-web; do
   mkdir -p "$(dirname "$fixture_project")"
   cp -R "$fixture_source" "$fixture_project"
   manifest="$fixture_project/.agent/project-manifest.md"
-  mkdir -p "$fixture_project/.claude/skills" "$fixture_project/.codex/skills"
-  PROFILE=all bash "$REPO/bootstrap/generate.sh" \
-    "$fixture_project/.claude/skills" \
-    "$fixture_project/.codex/skills" >/dev/null
   git -C "$fixture_project" init -q
   git -C "$fixture_project" checkout -q -b main
   git -C "$fixture_project" config core.excludesFile /dev/null
@@ -256,10 +227,6 @@ for fixture_name in python-cli ts-web; do
   verify_rc=$?
   qa_output="$(cd "$fixture_project" && PROJECT_MANIFEST="$manifest" bash "$REPO/qa/scripts/run-qa.sh" 2>&1)"
   qa_rc=$?
-  gate_output="$(cd "$fixture_project" && PROJECT_MANIFEST="$manifest" bash "$REPO/scripts/run-gate.sh" full 2>&1)"
-  gate_rc=$?
-  api_gate_output="$(cd "$fixture_project" && PROJECT_MANIFEST="$manifest" bash "$REPO/scripts/run-gate.sh" api-endpoints 2>&1)"
-  api_gate_rc=$?
   secret_output="$(cd "$fixture_project" && PROJECT_MANIFEST="$manifest" bash "$REPO/security/scripts/scan-secrets.sh" 2>&1)"
   secret_rc=$?
   scan_output="$(cd "$fixture_project" && node "$REPO/shared-skill-onboarder/scripts/scan-project.js" 2>&1)"
@@ -268,28 +235,28 @@ for fixture_name in python-cli ts-web; do
 
   assert_eq "0" "$verify_rc" "$fixture_name verification pipeline passes"
   assert_eq "0" "$qa_rc" "$fixture_name QA pipeline passes"
-  assert_eq "0" "$gate_rc" "$fixture_name full deterministic gate passes"
-  assert_eq "0" "$api_gate_rc" "$fixture_name capability-aware API gate passes"
+  # An explicit QA plan path that does not exist is a caller error, not "no plan".
+  set +e
+  missing_qa_output="$(cd "$fixture_project" && PROJECT_MANIFEST="$manifest" bash "$REPO/qa/scripts/run-qa.sh" docs/work/no-such-item/qa-plan.md 2>&1)"
+  missing_qa_rc=$?
+  printf -- '- one\n* two\n3. three\nprose\n' > "$TMP/$fixture_name-qa-plan.md"
+  counted_qa_output="$(cd "$fixture_project" && PROJECT_MANIFEST="$manifest" bash "$REPO/qa/scripts/run-qa.sh" "$TMP/$fixture_name-qa-plan.md" 2>&1)"
+  set -e
+  assert_neq "0" "$missing_qa_rc" "$fixture_name QA run fails on a missing QA plan path"
+  assert_contains "$missing_qa_output" "QA spec not found" "$fixture_name QA run names the missing QA plan"
+  assert_contains "$counted_qa_output" "Found 3 checklist items." "$fixture_name QA run counts list items in the plan"
   assert_eq "0" "$secret_rc" "$fixture_name manifest-aware secret scan passes"
   assert_eq "0" "$scan_rc" "$fixture_name onboarding scan passes"
 
   if [ "$fixture_name" = "python-cli" ]; then
     assert_contains "$verify_output" "type-check N/A" "Python CLI does not invent a typed-contract gate"
     assert_contains "$qa_output" "E2E N/A" "Python CLI does not invent an E2E gate"
-    assert_contains "$gate_output" "design-token N/A" "Python CLI does not invent a UI gate"
-    assert_contains "$api_gate_output" "api-check N/A" "Python CLI does not invent an API gate"
-    assert_not_contains "$gate_output" "npm" "Python CLI gate has no npm assumption"
     assert_contains "$secret_output" "Secret scan extensions: py" "Python secret scan reads manifest extensions"
     assert_contains "$scan_output" 'has_ui: `false`' "onboarding detects no UI capability"
     assert_contains "$scan_output" 'source_extensions: `py`' "onboarding detects Python extensions"
   else
     assert_contains "$verify_output" "type-check PASSED" "TS Web runs typed-contract verification"
     assert_contains "$qa_output" "E2E step complete" "TS Web runs E2E verification"
-    assert_contains "$gate_output" "Design Token" "TS Web runs UI gate"
-    assert_contains "$gate_output" "no production console.log" "gate exclusion filter spares console.log in test files"
-    assert_contains "$gate_output" "no unbounded any types" "gate exclusion filter spares any types in test files"
-    assert_contains "$gate_output" "no hard-coded color values" "gate exclusion filter spares color literals in test files"
-    assert_contains "$api_gate_output" "PASS" "TS Web runs API gate"
     assert_contains "$scan_output" 'has_ui: `true`' "onboarding detects UI capability"
     assert_contains "$scan_output" 'has_api: `true`' "onboarding detects API capability"
     assert_contains "$scan_output" 'typed_contracts: `true`' "onboarding detects typed contracts"
@@ -316,26 +283,6 @@ for fixture_name in python-cli ts-web; do
 done
 
 # Secret preflight failures must fail closed before emitting any CLEAR result.
-# GNU/BSD parity for include/exclude ordering. The hazard is real only for a scanner
-# that shells out to `grep -r`, where BSD and GNU disagree on precedence. This scanner
-# enumerates and filters in scan-files.py instead, so the ordering hazard cannot
-# arise -- assert that property rather than an argument order that no longer exists.
-# A `grep -r` reintroduced with excludes before includes still fails here.
-scanner_order_check="$(python3 - "$REPO/security/scripts/scan-secrets.sh" <<'PY'
-from pathlib import Path
-import sys
-
-lines = [
-    line for line in Path(sys.argv[1]).read_text().splitlines()
-    if "grep -r" in line and "include_args" in line and "exclude_args" in line
-]
-if all(line.index("include_args") < line.index("exclude_args") for line in lines):
-    print("portable")
-else:
-    print("non-portable")
-PY
-)"
-assert_eq "portable" "$scanner_order_check" "secret scanner applies includes before excludes for GNU/BSD parity"
 
 make_scanner_fixture() {
   fixture_name="$1"
@@ -645,5 +592,27 @@ artifacts_doc="$(cat "$REPO/ARTIFACTS.md")"
 assert_contains "$artifacts_doc" "## Schema evolution and adoption" "ARTIFACTS documents the schema evolution and adoption stance"
 assert_contains "$artifacts_doc" "grandfathered" "ARTIFACTS documents that existing artifacts are grandfathered"
 assert_contains "$artifacts_doc" "sweep is opt-in" "ARTIFACTS documents that a repository-wide gate sweep is opt-in"
+
+# With no lint, no typed contracts and --skip-test, nothing executes. The summary must
+# not tell the agent the change is safe to commit on zero evidence.
+NOCHECK="$TMP/no-checks"
+mkdir -p "$NOCHECK/.agent"
+printf '## Stack\n- typed_contracts: false\n- has_ui: false\n- has_api: false\n- has_e2e: false\n' > "$NOCHECK/.agent/project-manifest.md"
+nocheck_output="$(cd "$NOCHECK" && PROJECT_MANIFEST="$NOCHECK/.agent/project-manifest.md" bash "$REPO/verification-before-completion/scripts/verify.sh" --skip-test 2>&1 || true)"
+assert_not_contains "$nocheck_output" "Safe to commit" "verify.sh does not certify a run where no check executed"
+assert_contains "$nocheck_output" "NO CHECKS EXECUTED" "verify.sh names a run where no check executed"
+
+# shared-skill-onboarder writes manifest values in backticks (`npm test`). Those
+# must be read as the command itself, never handed to bash as a command
+# substitution whose output is then executed.
+TICKED="$TMP/backticked-manifest"
+mkdir -p "$TICKED/.agent"
+printf '## Stack\n- `test_cmd`: `echo tests-ran`\n- `lint_cmd`: `echo lint-ran`\n- `typed_contracts`: `false`\n- `has_ui`: `false`\n' > "$TICKED/.agent/project-manifest.md"
+ticked_rc=0
+ticked_output="$(cd "$TICKED" && PROJECT_MANIFEST="$TICKED/.agent/project-manifest.md" bash "$REPO/verification-before-completion/scripts/verify.sh" 2>&1)" || ticked_rc=$?
+assert_contains "$ticked_output" "tests PASSED" "backticked test_cmd runs as the command"
+assert_contains "$ticked_output" "type-check N/A" "backticked capability flag is read as false"
+assert_not_contains "$ticked_output" "command not found" "backticked command output is never executed"
+assert_contains "$ticked_output" "ALL CHECKS PASSED" "backticked manifest verifies cleanly"
 
 finish

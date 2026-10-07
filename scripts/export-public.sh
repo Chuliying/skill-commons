@@ -15,6 +15,10 @@ The target may be:
 The script never commits, pushes, creates a remote, or changes this repo's
 origin. If the target is a Git checkout, its .git directory is preserved.
 
+When committing the exported payload, run scripts/export-coauthors.sh with
+the previously exported dev SHA to collect Co-authored-by trailers for the
+snapshot commit message, so private-repo contributors stay visible publicly.
+
 Options:
   --force             Replace files in an existing Git checkout target.
   --include-worktree  Export a temporary tree from the current working tree.

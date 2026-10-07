@@ -34,7 +34,7 @@ When tasked to "organize documentation":
 ## Iron Rules
 
 1. **No invented taxonomy**: Do not impose directories or filenames not requested by the user or established by the project.
-2. **Absolute Paths**: When linking files, ensure paths are correct relative to the file location.
+2. **Correct Relative Paths**: When linking files, make paths correct relative to the linking file.
 3. **Update References**: If you move a file (e.g., `DEVELOPMENT_GUIDES.md`), you MUST search for references to it in specific key files (`CLAUDE.md`, `README.md`) and update them.
 
 ---

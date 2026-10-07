@@ -12,28 +12,28 @@
       "heading": "## 0. BRIEF INFERENCE (Read the Room Before Anything Else)",
       "baseline_sha256": "4a03d1d2728673ca5077986e4dae59fca2ad3cd45cf9abdb7587893f87cdff82",
       "baseline_bytes": 2671,
-      "disposition": "retained"
+      "disposition": "moved"
     },
     {
       "id": "1",
       "heading": "## 1. THE THREE DIALS (Core Configuration)",
       "baseline_sha256": "801b82144caf95ce9bb8085372e64992b3e23cdb85469c54fcd9d5b1ce29f084",
       "baseline_bytes": 1853,
-      "disposition": "retained"
+      "disposition": "moved"
     },
     {
       "id": "2",
       "heading": "## 2. BRIEF → DESIGN SYSTEM MAP",
       "baseline_sha256": "ac1a5a970a84f6bc40f02e4f89ef6da50f8ed6eedc6fb1ae9981662ccdf9a859",
       "baseline_bytes": 3275,
-      "disposition": "retained"
+      "disposition": "moved"
     },
     {
       "id": "3",
       "heading": "## 3. DEFAULT ARCHITECTURE & CONVENTIONS",
       "baseline_sha256": "c66ce92fa2efa7d5ec235b0113da08389a7c86f7efb7170b5582b1d232b4fd39",
       "baseline_bytes": 3167,
-      "disposition": "retained"
+      "disposition": "moved"
     },
     {
       "id": "4",
@@ -54,21 +54,21 @@
       "heading": "## 6. PERFORMANCE & ACCESSIBILITY GUARDRAILS",
       "baseline_sha256": "f9d14be480a9da19e7ba4a1092e52a1dc584ecaa5e621e9b5f507f27b21b1690",
       "baseline_bytes": 2128,
-      "disposition": "retained"
+      "disposition": "moved"
     },
     {
       "id": "7",
       "heading": "## 7. DIAL DEFINITIONS (Technical Reference)",
       "baseline_sha256": "92eda98f687850eae45417d7ce2a77257b3e95f496ba657f8dca71c6e28ce118",
       "baseline_bytes": 1614,
-      "disposition": "retained"
+      "disposition": "moved"
     },
     {
       "id": "8",
       "heading": "## 8. DARK MODE PROTOCOL",
       "baseline_sha256": "f4ec062c9848207c52d45545631ae13ca9d17983edf8fabd9639360f883b772d",
       "baseline_bytes": 1449,
-      "disposition": "retained"
+      "disposition": "moved"
     },
     {
       "id": "9",
@@ -103,14 +103,14 @@
       "heading": "## 13. OUT OF SCOPE",
       "baseline_sha256": "7b69a35b7ea1b3a20491bb5c1cebea0590ea7a6f4d62e70273ea12ac229b1f1b",
       "baseline_bytes": 697,
-      "disposition": "retained"
+      "disposition": "moved"
     },
     {
       "id": "14",
       "heading": "## 14. FINAL PRE-FLIGHT CHECK",
       "baseline_sha256": "e375a143c7eba8cf2af58aae87c1615deed17588502c8e5765de8a82fa86b2bf",
       "baseline_bytes": 7079,
-      "disposition": "retained"
+      "disposition": "moved"
     },
     {
       "id": "appendices-header",
@@ -140,5 +140,6 @@
       "baseline_bytes": 3078,
       "disposition": "moved"
     }
-  ]
+  ],
+  "preamble_location": "design-taste-frontend/references/upstream-core.md"
 }

@@ -245,13 +245,18 @@ terminate_bootstrap_worker() { # $1=worker pid (not a process-group id)
 }
 
 bootstrap_runner_health() {
-  local worker_pid outer_timer_pid worker_rc=125 timed_out=0 result_line=""
+  local worker_pid outer_timer_pid worker_rc=125 timed_out=0 result_line="" outer_deadline
   RUNNER_HEALTH_OUT=""
 
   # Arm the outer deadline before the worker exists. The entire worker -- private
   # evidence setup, runtime launch, verification and cleanup -- is therefore inside
   # the bootstrap bound, even though the Python runner is not trusted yet.
-  /bin/sleep "$OPERATION_TIMEOUT" &
+  # The worker's own deadline is the one that kills the runtime's process group, so
+  # the outer bound leaves it a second to do that; otherwise the outer kill lands on
+  # the worker first and a TERM-ignoring runtime is orphaned.
+  outer_deadline="$(/usr/bin/awk -v t="$OPERATION_TIMEOUT" 'BEGIN { print t + 1 }' 2>/dev/null)" \
+    || outer_deadline="$OPERATION_TIMEOUT"
+  /bin/sleep "$outer_deadline" &
   outer_timer_pid=$!
   exec 4< <(bootstrap_runner_health_channel)
   worker_pid=$!

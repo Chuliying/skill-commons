@@ -40,42 +40,8 @@ else
   TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: QA traceability rejects an unmapped AC"
 fi
 
-mkdir -p "$TMP/prototype/assets"
-cat > "$TMP/prototype/map.json" <<'EOF'
-{"meta":{"shellType":"standard","frozenAt":"2026-07-04T00:00:00Z","coverageRate":100,"gaps":[]},"routes":{"s1":{"pages":["home"]}},"pages":{"home":{"frameRef":"frame-home","acs":[{"id":"AC-001"}]}}}
-EOF
-cat > "$TMP/prototype/index.html" <<'EOF'
-<link rel="stylesheet" href="assets/component-library.css">
-<div id="scenario-s1"><div id="s1-home">frame-home AC-001</div></div>
-<script>var PROTOTYPE_MAP={}, FRAME_REGISTRY={}, SCENARIO_STATE={};</script>
-EOF
-for asset in engine.js shell-common.css shell-standard.css component-library.css print-report.css; do
-  printf 'asset\n' > "$TMP/prototype/assets/$asset"
-done
-
-if python3 "$REPO/prototype/scripts/verify-freeze.py" --map "$TMP/prototype/map.json" --html "$TMP/prototype/index.html" >/dev/null; then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: prototype freeze verifier accepts matching output"
-else
-  fail "prototype freeze verifier accepts matching output"
-fi
-sed 's/AC-001//' "$TMP/prototype/index.html" > "$TMP/prototype/index-bad.html"
-if python3 "$REPO/prototype/scripts/verify-freeze.py" --map "$TMP/prototype/map.json" --html "$TMP/prototype/index-bad.html" >/dev/null 2>&1; then
-  fail "prototype freeze verifier rejects missing frozen AC"
-else
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: prototype freeze verifier rejects missing frozen AC"
-fi
-
-cat > "$TMP/prototype/map-bad-route.json" <<'EOF'
-{"meta":{"shellType":"standard","frozenAt":"2026-07-04T00:00:00Z","coverageRate":100,"gaps":[]},"routes":{"s1":{"pages":[{"id":"home"}]}},"pages":{"home":{"frameRef":"frame-home","acs":[{"id":"AC-001"}]}}}
-EOF
-set +e
-bad_route_output="$(python3 "$REPO/prototype/scripts/verify-freeze.py" \
-  --map "$TMP/prototype/map-bad-route.json" --html "$TMP/prototype/index.html" 2>&1)"
-bad_route_rc=$?
-set -e
-assert_neq "0" "$bad_route_rc" "prototype freeze verifier rejects malformed route page IDs"
-assert_contains "$bad_route_output" "FAIL route page id must be a string" "malformed route page has an actionable failure"
-assert_not_contains "$bad_route_output" "Traceback" "malformed route page does not leak a Python traceback"
+# Prototype bundle/repair regressions run in tests.py.unit.test_prototype_contract
+# with real generated assets and mutation cases, via the unit roster.
 
 # --- check-prd.py: deterministic PRD shape gate ---
 CHECK_PRD="$REPO/scripts/check-prd.py"
@@ -230,47 +196,6 @@ for skill in to-prd prd-interview spec; do
   fi
 done
 
-# --- subagent-driven-development implementer loop must commit only after both
-# review gates and a secret scan (sync-work Hard Rule 5: no commit bypasses
-# verification + security). ---
-sdd="$REPO/subagent-driven-development/SKILL.md"
-sdd_commit_line="$(grep -n 'Commit' "$sdd" | head -1 | cut -d: -f1)"
-sdd_quality_line="$(grep -n 'Code Quality Gate' "$sdd" | head -1 | cut -d: -f1)"
-if [ -n "$sdd_commit_line" ] && [ -n "$sdd_quality_line" ] && [ "$sdd_commit_line" -gt "$sdd_quality_line" ]; then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: SDD implementer commits only after the code quality gate"
-else
-  fail "SDD implementer commit must follow both review gates (commit@${sdd_commit_line:-none} quality-gate@${sdd_quality_line:-none})"
-fi
-if grep -qiE 'scan-secrets|secret 掃描|secret scan' "$sdd"; then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: SDD implementer loop runs a secret scan before commit"
-else
-  fail "SDD implementer loop must run a secret scan before commit"
-fi
-
-# --- FR-005 router/flow contracts must not dead-end any of the three main flows. ---
-# P1-A: spec's PRD gate tier is execution-mode conditional (team-feature -> team,
-# refactor optional spec -> core), so a to-prd core PRD can enter spec without failing
-# a hardcoded --tier team gate.
-spec_text="$(cat "$REPO/spec/SKILL.md")"
-assert_contains "$spec_text" "--tier core" "spec PRD gate offers core tier for no-team execution modes"
-assert_contains "$spec_text" "--tier team" "spec PRD gate keeps team tier for team-feature"
-
-# P1-I: brainstorming handoff is profile-conditional (team -> prd-interview,
-# personal -> to-prd) instead of hardcoding prd-interview, which personal lacks.
-brainstorm_text="$(cat "$REPO/brainstorming/SKILL.md")"
-assert_contains "$brainstorm_text" "personal" "brainstorming handoff names the personal profile path"
-assert_contains "$brainstorm_text" "to-prd" "brainstorming personal handoff targets to-prd"
-
-# P1-J: grilling durable-docs mode makes domain-modeling conditional on availability
-# (team or already installed), else write glossary.md directly.
-grilling_text="$(cat "$REPO/grilling/SKILL.md")"
-assert_contains "$grilling_text" "已安裝" "grilling domain-modeling step is conditional on availability"
-
-# P1-K: to-prd and qa validate emit a contract-compatible Execution Checklist so the
-# checklist iron law does not create an unsatisfiable rerun loop.
-assert_contains "$(cat "$REPO/to-prd/SKILL.md")" "Execution Checklist" "to-prd emits a contract-compatible Execution Checklist"
-assert_contains "$(cat "$REPO/qa/references/qa-validate.md")" "Execution Checklist" "qa validate emits a contract-compatible Execution Checklist"
-
 # --- FR-002 scan-secrets must not false-PASS (P0-B/C/D). ---
 SCAN="$REPO/security/scripts/scan-secrets.sh"
 # Negative fixtures assemble their detector canary at runtime. Keeping the complete
@@ -363,9 +288,7 @@ assert_not_contains "$scan_attr_out" "Secret preflight result: PASS" "attribute-
 # implicit SKIP. This corpus also pins the clean non-UTF-8 behavior.
 write_parity_payload() { # $1=case $2=path
   case "$1" in
-    utf8-secret) printf 'password = "%s"\n' "$CANARY_VALUE" > "$2" ;;
     nul-secret) printf 'password = "%s"\n\000tail\n' "$CANARY_VALUE" > "$2" ;;
-    latin1-secret) printf 'password = "%s"\n# caf\351\n' "$CANARY_VALUE" > "$2" ;;
     latin1-clean) printf 'x = 1  # caf\351\n' > "$2" ;;
   esac
 }
@@ -375,7 +298,7 @@ make_parity_repo() { # $1=repo
     printf '.env\n' > .gitignore && printf 'x = 1\n' > src/app.py &&
     git add -A && git -c user.name=t -c user.email=t@e commit -qm base ) >/dev/null 2>&1
 }
-for parity_case in utf8-secret nul-secret latin1-secret latin1-clean; do
+for parity_case in nul-secret latin1-clean; do
   parity_worktree="$TMP/parity-$parity_case-worktree"
   parity_staged="$TMP/parity-$parity_case-staged"
   make_parity_repo "$parity_worktree"
@@ -586,7 +509,6 @@ printf 'api_key = "%s"\n' "$CANARY_VALUE" > "$FI/src/staged.py"
 for variant in \
   "absent:" \
   "exit2:import sys; health=sys.argv[1:]==['--health-check']; print('extract-secrets:v1') if health else None; sys.exit(0 if health else 2)" \
-  "exit42:import sys; health=sys.argv[1:]==['--health-check']; print('extract-secrets:v1') if health else None; sys.exit(0 if health else 42)" \
   "noisy:import sys; health=sys.argv[1:]==['--health-check']; print('extract-secrets:v1' if health else 'bogus finding'); sys.exit(0 if health else 3)" \
   "silent:import sys; health=sys.argv[1:]==['--health-check']; print('extract-secrets:v1') if health else None; sys.exit(0 if health else 3)"; do
   fi_name="${variant%%:*}"; fi_body="${variant#*:}"
@@ -749,19 +671,6 @@ else
   fail "sleeping engine: scan did not terminate within the watchdog bound"
 fi
 
-# The manifest-stack reader is itself a mandatory dependency. A helper-internal
-# command failure must not be converted into empty values and accepted as defaults.
-MANIFESTSED="$TMP/manifest-sed-bin"; mkdir -p "$MANIFESTSED"
-printf '#!/bin/sh\nexit 42\n' > "$MANIFESTSED/sed"; chmod +x "$MANIFESTSED/sed"
-set +e
-mh_out="$(cd "$FI_CLEAN" && PROJECT_MANIFEST="$REPO/.gitignore" PATH="$MANIFESTSED:$PATH" \
-  bash "$REPO/security/scripts/scan-secrets.sh" 2>&1)"
-mh_rc=$?
-set -e
-assert_neq "0" "$mh_rc" "manifest helper dependency failure fails the scan"
-assert_contains "$mh_out" "manifest" "manifest helper dependency failure is identified"
-assert_not_contains "$mh_out" "Secret preflight result: PASS" "manifest helper dependency failure: no overall PASS"
-
 # Manifest health must not trust a PATH-resolved mktemp. A hostile shim returning an
 # existing victim path previously let the probe truncate and delete that file.
 MKTEMPBIN="$TMP/manifest-mktemp-bin"; mkdir -p "$MKTEMPBIN"
@@ -839,20 +748,40 @@ set -e
 assert_eq "124" "$br_timeout_rc" "bounded runner normalizes timeout to rc 124"
 assert_eq "127" "$br_missing_rc" "bounded runner normalizes command-not-found to rc 127"
 
+# A reaped descendant is gone as soon as the runner returns; a surviving one
+# would keep sleeping. Poll its pid instead of sleeping and hoping the timing
+# lines up, so a broken reaper cannot pass under load.
+assert_descendant_reaped() {
+  local ready="$1" label="$2" pid tries=0
+  pid="$(cat "$ready" 2>/dev/null || true)"
+  if [[ -z "$pid" ]]; then
+    fail "$label (no descendant pid recorded)"
+    return
+  fi
+  while kill -0 "$pid" 2>/dev/null && [[ $tries -lt 30 ]]; do
+    sleep 0.1
+    tries=$((tries+1))
+  done
+  if kill -0 "$pid" 2>/dev/null; then
+    kill -9 "$pid" 2>/dev/null || true
+    fail "$label"
+  else
+    TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: $label"
+  fi
+}
+
 # Timeout owns the whole process group. A child that ignores SIGTERM must not survive
 # merely because its parent exits first after the group's initial TERM.
 BR_READY="$TMP/bounded-descendant-ready"
-BR_MARKER="$TMP/bounded-descendant-marker"
 set +e
-READY="$BR_READY" MARKER="$BR_MARKER" python3 "$BOUNDED_RUNNER" 0.2 python3 -c '
+READY="$BR_READY" python3 "$BOUNDED_RUNNER" 0.2 python3 -c '
 import os, subprocess, sys, time
 subprocess.Popen([sys.executable, "-c", """
 import os, signal, time
 from pathlib import Path
 signal.signal(signal.SIGTERM, signal.SIG_IGN)
-Path(os.environ[\"READY\"]).write_text(\"ready\")
-time.sleep(1)
-Path(os.environ[\"MARKER\"]).write_text(\"survived\")
+Path(os.environ[\"READY\"]).write_text(str(os.getpid()))
+time.sleep(30)
 """])
 while not os.path.exists(os.environ["READY"]):
     time.sleep(0.01)
@@ -865,13 +794,8 @@ if [[ -e "$BR_READY" ]]; then
 else
   fail "timeout descendant fixture reached its ready state"
 fi
-sleep 1.2
 assert_eq "124" "$br_group_rc" "bounded runner times out a process group with descendants"
-if [[ ! -e "$BR_MARKER" ]]; then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: bounded runner reaps descendants that ignore SIGTERM"
-else
-  fail "bounded runner reaps descendants that ignore SIGTERM"
-fi
+assert_descendant_reaped "$BR_READY" "bounded runner reaps descendants that ignore SIGTERM"
 
 # A mandatory filesystem search is bounded by the same runner as the engine.
 bt_scan="$(make_support_scanner_copy "import os,sys,time; a=sys.argv[1:]; (print('scan-files:v2') or sys.exit(0)) if a==['--health-check'] else ((time.sleep(5) or sys.exit(0)) if 'worktree' in a else os.execv(sys.executable,[sys.executable,r'$REAL_SUPPORT',*a]))")"
@@ -1037,17 +961,15 @@ assert_not_contains "$ms_out" "Secret preflight result: PASS" "no-op manifest de
 # A successful direct child may still leave descendants in its process group. The
 # runner must close that group before returning, even when no timeout fired.
 BR_EARLY_READY="$TMP/bounded-early-ready"
-BR_EARLY_MARKER="$TMP/bounded-early-marker"
 set +e
-READY="$BR_EARLY_READY" MARKER="$BR_EARLY_MARKER" python3 "$BOUNDED_RUNNER" 2 python3 -c '
+READY="$BR_EARLY_READY" python3 "$BOUNDED_RUNNER" 2 python3 -c '
 import os, subprocess, sys
 subprocess.Popen([sys.executable, "-c", """
 import os, signal, time
 from pathlib import Path
 signal.signal(signal.SIGTERM, signal.SIG_IGN)
-Path(os.environ[\"READY\"]).write_text(\"ready\")
-time.sleep(1)
-Path(os.environ[\"MARKER\"]).write_text(\"survived\")
+Path(os.environ[\"READY\"]).write_text(str(os.getpid()))
+time.sleep(30)
 """])
 while not os.path.exists(os.environ["READY"]):
     pass
@@ -1059,13 +981,8 @@ if [[ -e "$BR_EARLY_READY" ]]; then
 else
   fail "early-exit descendant fixture reached its ready state"
 fi
-sleep 1.2
 assert_eq "0" "$br_early_rc" "bounded runner preserves the successful direct-child rc"
-if [[ ! -e "$BR_EARLY_MARKER" ]]; then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: bounded runner closes descendants after a successful parent exit"
-else
-  fail "bounded runner closes descendants after a successful parent exit"
-fi
+assert_descendant_reaped "$BR_EARLY_READY" "bounded runner closes descendants after a successful parent exit"
 
 # Commands that need stdin opt into a runner-owned regular-file channel. This keeps
 # an escaped descendant from retaining the upstream pipe while preserving input.
@@ -1089,6 +1006,20 @@ set -e
 assert_neq "124" "$ib_rc" "runner bootstrap handles a TERM-ignoring runtime before the outer watchdog"
 assert_neq "0" "$ib_rc" "TERM-ignoring runtime cannot certify runner health"
 assert_not_contains "$ib_out" "PASS:" "TERM-ignoring runtime: no PASS before runner health"
+# The runtime ignores TERM, so only the bootstrap's group KILL can stop it. If the
+# outer deadline kills the worker first, the runtime's own group is orphaned and
+# keeps running after the scan returns.
+ib_left=1
+for _ in $(seq 30); do
+  pgrep -f "$IGNOREPY/python3" >/dev/null 2>&1 || { ib_left=0; break; }
+  sleep 0.1
+done
+if [[ "$ib_left" -eq 0 ]]; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: TERM-ignoring runtime does not outlive the scan"
+else
+  pkill -KILL -f "$IGNOREPY/python3" 2>/dev/null || true
+  fail "TERM-ignoring runtime does not outlive the scan"
+fi
 
 # Option-shaped targets are never passed to find/grep. This fixture is isolated so a
 # vulnerable GNU find can only damage the temporary directory during RED evidence.

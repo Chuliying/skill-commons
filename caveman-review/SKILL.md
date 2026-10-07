@@ -66,4 +66,4 @@ For a completed task, major feature, pre-merge check, or a request for a second 
 - verification evidence already available;
 - the template at `references/review-template.md` when a structured handoff helps.
 
-The reviewer returns findings only. The implementing agent verifies each finding, fixes Critical/Important issues, reruns relevant evidence, and may reject an incorrect finding with code or test proof. Review does not authorize merge, approval, push, or unrelated edits.
+The reviewer returns findings only. The implementing agent verifies each finding, fixes Critical/Important findings (one-line `bug`/`risk`), reruns relevant evidence, and may reject an incorrect finding with code or test proof. Review does not authorize merge, approval, push, or unrelated edits.

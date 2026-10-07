@@ -2,7 +2,7 @@
 name: spec
 description: |
   將 PRD 轉化為技術實作規格。Use when: (1) PRD 完成後, (2) 需要設計技術方案, (3) 用戶說「產生 spec」「技術設計」時。
-  觸發關鍵字: spec, 技術規格, 技術設計, 實作規格, spec
+  觸發關鍵字: spec, 技術規格, 技術設計, 實作規格
 source_kind: original
 stage: docs
 output: <work_root>/<slug>/spec.md
@@ -58,11 +58,11 @@ output: <work_root>/<slug>/spec.md
 `<remote>`、`<base>` 代入：
 
 ```bash
-git fetch <remote> <base>
 git rev-list --left-right --count HEAD...<remote>/<base>
 ```
 
-回報 ahead/behind 數量後繼續。若使用者明確要求同步，停止目前流程並交給 `sync-work`；
+以本機已有的 remote-tracking ref 回報 ahead/behind（註明 ref 可能過時）後繼續；需要更新 ref 時，依 `sync-work`
+取得使用者同意後再 `git fetch <remote> <base>`。若使用者明確要求同步，停止目前流程並交給 `sync-work`；
 未取得明確要求時不得整合分支。
 
 ### Gate 2 preflight：前置檢查（必須先通過）
@@ -234,18 +234,17 @@ Selected Seam。使用最接近可觀察行為、已有穩定 harness 且成本�
 將實作拆分為可獨立提交的步驟：
 
 ```markdown
-1. [ ] **新增型別定義**（15min）
+1. [ ] **新增型別定義**
    - 檔案：`[manifest 中 types_entry]`
    - 新增 `[FeatureContract]` 資料契約
 
-2. [ ] **建立功能模組**（30min）
+2. [ ] **建立功能模組**
    - 檔案：`[依 domain skill / repo 慣例解析的路徑]` [NEW]
    - 依賴：步驟 1
 ```
 
 **每個步驟必須**：
 
-- 有時間估計
 - 標記檔案操作（NEW/MODIFY/DELETE）
 - 標記依賴關係
 
@@ -258,7 +257,6 @@ Selected Seam。使用最接近可觀察行為、已有穩定 harness 且成本�
 | **Environment** | **符合環境規則** | Auth/SSR/Proxy 策略符合 manifest 中 `environment_rules` |
 | **Tech Research** | **證據足夠** | 有 repo evidence、外部來源摘要，或明確 skip 理由 |
 | 檔案 | 檔案清單完整 | 每個 FR 都有對應檔案 |
-| 步驟 | 步驟有估時 | 每個步驟都有時間估計 |
 | 決策 | 技術決策有理由 | 每個決策都有選擇原因 |
 | **資料契約** | **條件式編譯** | `typed_contracts: true` 時必須以 `typecheck_cmd` 或對應 validator 實際驗證；false 為 N/A |
 | **API 範例** | **契約安全** | `has_api: true` 時資料範例符合上述資料契約；false 為 N/A |
@@ -309,7 +307,7 @@ Step 5: 設計技術方案 - [PASS/SKIP]
 Step 6: 記錄技術決策 - [PASS/SKIP]
    Evidence: [決策數量]
 Step 7: 規劃實作步驟 - [PASS/SKIP]
-   Evidence: [步驟數量, 總估時]
+   Evidence: [步驟數量, 依賴關係]
 Step 8: Gate 2 自檢 - [PASS/SKIP]
    Evidence: [自檢結果: PASS/FAIL]
 

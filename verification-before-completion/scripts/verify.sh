@@ -18,6 +18,7 @@ PASS="✅"
 FAIL="❌"
 SKIP="⏩"
 EXIT_CODE=0
+RAN=0
 
 echo ""
 echo "══════════════════════════════════════════"
@@ -34,6 +35,7 @@ elif [[ "$typed_contracts" = "invalid" ]]; then
   echo "$FAIL typed_contracts must be true or false"
   EXIT_CODE=1
 elif run_manifest_stack_command typecheck_cmd type-check required 2>&1; then
+  RAN=$((RAN + 1))
   echo "$PASS type-check PASSED"
 else
   echo "$FAIL type-check FAILED"
@@ -47,6 +49,7 @@ if run_manifest_stack_command lint_cmd lint optional 2>&1; then
   if [[ "$MANIFEST_STACK_STATUS" = "missing-optional" ]]; then
     echo "$SKIP lint SKIPPED"
   else
+    RAN=$((RAN + 1))
     echo "$PASS lint PASSED"
   fi
 else
@@ -59,6 +62,7 @@ echo ""
 if [[ "${1:-}" != "--skip-test" ]]; then
   echo "▶ Running tests..."
   if run_manifest_stack_command test_cmd tests required 2>&1; then
+    RAN=$((RAN + 1))
     echo "$PASS tests PASSED"
   else
     echo "$FAIL tests FAILED"
@@ -71,7 +75,9 @@ echo ""
 
 # ── Summary ──────────────────────────────────
 echo "══════════════════════════════════════════"
-if [[ $EXIT_CODE -eq 0 ]]; then
+if [[ $EXIT_CODE -eq 0 && $RAN -eq 0 ]]; then
+  echo "$SKIP NO CHECKS EXECUTED — nothing was verified; this is not completion evidence"
+elif [[ $EXIT_CODE -eq 0 ]]; then
   echo "$PASS ALL CHECKS PASSED — Safe to commit/PR"
 else
   echo "$FAIL SOME CHECKS FAILED — Fix before claiming completion"

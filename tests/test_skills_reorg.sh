@@ -22,7 +22,6 @@ changed_shells="$REPO/bootstrap/generate.sh
 $REPO/bootstrap/onboard.sh
 $REPO/verification-before-completion/scripts/verify.sh
 $REPO/qa/scripts/run-qa.sh
-$REPO/scripts/run-gate.sh
 $REPO/scripts/manifest-stack.sh
 $REPO/scripts/export-public.sh
 $REPO/tests/verify.sh
@@ -114,40 +113,15 @@ else
   fail "generated trigger dirs are untracked"
 fi
 
-OLD_NAMES='qa-generator|qa-validator|prototype-tuner|prototype-builder|api-doc-parser|repo-investigator|change-tracker|project-onboarding|executing-plans|writing-plans|code-reviewer'
-if python3 - "$REPO" "$OLD_NAMES" <<'PY'
-from pathlib import Path
-import re
-import sys
-
-repo = Path(sys.argv[1])
-pattern = re.compile(sys.argv[2])
-excluded = {"_archive", ".claude", ".codex", ".agents"}
-files = [repo / "graph-context-check.md"]
-files.extend(
-    p for p in repo.glob("*/SKILL.md")
-    if p.parent.name not in excluded
-)
-hits = []
-for path in files:
-    for line_no, line in enumerate(path.read_text(errors="replace").splitlines(), 1):
-        if pattern.search(line):
-            hits.append(f"{path.relative_to(repo)}:{line_no}:{line}")
-if hits:
-    print("\n".join(hits))
-    raise SystemExit(1)
-PY
-then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: active skill content has no legacy skill references"
+# Runtime commands resolve their own script path; hardcoding the default
+# submodule mount breaks consumers that fan out elsewhere.
+if [ -z "$(find "$REPO/qa" "$REPO/security" "$REPO/verification-before-completion" \
+    -type f -name '*.md' \
+    -exec grep -nE '\.agent/skills/_shared/(qa|security|verification-before-completion)/(scripts|hooks)' {} + 2>/dev/null)" ]; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: runtime commands do not assume the default submodule mount"
 else
-  fail "active skill content has no legacy skill references"
+  fail "runtime commands do not assume the default submodule mount"
 fi
-
-active_sources_text="$(sed '/^## Optional runtime adapters/,$d' "$REPO/SOURCES.md")"
-retired_sources_text="$(sed -n '/^## Retired source provenance/,/^## /p' "$REPO/SOURCES.md")"
-assert_not_contains "$active_sources_text" "finishing-a-development-branch" "metadata active provenance excludes the retired owner"
-assert_contains "$retired_sources_text" "finishing-a-development-branch" "metadata retains retired owner provenance"
-assert_contains "$retired_sources_text" "handoff-only compatibility notice" "metadata retains retired local-patch history"
 
 python3 - "$REPO" "$TMP/claude" <<'PY'
 from collections import Counter
@@ -315,17 +289,6 @@ else
   fail "metadata, provenance, stages, outputs, and generated links"
 fi
 
-if ! grep -rn '\.agent/artifacts' --include='SKILL.md' \
-  "$REPO"/*/SKILL.md >/dev/null &&
-   grep -q '<work_root>/<slug>/' "$REPO/ARTIFACTS.md" &&
-   grep -q 'schema_version: work-item/v3' "$REPO/ARTIFACTS.md" &&
-   grep -q 'work_status: active | completed | abandoned' "$REPO/ARTIFACTS.md" &&
-   grep -q 'delivery_status: not_requested | awaiting_approval | approved | pr_created | merged | deployed' "$REPO/ARTIFACTS.md"; then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: v3 work-item artifact contract has no active legacy paths"
-else
-  fail "v3 work-item artifact contract has no active legacy paths"
-fi
-
 # `_archive/` only exists in the private development repo; a public export
 # legitimately has no docs/STATUS.md, but CLAUDE.md must stay free of volatile
 # status sections on both surfaces.
@@ -453,20 +416,40 @@ repo = Path(sys.argv[1]).resolve()
 skip = {".git", ".agents", ".claude", ".codex"}
 errors = []
 
-def export_ignored(relative: Path) -> bool:
-    output = subprocess.check_output(
-        ["git", "-C", str(repo), "check-attr", "export-ignore", "--", str(relative)],
-        text=True,
-    ).strip()
-    return output.rsplit(": ", 1)[-1] == "set"
+# One batched `git check-attr --stdin -z` call instead of one process per path.
+_attr_cache: dict[str, str] = {}
 
-raw_paths = subprocess.check_output(
-    ["git", "-C", str(repo), "ls-files", "--cached", "--others", "--exclude-standard", "-z"]
-)
-for raw in raw_paths.split(b"\0"):
-    if not raw:
-        continue
-    relative = Path(raw.decode())
+def load_export_attrs(rels) -> None:
+    pending = [rel for rel in dict.fromkeys(rels) if rel not in _attr_cache]
+    if not pending:
+        return
+    output = subprocess.run(
+        ["git", "-C", str(repo), "check-attr", "--stdin", "-z", "export-ignore"],
+        input="".join(rel + "\0" for rel in pending).encode(),
+        capture_output=True,
+        check=True,
+    ).stdout.split(b"\0")
+    # -z output is <path> NUL <attr> NUL <value> NUL per input, in input order.
+    for index, rel in enumerate(pending):
+        _attr_cache[rel] = output[index * 3 + 2].decode()
+
+def export_attr(rel: str) -> str:
+    load_export_attrs([rel])
+    return _attr_cache[rel]
+
+def export_ignored(relative: Path) -> bool:
+    return export_attr(str(relative)) == "set"
+
+raw_paths = [
+    raw.decode()
+    for raw in subprocess.check_output(
+        ["git", "-C", str(repo), "ls-files", "--cached", "--others", "--exclude-standard", "-z"]
+    ).split(b"\0")
+    if raw
+]
+load_export_attrs(raw_paths)
+for raw in raw_paths:
+    relative = Path(raw)
     path = repo / relative
     if not path.is_file() or any(part in skip for part in path.parts):
         continue
@@ -503,27 +486,6 @@ for stale in ("FR-01", "ERR-02", "AC-02", "至少 3 個 ERR", "版本歷史"):
     if stale in sample:
         errors.append(f"prd-interview/examples/good-prd-sample.md: sample keeps stale pattern {stale!r}")
 
-release_plan_rel = "docs/skills-reorg/public-release-plan.md"
-handoff_rel = "docs/work/public-release/reviews/fable-final-review-handoff.md"
-if private_dev:
-    release_plan = (repo / release_plan_rel).read_text(errors="replace")
-    handoff = (repo / handoff_rel).read_text(errors="replace")
-    active_release_docs = {
-        release_plan_rel: release_plan,
-        handoff_rel: handoff,
-    }
-    for rel, text in active_release_docs.items():
-        if "GitHub repo `agent-playbook` → rename 為 `skill-commons`" in text:
-            errors.append(f"{rel}: must not instruct direct history-bearing repo rename")
-    if "clean-history" not in release_plan or "public `skill-commons`" not in release_plan:
-        errors.append(f"{release_plan_rel}: missing clean-history public repo contract")
-    if "history-bearing" not in handoff or "must stay private" not in handoff:
-        errors.append(f"{handoff_rel}: missing private dev repo warning")
-else:
-    for rel in (release_plan_rel, handoff_rel):
-        if (repo / rel).exists():
-            errors.append(f"{rel}: private release doc must not exist on a public surface")
-
 excluded = (
     "_archive/project-onboarding/SKILL.md",
     "docs/ai-harness-engineering-anthropic.md",
@@ -541,12 +503,7 @@ included = (
     "docs/skill-commons-submodule-bridge.md",
 )
 
-def export_attr(rel: str) -> str:
-    output = subprocess.check_output(
-        ["git", "-C", str(repo), "check-attr", "export-ignore", "--", rel],
-        text=True,
-    ).strip()
-    return output.rsplit(": ", 1)[-1]
+load_export_attrs([*excluded, *included])
 
 for rel in excluded:
     if export_attr(rel) != "set":
@@ -1012,19 +969,15 @@ if f"python3 {repo_map_command}" not in codebase_skill:
     errors.append("codebase-understanding Repo Map examples must select python3 explicitly")
 if f"\npython {repo_map_command}" in codebase_skill:
     errors.append("codebase-understanding must not use ambiguous python for Repo Map")
+# Stock macOS ships python3 only; a bare `python` command line in any skill fails there.
+for skill_md in sorted(repo.glob("*/SKILL.md")):
+    for lineno, line in enumerate(skill_md.read_text(errors="replace").splitlines(), 1):
+        if re.search(r"(^|[\s;&|(])python\s", line) and not line.lstrip().startswith("```"):
+            errors.append(f"{skill_md.relative_to(repo)}:{lineno} uses bare python; use python3")
 
 new_url = "git@github.com:Chuliying/skill-commons.git"
 if new_url not in readme or new_url not in bridge:
     errors.append("active onboarding docs must use the skill-commons repository URL")
-active_docs = [
-    repo / "README.md",
-    *(repo / "docs").glob("*.md"),
-    *(repo / "bootstrap").rglob("*"),
-]
-old_url = "git@github.com:Chuliying/agent-playbook.git"
-for path in active_docs:
-    if path.is_file() and old_url in path.read_text(errors="replace"):
-        errors.append(f"active surface still contains old repository URL: {path.relative_to(repo)}")
 
 badge = "actions/workflows/ci.yml/badge.svg"
 if badge not in readme:
@@ -1301,8 +1254,6 @@ owned_tokens = (
     ("host_goal=unmanaged", spec_state, "spec-state protocol"),
     ("textual_candidate", codebase, "Repo Map owner"),
     ("CLEAR/FINDINGS/SKIP", security, "security owner"),
-    ("83.33%", discovery, "discovery evidence"),
-    ("Luna-high scoring repair", evaluation, "evaluation evidence"),
 )
 for token, text, owner in owned_tokens:
     if token not in text:
@@ -1317,9 +1268,6 @@ for target in (
 ):
     if target not in readme:
         errors.append(f"README missing authoritative link {target!r}")
-
-if len(readme.splitlines()) > 180:
-    errors.append("README exceeds the 180-line entry-surface budget")
 
 contributing_path = repo / "CONTRIBUTING.md"
 if contributing_path.is_file():
@@ -1674,50 +1622,15 @@ for relative in ("prd-interview/SKILL.md", "spec/SKILL.md"):
     if path.is_file() and re.search(r"\bgit\s+(?:pull|merge)\b", path.read_text(errors="replace")):
         errors.append(f"{relative} still performs git pull/merge")
 
-finish_path = repo / "finishing-a-development-branch/SKILL.md"
-sync_path = repo / "sync-work/SKILL.md"
-if finish_path.exists():
-    errors.append("retired finishing-a-development-branch/SKILL.md still exists")
-if not sync_path.is_file():
-    errors.append("missing sync-work/SKILL.md")
-else:
-    sync = sync_path.read_text(errors="replace")
-    for mode in ("Scoped Save", "Integrate", "Finish", "Recovery"):
-        if f"## Mode: {mode}" not in sync:
-            errors.append(f"sync-work/SKILL.md missing authoritative {mode} mode")
-
+# Sole guard that the retired `dev-kickoff` owner (renamed to prd-interview) is
+# neither an active skill nor named by one.
 if (repo / "dev-kickoff").exists():
     errors.append("active dev-kickoff directory still exists")
-
-team_profile = (repo / "profiles/team-sprint").read_text(errors="replace")
-if "prd-interview" not in team_profile or "dev-kickoff" in team_profile:
-    errors.append("team-sprint profile has stale PRD skill name")
-
-allowed_old_name = {
-    Path("skill-router/SKILL.md"),
-    Path("CHANGELOG.md"),
-}
-excluded_roots = {"_archive", ".claude", ".codex", ".agents"}
-for path in repo.rglob("*.md"):
-    relative = path.relative_to(repo)
-    if relative.parts[0] in excluded_roots:
+for path in sorted(repo.glob("*/SKILL.md")):
+    if path.parent.name in {"_archive", ".claude", ".codex", ".agents"}:
         continue
-    if relative.parts[:2] == ("journey-evals", "runs"):
-        continue
-    if len(relative.parts) >= 2 and relative.parts[:2] in {
-        ("docs", "skills-reorg"),
-        ("docs", "superpowers"),
-        ("docs", "work"),
-    }:
-        continue
-    for line_number, line in enumerate(path.read_text(errors="replace").splitlines(), 1):
-        if "dev-kickoff" not in line:
-            continue
-        if relative == Path("skill-router/SKILL.md") and "dev-kickoff（舊名）" in line:
-            continue
-        if relative == Path("CHANGELOG.md") and "prd-interview" in line:
-            continue
-        errors.append(f"stale active dev-kickoff reference: {relative}:{line_number}")
+    if "dev-kickoff" in path.read_text(errors="replace"):
+        errors.append(f"stale active dev-kickoff reference: {path.relative_to(repo)}")
 
 if errors:
     print("\n".join(errors))

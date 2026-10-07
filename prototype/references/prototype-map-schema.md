@@ -1,238 +1,86 @@
-# PrototypeMap 資料結構定義
+# PrototypeMap contract
 
-> 所有 Gate 共同操作的單一資料結構（SSOT）。
+JSON 是場景／頁面／AC 的中間表示。可執行契約在
+[`prototype_contract.py`](../scripts/prototype_contract.py)，由 validate-map、bundle generator
+與 freeze verifier 共用；本文件提供作者介面，不是第二份 validator。
 
----
+## 版本與欄位
 
-## 目錄
+`meta.schemaVersion` 只接受整數 1、2；省略視為 legacy v1。新產物使用 2。
+V2 拒絕下表以外的欄位；v1 保留額外欄位相容性，但仍驗證已知共通欄位。
+這不是任意 UI AST：map 沒有封閉元件／action catalog，frame 行為另由 JavaScript 實作。
 
-- [核心 Schema](#sec-schema)
-- [常見錯誤（禁止）](#sec-errors)
-- [從 PrototypeMap 衍生的 JS 變數](#sec-derived)
-- [SCENARIO_STATE 最小介面定義](#sec-scenario)
-- [routeId 命名規則](#sec-routeid)
-- [pageId 命名規則](#sec-pageid)
-- [frameRef 命名規則](#sec-frameref)
-- [PANEL_MAP 命名規則](#sec-panelmap)
-- [檔案命名慣例](#sec-naming)
+| Object | 欄位 |
+|---|---|
+| root | meta、routes、pages；frames 可選 |
+| meta 必填 | projectName、prdVersion（非空字串）、shellType（standard／flow）、frozenAt（含時區 ISO timestamp） |
+| meta 可選 | schemaVersion、subtitle（字串）、createdAt（含時區 timestamp）、coverageRate（0–100 數值）、gaps、backfillRound（非負整數）、frameSeedRef（字串）、prdHistory |
+| routes[id] | name（非空字串）、pages（非空且不重複的 page ID 陣列）；group 可選 |
+| pages[id] | label、frameRef（非空字串）、acs（陣列）；type、flowId、backStep、nextStep 可選 |
+| acs[] | id、text（非空字串）；prd、src（非空字串）、isHint（布林）可選 |
+| frames[id] | shell（非空字串）、sections（非空陣列） |
+| sections[] | row（非負整數，同 frame 唯一）、label（非空字串）、span（整數 1–12）；count（正整數）、notes（字串）可選 |
+| gaps[] | prdAcId、description、reason、acknowledgedBy（非空字串） |
+| prdHistory[] | version、summary（非空字串）、mapVersion（正整數）、changedAt（含時區 timestamp） |
 
----
+Route／page／frame IDs 使用 `[a-zA-Z0-9_-]+`，排除 JS 特殊 property 名。
+Route ID 使用 s1 等命名，拒絕全數字 ID，避免 JavaScript object key 枚舉重排導覽。
+每個 page 必須被 route 引用；frame catalog 存在時，frameRef 必須存在於其中。
+AC ID 用於需求追蹤；同一需求可對應多個頁面。
+重複 JSON key、非 JSON 數值、布林冒充整數皆拒絕。
 
-<a id="sec-schema"></a>
-## 核心 Schema
+V2 `type` 為 surface（省略時預設）或 flow-step。Flow-step 有非空 flowId，
+同 flowId 的所有 pages 都在同一 route；surface 不帶 flowId。
+backStep／nextStep 若提供則引用既有 page。Routes 的 insertion order 與各 route 的
+pages 陣列決定導覽順序；不要為 canonicalization 排序 route keys。
 
-```typescript
-interface PrototypeMap {
-  meta: {
-    schemaVersion?: number     // 版本判斷用（v4 起為 2）；預設視為 1
-    projectName: string        // G0 產出
-    subtitle: string           // G0 產出
-    prdVersion: string         // G0 產出
-    shellType: 'standard' | 'flow'  // G0 判定
-    createdAt: string          // G4 設定（ISO 8601）
-    frozenAt?: string          // G4 設定（ISO 8601）
-    coverageRate?: number      // G4 計算（e.g. 83.3）
-    gaps?: GapItem[]           // G4 記錄（承認缺口時）
-    backfillRound?: number     // 當前回補輪次（從 0 開始，上限 2）
-    frameSeedRef?: string      // 若有使用 frame-seed，記錄其檔案路徑
-    prdHistory?: PrdHistoryItem[]  // PRD 變更記錄
-  }
-  routes: {                    // G1 產出 —  必須是 Object，禁止 Array
-    [routeId: string]: {
-      name: string             // 場景顯示名稱
-      group?: string           // nav 分組標籤
-      pages: string[]          // 有序 pageId 陣列
+## 最小 v2 範例
+
+```json
+{
+  "meta": {
+    "schemaVersion": 2,
+    "projectName": "申請原型",
+    "prdVersion": "v1",
+    "shellType": "standard",
+    "frozenAt": "2026-09-15T10:00:00+08:00"
+  },
+  "routes": {"s1": {"name": "申請", "pages": ["application"]}},
+  "pages": {
+    "application": {
+      "label": "申請頁", "frameRef": "frame-application", "type": "surface",
+      "acs": [{"id": "AC-001", "text": "顯示可填寫的申請表"}]
     }
   }
-  pages: {                     // G2 + G3 產出 —  必須是 Object，禁止 Array
-    [pageId: string]: {
-      label: string            // step panel 顯示名稱（G2 填入）
-      frameRef?: string        // frame template ID（G2 填入）
-      type?: 'surface' | 'flow-step'  // 頁面類型（v4 新增，預設 surface）
-      flowId?: string          // flow-step 必填；同 flowId 的 pages 必須在同一 route 中
-      acs: AcItem[]            // AC 驗收條件（G3 填入）
-    }
-  }
-  frames?: {                   // v4 新增（可選）— frame-seed 整合後的骨架結構
-    [frameId: string]: Frame
-  }
-}
-
-// --- v4 新增 ---
-
-interface Frame {
-  shell: string                // e.g. "sidebar-left + topbar"
-  sections: FrameSection[]     // 有序區塊列表
-}
-
-interface FrameSection {
-  row: number                  // 同一 frame 內唯一
-  label: string                // e.g. "主要 KPI 卡片區"
-  span: number                 // 1-12（grid column span）
-  count?: number               // 區塊內元素數量（正整數）
-  notes?: string               // 補充說明
-}
-
-// --- 向後相容規則 ---
-// 1. 舊 map（無 meta.schemaVersion）視為 schemaVersion=1，跳過 frames/type/flowId 驗證
-// 2. schemaVersion=2 的 map：若 pages[].type='flow-step'，flowId 為必填
-// 3. schemaVersion=2 的 map：若 frames{} 存在，所有 pages[].frameRef 必須對應 frames{} 的 key
-
-interface AcItem {
-  id: string                   // e.g. "1-1-1"（scenario-step-序號）
-  text: string                 // AC 描述文字
-  prd?: string                 // PRD 原文（完整，禁止縮寫引用）
-  src?: string                 // 來源章節（e.g. "PM §1-1"）
-}
-
-interface GapItem {
-  prdAcId: string              // e.g. "PM-AC-5"
-  description: string          // e.g. "金額上限檢查"
-  reason: string               // e.g. "需 PM 確認後端限額邏輯"
-  acknowledgedBy: string       // "user"
-}
-
-interface PrdHistoryItem {
-  version: string              // e.g. "v1.2"
-  mapVersion: number           // 對應的 map 版本 e.g. 1
-  changedAt: string            // ISO 8601
-  summary: string              // 變更摘要
 }
 ```
 
----
+## 場景狀態與衍生資料
 
-<a id="sec-errors"></a>
-## 常見錯誤（禁止）
+Scenario-state JSON 的 keys 必須等於 routes keys；每個值為 object，欄位值使用
+具體 string／number／boolean。無場景資料可使用 `{}`，不為滿足檢查虛構業務資料。
+推導的初始資料要在需求對照中揭露。
 
-### 禁止：routes 用 Array
-
-```javascript
-//  錯誤 — 會導致 engine.js 查找失敗
-"routes": [
-  { "routeId": "s1", "name": "登入", "pages": ["login"] }
-]
+```json
+{"s1": {"isLoggedIn": false}}
 ```
 
-### 正確：routes 用 Object
+產生程式把 map 與 state 安全嵌入 application/json script；固定 runtime-data.js
+建立 SCENARIO_TITLES、NAV_PATH、STEPS、STEPPER_LABELS、PANEL_MAP、AC_DATA。
+AC_DATA 直接引用 map pages 的 acs。模型只編寫 FRAME_REGISTRY，不重寫這些 projection。
 
-```javascript
-//  正確
-"routes": {
-  "s1": { "name": "登入", "group": "公開頁面", "pages": ["login"] }
-}
+## 驗證邊界與遷移
+
+- Coverage 只做數值範圍檢查；PRD → AC 語意映射仍在 G4 的 coverage.md。
+- Frozen JSON 只記版本；acknowledgedBy／frozenAt 不是身分或批准證據。
+- Frames.js、component-library CSS 是可變輸入；固定模板完整性不證明這些輸入安全或正確。
+- 舊的手寫 shell／DATA_JS 需先保留原來源，再抽出 frames.js 與 state，使用 G5 產生程式。
+  只遷移當前正在維護的 bundle，不掃描改寫歷史原型。
+
+```text
+<artifact-dir>/
+  index.html
+  assets/engine.js、runtime-data.js、frames.js、shell-*.css、component-library.css、print-report.css
+  data/prototype-map-vN.json、scenario-state.json
+  planning/frames.js、scenario-state-vN.json、prd-ac-master-list.md、component-mapping.md、coverage.md
 ```
-
-### 禁止：pages 用 Array
-
-```javascript
-//  錯誤
-"pages": [
-  { "pageId": "login", "label": "登入頁", "acs": [...] }
-]
-```
-
-### 正確：pages 用 Object
-
-```javascript
-//  正確
-"pages": {
-  "login": { "label": "登入頁", "frameRef": "frame-login", "acs": [...] }
-}
-```
-
----
-
-<a id="sec-derived"></a>
-## 從 PrototypeMap 衍生的 JS 變數（G5 產出）
-
-```javascript
-// 衍生自 routes — 直接從 Object 鍵值提取
-var SCENARIO_TITLES = { "s1": "登入與基礎授權", "s2": "全球總覽" };
-var NAV_PATH        = { "s1": ["login"], "s2": ["l1-global", "l1-tw"] };
-
-// 衍生自 pages — 轉為 Array 格式供 stepper 使用
-var STEPS           = { "s1": [{ id: "login", label: "登入頁", dotIdx: 0 }] };
-var STEPPER_LABELS  = { "s1": ["登入頁"], "s2": ["全球總覽首頁", "台灣總覽頁"] };
-
-// DOM 映射 — panel id 固定為 "scenario-{routeId}"
-var PANEL_MAP       = { "s1": "scenario-s1", "s2": "scenario-s2" };
-
-// 衍生自 pages[].acs — 直接引用（節省 token）
-var AC_DATA = {
-  "s1": { "login": PROTOTYPE_MAP.pages["login"].acs }
-};
-```
-
----
-
-<a id="sec-scenario"></a>
-## SCENARIO_STATE 最小介面定義
-
-G5 產出 HTML 時，AI 需建立 `SCENARIO_STATE` 物件，定義各場景的初始資料狀態。
-
-```typescript
-interface ScenarioStateItem {
-  [sid: string]: {
-    // PRD 推導的資料狀態（AI 依 PRD 擴充）
-    // 每個欄位必須有具體值，禁止空字串或 null
-    [dataKey: string]: string | number | boolean
-  }
-}
-
-// 範例
-var SCENARIO_STATE = {
-  s1: { userRole: 'investor', isLoggedIn: false },
-  s2: { region: 'global', month: '2025-06' },
-};
-```
-
-> **重要**：`SCENARIO_STATE` 不可留空值或 undefined。若 PRD 未定義初始狀態，AI 必須從情境描述推導合理預設值，並在 G4 Gate Package 標示「以下初始值為 AI 推導」。
-
----
-
-<a id="sec-routeid"></a>
-## routeId 命名規則
-
-- 格式：`s{N}`（s1, s2, s3...）
-- 按 scenario 順序編號
-
-<a id="sec-pageid"></a>
-## pageId 命名規則
-
-- 格式：語義化名稱（如 `login`、`l1-global`、`l2-overview`）
-- 使用小寫 + kebab-case
-- 不使用 `step-{N}` 格式（除非語義上合理）
-
-<a id="sec-frameref"></a>
-## frameRef 命名規則
-
-- 格式：`frame-{描述性名稱}`（e.g. `frame-login`, `frame-l1`, `frame-l2`）
-- 多個 page 共用同一 frame 時使用相同 frameRef
-
-<a id="sec-panelmap"></a>
-## PANEL_MAP 命名規則
-
-- 格式：`scenario-{routeId}`（e.g. `scenario-s1`, `scenario-s2`）
-- 必須與 HTML 中 `<div id="scenario-{routeId}">` 一致
-
----
-
-<a id="sec-naming"></a>
-## 檔案命名慣例
-
-```
-output/{project}/{prototype-name}/
-├── index.html                        ← AI 填寫的 HTML（從 scaffold 更名）
-├── assets/                           ← 靜態資源檔（從 templates 複製）
-│   ├── engine.js
-│   ├── shell-common.css
-│   ├── shell-{type}.css
-│   ├── component-library.css
-│   └── print-report.css
-└── data/                             ← 版本資料
-    ├── prototype-map-v1.json         ← G4 凍結 JSON
-    └── prototype-map-v2.json         ← PRD v2.x 對應（若有變更）
-```
-
-> 不刪除舊版本。所有歷史版本保留供差異比對和回溯。

@@ -4,6 +4,65 @@
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-07
+
+### Breaking changes
+
+- `scripts/run-gate.sh` 不再 fan-out 給 consuming repo，並已移除；沒有任何技能引用它。
+  既有安裝在下次 generate 時由 ownership ledger 自動移除受管副本；ledger 之前的舊版
+  安裝在明確接管（`SKILL_COMMONS_ADOPT_LEGACY=1`）時一併移除。
+- `sync-work` Scoped Save 改為先 stage 核可路徑、再跑 secret scan、最後 commit；
+  scan 的 staged 檢查讀的是 index，舊順序下這一批尚未 stage，staged 檢查看不到它們。
+- prototype map 驗證（`validate-map.sh`、`verify-freeze.py`、bundle）改由共用 JSON 契約
+  執行，未標 `schemaVersion` 的 v1 map 也會檢查共通欄位：`meta.frozenAt`、`createdAt`、
+  `prdHistory[].changedAt` 需含時區（例如結尾 `Z`），`pages[].frameRef` 必填，`acs[]`
+  需有 `id` 與 `text`。v0.11.0 能通過但缺這些欄位的 map 會在 G4／G6 失敗；補上即可。
+  驗證器改用 `python3`，不再需要 `jq`。
+
+### Added
+
+- `scripts/export-coauthors.sh`：公開 snapshot 匯出時收集自上次匯出以來的作者，
+  產生 `Co-authored-by` trailers。
+- prototype 改用 JSON 契約，新增 deterministic bundle、freeze 比對與 scalar repair
+  checker（`prototype_contract.py`、`prototype_bundle.py`、`check-repair.py`）。
+
+### Changed
+
+- `to-prd` 移除 `disable-model-invocation`，router 派發 personal PRD 時模型可直接叫用；
+  發布到 issue tracker 需使用者要求或同意。
+- 專案層級術語與 ADR 統一放在 `domain-modeling` 維護的 `CONTEXT.md` 與 `docs/adr/`；
+  ARTIFACTS 的 promotion 範例改為 `docs/adr/0012-...`，router 探索 flow 加入
+  `grilling → domain-modeling`。
+- `design-taste-frontend` 入口改為 70 行的本地精簡版（25,855 → 9,730 bytes），
+  upstream 每一段與原始 preamble 原樣保存在 `references/`（hash 驗證不變）；
+  衝突時以入口為準，不套用全域美學禁令、數字配額、dial 基準或額外核可。
+  這是結構量測，不宣稱品質改善。
+- `prototype` 入口精簡，gates 與設計細節改為按需讀取的 references。
+- 依目前模型的使用建議調整技能文字：移除 `verification-before-completion` 的威脅語氣；
+  統一 `systematic-debugging`、`implement` 的失敗門檻（3 次）與 Phase 4.5 命名；
+  `spec`、`prd-interview` 的 `git fetch` 改為依 `sync-work` 取得同意；
+  `spec` 不再要求虛構的時間估計；`subagent-driven-development` 的品質 gate 改讀
+  manifest 宣告的檢查；縮窄過寬的觸發詞；移除「開頭先宣告」儀式。
+- 測試套件依「抓得到哪個別處抓不到的失敗」整理：刪除測死碼、凍結的發版歷史、重複與
+  恆真檢查，`tests/bootstrap/test_e2e.sh` 併入 `test_check.sh`。router byte 預算只由
+  `test_context_budget` 擁有（6,747 bytes）。CI 的 source job timeout 15 → 25 分鐘。
+
+### Fixed
+
+- Fan-out 漏帶 `execution_modes.py`，consuming repo 的 `work_items.py`／`work-items.sh`
+  一執行就 `ModuleNotFoundError`。
+- `scan-secrets.sh` bootstrap 逾時後，忽略 TERM 的 runtime 行程會成為孤兒持續執行。
+- `work-items check` 對含 lifecycle artifact 卻缺 `meta.yml` 的資料夾回報通過。
+- `qa/scripts/run-qa.sh` 對打錯的 QA plan 路徑回報 PASSED；清單計數使用 ERE 不支援的
+  `\d`。
+- `verification-before-completion/scripts/verify.sh` 一項檢查都沒跑時仍印
+  「Safe to commit」，現在印 `NO CHECKS EXECUTED`（exit code 維持 0）。
+- `scripts/manifest-stack.sh` 讀取 onboarding 以反引號寫入的值（例如 `` `npm test` ``）時，
+  會把值當成命令替換執行、再執行其輸出；`verify.sh`、`run-qa.sh`、`scan-secrets.sh`
+  因此在依範本建立的 manifest 上失敗。現在剝除外圍一對反引號。
+- `plan-sync`、`skill-creator` 的指令使用 stock macOS 沒有的 `python`；`markdown`、
+  `shared-skill-onboarder` 寫死 submodule 掛載路徑。
+
 ## [0.11.0] - 2026-09-06
 
 ### Added

@@ -1,8 +1,8 @@
 ---
 name: subagent-driven-development
 description: |
-  使用 Subagent 批次執行 implementation plan。每個任務分派獨立 subagent 實作，並有 spec compliance + code quality 雙重 review。
-  觸發關鍵字: subagent, 平行執行, plan 執行, 大型任務
+  使用 Subagent 依序執行 implementation plan。每個任務分派獨立 subagent 實作，並有 spec compliance + code quality 雙重 review。
+  觸發關鍵字: subagent, plan 執行, 大型任務
 source: obra/superpowers@d884ae04edebef577e82ff7c4e143debd0bbec99
 source_kind: adapted
 stage: infra
@@ -18,8 +18,6 @@ stage: infra
 根據 implementation plan，每個任務分派獨立 subagent 執行，並進行兩階段 review（spec compliance → code quality）。
 
 **核心原則：** 每個 subagent 有新鮮 context，避免 context 污染。
-
-> **Announce at start:** 「我正在使用 subagent-driven-development skill 來執行這個 plan。」
 
 ---
 
@@ -49,7 +47,7 @@ stage: infra
 
 1. 讀取 plan 檔案（一次讀完）
 2. **提取所有任務的完整文字和 context**（不要讓 subagent 去讀 plan）
-3. 建立 TodoWrite，列出所有任務
+3. 用當前 host 的 task list 工具列出所有任務
 4. 執行已核定的 task decomposition；controller does not re-slice the approved plan
 
 ### Step 1: 執行每個任務（逐一進行）
@@ -88,37 +86,13 @@ stage: infra
 
    **🚦 Code Quality Gate（必須全部 PASS）**
 
-   > lint 指令讀 manifest `stack.lint_cmd`；下方為範例。
-
-   <!-- example -->
-   ```bash
-   # 1. 無 console.log（排除測試和設定檔）
-   grep -rn "console.log" [changed_files] | grep -v "test\|spec\|config"
-
-   # 2. 無 any 型別
-   grep -rn ": any\b" [changed_files] | grep -v "test\|spec\|\.d\.ts"
-
-   # 3. 無硬編碼色值（Design Token Gate）
-   grep -rEn "text-\[#|bg-\[#|border-\[#|from-\[#|to-\[#" [changed_files]
-
-   # 4. 無 TODO/FIXME 殘留
-   grep -rn "TODO\|FIXME\|XXX\|HACK" [changed_files]
-
-   # 5. 無 test.only / test.skip
-   grep -rn "test\.only\|test\.skip\|it\.only\|it\.skip" [changed_files]
-
-   # 6. lint
-   <lint_cmd>
-   ```
-
    | 項目 | 通過條件 |
    |------|---------|
-   | console.log | 無結果輸出 |
-   | any | 無結果輸出 |
-   | 硬編碼色值 | 無結果輸出 |
-   | TODO/FIXME | 無結果輸出 |
-   | test.only/skip | 無結果輸出 |
-   | lint | 0 errors |
+   | lint | manifest `stack.lint_cmd` → 0 errors（未宣告為 N/A） |
+   | 專案品質規則 | domain skill 或 manifest 宣告的 gate（例如 design token、禁用 API）全部 PASS |
+   | 殘留除錯程式 | diff 中沒有本任務新增的除錯輸出、focused/skipped tests |
+
+   規則以專案宣告為準；不要套用其他技術棧的 grep 清單。
 
    ❌ 任一項 FAIL → Implementer 修復 → 重新跑完整 Gate
    ✅ 全部 PASS → 進到 Secret Scan Gate
@@ -135,10 +109,10 @@ stage: infra
 
 6. Commit（由 `sync-work` Save 執行；僅在雙 review Gate + Secret Scan 全 PASS 後）
 
-   commit 一律位於雙 Gate 與 secret 掃描之後，對齊 `sync-work` Hard Rule 5（commit 前必須有
-   verification 與安全檢查）。SDD 不自行 `git commit`，避免範圍外 secret 在 staged scan 前就被提交。
+   commit 一律位於雙 Gate 與 secret 掃描之後，對齊 `sync-work` Common contract 第 3 條（commit 前必須有
+   fresh verification 與獨立的 security 證據）。SDD 不自行 `git commit`，避免範圍外 secret 在 staged scan 前就被提交。
 
-7. 標記任務完成（TodoWrite）
+7. 在 task list 標記任務完成
 8. 繼續下一個任務
 ```
 

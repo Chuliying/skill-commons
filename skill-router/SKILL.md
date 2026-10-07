@@ -54,6 +54,7 @@ evidence 無法回答、且會改變 scope、架構、公開行為或驗收方�
 brainstorming（qualified discovery；artifact 只在 durable handoff 時建立）
   → to-prd（已有共識時快照）或 prd-interview（team 正式訪談）
   → grilling（高風險時逐題壓測；需要交接才開 durable docs mode）
+  → domain-modeling（已安裝時寫 `CONTEXT.md` / `docs/adr/`）
 ```
 
 - 依成本選 Skip / Quick / Standard / Deep；Standard 最多三問，Deep 需使用者同意。
@@ -96,7 +97,7 @@ Execution Mode: `refactor`。
   → implement → verification-before-completion
 ```
 
-### Micro-task 直達（相容別名：Flow A-P micro）
+### Micro-task 直達
 
 以下三項全部成立才可 native 直達：
 
@@ -111,8 +112,7 @@ test）→ `verification-before-completion`；不建立 work item 與 plan，
 不派發 `implement`。
 
 Plan selection：需要多步、handoff、resume 或
-drift tracking 的工作使用 canonical `plan/plan.md`。v0.7 不載入舊三件式
-plan；消費端需先遷移到 canonical-v2，或在遷移前 pin v0.6。
+drift tracking 的工作使用 canonical `plan/plan.md`。
 
 ## Flow: 修錯
 
@@ -168,5 +168,5 @@ codebase-understanding → architecture map / domain candidates
 □ 已實際讀取所有派發 skills
 □ 條件式 artifact 沒有被補造
 □ 人工 Gate 只停在 PRD、team 設計、發布
-□ 完成宣稱有 fresh test report 與一筆 documentation impact
+□ 完成宣稱有 fresh test report；有 work item 時 `meta.yml` 填 `documentation_impact`（見 ARTIFACTS.md）
 ```

@@ -59,12 +59,15 @@ echo ""
 
 # ── Step 4: QA Spec Checklist (qa validate) ────────────
 echo "▶ [3/3] QA Spec Checklist..."
-if [[ -n "$QA_SPEC" && -f "$QA_SPEC" ]]; then
+if [[ -n "$QA_SPEC" && ! -f "$QA_SPEC" ]]; then
+  echo "$FAIL QA spec not found: $QA_SPEC"
+  EXIT_CODE=1
+elif [[ -n "$QA_SPEC" ]]; then
   echo "   QA spec: $QA_SPEC"
   echo ""
 
   # 計算 checklist 項目數
-  TOTAL=$(grep -cE "^(-|\*|\d+\.|^\[)" "$QA_SPEC" 2>/dev/null || echo "0")
+  TOTAL=$(grep -cE '^(-|\*|[0-9]+\.)' "$QA_SPEC" 2>/dev/null || true)
   echo "   Found $TOTAL checklist items."
   echo "   → Please verify each acceptance criterion manually."
 else

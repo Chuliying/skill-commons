@@ -2,7 +2,7 @@
 name: sync-work
 description: |
   Authoritative Git delivery interface for scoped save, integration, branch finish, and recovery. Preserves unrelated work and gates external or irreversible actions.
-  觸發關鍵字: /sync-work, 開始工作, 保存進度, commit, push, merge, PR, 收尾, recovery
+  觸發關鍵字: /sync-work, 保存進度, commit, push, merge, PR, 收尾, recovery
 source_kind: original
 stage: infra
 ---
@@ -62,11 +62,13 @@ push.
 2. If branch setup is needed, resolve base and naming from manifest/repo evidence.
    Show how switching or creating the branch affects the dirty tree and obtain
    approval before the branch mutation.
-3. Run fresh verification and the applicable separate security evidence before a
-   commit. Failures stop the mode.
-4. Stage only approved paths with `git add -- <paths>`, review `git diff --cached`,
-   then commit using the confirmed project convention.
-5. Push only after separate explicit approval and a known remote/target. If there is
+3. Run fresh verification before a commit. Failures stop the mode.
+4. Stage only approved paths with `git add -- <paths>` and review `git diff --cached`.
+   Then run the applicable security evidence; the secret scan reads the index, so it
+   must run after staging to cover this batch. A failure stops the mode with the
+   batch still staged for the user to inspect.
+5. Commit using the confirmed project convention.
+6. Push only after separate explicit approval and a known remote/target. If there is
    no remote, stop without creating one. Record a commit SHA or push ref only after
    the actual event succeeds.
 

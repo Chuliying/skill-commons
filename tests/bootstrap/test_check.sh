@@ -35,11 +35,23 @@ out=$(bash "$CHECK" --platform codex --project-root "$TMP")
 assert_not_contains "$out" "hookSpecificOutput" "codex plain text"
 assert_contains "$out" "skill-router" "directive injected"
 
+# every manifest platform is healthy after onboard (cursor/codex too, not only cc)
+for plat in cursor codex; do
+  out=$(bash "$CHECK" --platform "$plat" --project-root "$TMP")
+  assert_not_contains "$out" "⚠️" "no warning for $plat after onboard"
+  assert_contains "$out" "skill-router" "directive present for $plat"
+done
+
 # drift: corrupt the CLAUDE.md stamp -> warning
 sed -i.bak 's/skill-commons-stamp: [a-f0-9]*/skill-commons-stamp: deadbeefdead/' "$TMP/CLAUDE.md"
 out=$(bash "$CHECK" --platform claude-code --project-root "$TMP"); rc=$?
 assert_eq "0" "$rc" "check still exits 0 on drift"
 assert_contains "$out" "onboard.sh" "drift warning mentions onboard.sh"
+
+# re-onboard repairs the corrupted stamp
+bash "$REPO/bootstrap/onboard.sh" "$TMP" >/dev/null
+out=$(bash "$CHECK" --platform claude-code --project-root "$TMP")
+assert_not_contains "$out" "⚠️" "re-onboard clears stamp drift"
 
 # missing coverage: remove cursor rule -> warning for cursor platform
 rm -f "$TMP/.cursor/rules/skill-commons.mdc"

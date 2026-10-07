@@ -36,10 +36,10 @@ released `v0.10.0` core. `sync-work` is the sole Git-delivery owner.
 Consuming repositories that still require the legacy 13-owner core stay pinned
 to `v0.7.1`.
 
-`v0.11.0` adopters add `optional` to the manifest's `capability_packs` (or use
+`v0.12.0` adopters add `optional` to the manifest's `capability_packs` (or use
 `CAPABILITY_PACKS=optional` with direct generation) when they need personal
 discovery, PRD publication, terse review, or shared-skill onboarding. This
 profile change makes no effectiveness or quality claim.
 
-The v0.11.0 release retains the same seven-owner core and adds the optional
+The v0.12.0 release retains the same seven-owner core. v0.11.0 added the optional
 pre-PR overview and understanding test within sync-work; opting out adds no gate.

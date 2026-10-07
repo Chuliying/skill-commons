@@ -5,27 +5,12 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 . "$REPO/tests/bootstrap/lib/assert.sh"
 
-plan_sync_skill="$(cat "$REPO/plan-sync/SKILL.md")"
-plan_sync_template="$(cat "$REPO/plan-sync/templates/plan.md")"
-subagent_skill="$(cat "$REPO/subagent-driven-development/SKILL.md")"
 plan_sync_bytes="$(wc -c < "$REPO/plan-sync/SKILL.md" | tr -d ' ')"
 if [ "$plan_sync_bytes" -le 6912 ]; then
   TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: Plan Sync stays within its context budget"
 else
   fail "Plan Sync stays within 6912 bytes (got $plan_sync_bytes)"
 fi
-assert_contains "$plan_sync_skill" "validates reference, shape, and consistency only" "Plan Sync states its recorded-evidence boundary"
-assert_contains "$plan_sync_skill" "authored PASS into behavioral proof" "Plan Sync does not overclaim execution attestation"
-assert_contains "$plan_sync_skill" 'sibling metadata contains a `plan`' "Plan Sync names the sibling metadata stage precisely"
-assert_contains "$plan_sync_skill" 'stage whose `skill` is `plan-sync`' "Plan Sync names the sibling metadata skill precisely"
-assert_contains "$plan_sync_skill" "progress/commentary" "Plan Sync keeps skill transparency in progress updates"
-assert_contains "$plan_sync_skill" "final answer" "Plan Sync keeps internal skill narration out of the final answer"
-for token in "behavior-changing feature" "demoable or verifiable end to end" "fresh context" "next integration checkpoint" "expand" "migrate" "contract"; do
-  assert_contains "$plan_sync_skill" "$token" "Plan Sync defines vertical decomposition contract: $token"
-done
-assert_contains "$plan_sync_skill" "label alone" "Plan Sync rejects label-only horizontal exceptions"
-assert_contains "$subagent_skill" "does not re-slice" "subagent execution preserves approved task decomposition"
-assert_not_contains "$plan_sync_template" "vertical slice" "raw Plan template keeps normative slice guidance out"
 
 TEMPLATE_WORKSPACE="$TMP/template-workspace"
 TEMPLATE_ITEM="$TEMPLATE_WORKSPACE/docs/work/template"

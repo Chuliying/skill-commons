@@ -12,7 +12,7 @@
 
 ## Commands
 
-- Generate: `DELIVERY_MODE=personal bash bootstrap/generate.sh`
+- Generate: `PROFILE=all bash bootstrap/generate.sh`
 - Verify: `bash tests/verify.sh`
 - Focused iteration: run the directly affected suite or test module; this is not repository-completion evidence.
 - Local full Verify uses the content-addressed public-payload cache; release/CI uses `bash tests/verify.sh --release` for a forced fresh payload run.

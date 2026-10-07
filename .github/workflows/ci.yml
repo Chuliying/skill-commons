@@ -11,7 +11,9 @@ permissions:
 jobs:
   verify-source:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # The source scope measured about 9.5 minutes locally (558 s of suites); CI
+    # runners are slower, so 15 minutes left too little headroom.
+    timeout-minutes: 25
     steps:
       - name: Check out repository
         uses: actions/checkout@v4

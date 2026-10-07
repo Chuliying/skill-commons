@@ -114,28 +114,10 @@
   <!-- ============ PRINT REPORT CONTAINER ============ -->
   <div id="print-report-container" style="display:none;"></div>
 
-  <!-- ============ DATA JS（AI 唯一需要產出的 JS）============ -->
-  <script>
-/* AI_FILL: DATA_JS_START
-   以下所有變數 AI 必須填入，格式和結構嚴格遵循範例。
-   ⚠️ routes 和 pages 必須是 Object（非 Array）。
-
-   必填變數：
-     var PROTOTYPE_MAP = { meta: {...}, routes: {...}, pages: {...} };
-     var SCENARIO_TITLES = { "s1": "場景名稱", ... };
-     var NAV_PATH = { "s1": ["pageId1", "pageId2"], ... };
-     var STEPS = { "s1": [{ id: "pageId1", label: "步驟名", dotIdx: 0 }, ...], ... };
-     var STEPPER_LABELS = { "s1": ["步驟名1", "步驟名2"], ... };
-     var PANEL_MAP = { "s1": "scenario-s1", ... };
-     var AC_DATA = { "s1": { "pageId1": PROTOTYPE_MAP.pages["pageId1"].acs }, ... };
-     var SCENARIO_STATE = { "s1": {}, ... };
-     var FRAME_REGISTRY = { "frame-xxx": function(ctx) { return "<div>...</div>"; }, ... };
-     
-   UI 規範：
-     - AC 備註按鈕使用單一 icon，active 以 `is-has-note` 改藍色，不切換雙 icon。
-     - 登入/授權 frame 需置中（flex 水平/垂直置中容器）。
-   AI_FILL: DATA_JS_END */
-  </script>
+  <script id="prototype-map" type="application/json">{{PROTOTYPE_MAP_JSON}}</script>
+  <script id="scenario-state" type="application/json">{{SCENARIO_STATE_JSON}}</script>
+  <script src="assets/runtime-data.js"></script>
+  <script src="assets/frames.js"></script>
 
   <!-- ============ ENGINE JS（READONLY — 從 templates/ 複製，AI 不得修改）============ -->
   <script src="assets/engine.js"></script>

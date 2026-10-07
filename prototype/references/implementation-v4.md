@@ -1,7 +1,7 @@
 # Prototype Workflow Implementation（v4）
 
 > 目標：將 prototype 流程收斂為以 `prototype-map` 為主體的正式工作流，並把 `frame-seed` 降為可選的結構輔助層。
-> 本文件是 implementation 主幹文件，重點在 artifact、流程、責任與邊界，不展開過細的 gate 內部實作。
+> 歷史設計紀錄：執行契約已由 [SKILL](../SKILL.md)、[Map contract](prototype-map-schema.md) 與 [Freeze](gates/G4-freeze.md) 取代。本文不作現行操作指令；保留舊提案供追溯。
 
 ---
 

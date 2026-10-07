@@ -93,13 +93,15 @@ vendor 後必須重套並跑測試：
 | Skill | Patch | Reason |
 |---|---|---|
 | all vendored skills | `source_kind: vendored` frontmatter | 讓 provenance 可機器檢查；upstream 更新後一律重套 |
-| `design-taste-frontend` | lossless progressive-disclosure split: retain the decision spine in `SKILL.md` and move conditional sections to linked `references/` files | keep the pinned upstream sections available while reducing the default read path; per-section hashes in `tests/fixtures/context-budget/frontend-sections.json` verify preservation |
-| `skill-creator` | `stage`, `source`, `source_kind`; 保留本 repo 可用的 schema/eval scripts；新增本地 new-skill checklist reference | 登記官方來源並接入 skill-commons metadata 與 lifecycle contract |
+| `design-taste-frontend` | lossless split: every upstream section and the original preamble live verbatim in `references/` (the former entry sections in `references/upstream-core.md`); `SKILL.md` is a local lean entry that routes to them and wins where they conflict (no universal aesthetic bans, numeric quotas, dial baselines, mandatory dependencies or extra approval steps) | keep the pinned upstream text intact while the default read path carries only contextual rules; per-section and preamble hashes in `tests/fixtures/context-budget/frontend-sections.json` verify preservation |
+| `skill-creator` | `stage`, `source`, `source_kind`; 保留本 repo 可用的 schema/eval scripts；新增本地 new-skill checklist reference；`python -m` 與 eval viewer 範例改 `python3` | 登記官方來源並接入 skill-commons metadata 與 lifecycle contract |
 | `brainstorming` | project-specific bounded discovery：material-ambiguity qualification、Skip/Quick/Standard/Deep 預算、conditional Research、consent-gated Deep Wayfinding、conditional artifact、local handoff | 避免 adapted upstream 的 always-on ceremony，同時保留來源、名稱與 profile 相容性 |
-| `subagent-driven-development` | plan-sync contract、雙 review、gate handoff；T05 closeout handoff 改為 `sync-work` Finish | 接入本 repo orchestration contract，避免新任務派發 compatibility owner |
-| `to-prd` | `stage`, `output`, local-first artifact body；移除內嵌 PRD 模板，改引用 canonical `prd-template.md`；產出後跑 `scripts/check-prd.py --tier core` 當 output gate | 接入 work-item artifact contract v3；PRD 形狀改由單一 canonical 模板 + check-prd 強制，消除與 `prd-interview` 的漂移並確保可銜接 spec/qa |
-| `grilling` | `stage`, durable docs mode、`output`、`meta.yml` body | 合併壓測入口並接入 work-item artifact contract v3 |
-| `caveman-review` | fresh-context dispatch、findings-first local review template | 合併 review 風格與派發能力，避免結構化 handoff 重新引入冗長 review 儀式 |
+| `subagent-driven-development` | plan-sync contract、雙 review、gate handoff；T05 closeout handoff 改為 `sync-work` Finish；Code Quality Gate 改讀 manifest/domain 宣告（移除 TS/Tailwind grep）、host-neutral task list | 接入本 repo orchestration contract，避免新任務派發 compatibility owner |
+| `to-prd` | `stage`, `output`, local-first artifact body；移除內嵌 PRD 模板，改引用 canonical `prd-template.md`；產出後跑 `scripts/check-prd.py --tier core` 當 output gate；移除 `disable-model-invocation`，description 改為 local-first；tracker 發布需使用者要求或同意 | 接入 work-item artifact contract v3；PRD 形狀改由單一 canonical 模板 + check-prd 強制，消除與 `prd-interview` 的漂移並確保可銜接 spec/qa；router 與 brainstorming 把它當 personal PRD producer 派發，manual-only 會讓該 flow 斷在模型端 |
+| `verification-before-completion` | manifest-driven `scripts/verify.sh`、durable handoff Checklist 驗證；移除 upstream 的威脅/羞辱語氣與未具名統計，保留 Gate Function 與 Common Failures | 新一代模型對強烈措辭會過度反應（重複重跑、過度 hedging）；保留可檢驗的 gate，敘述改為說明原因 |
+| `systematic-debugging` | 選用 Phase 0 memory、`graph-context-check`、escalation reference；Phase 4 step 5 命名為 Phase 4.5；移除未具名的成效統計 | 對齊 references 已使用的 Phase 4.5 名稱與 memory 的選用性，避免 SKILL 與 reference 互相矛盾 |
+| `grilling` | `stage`, durable docs mode、`output`、`meta.yml` body；有 `domain-modeling` 時術語與 ADR 直接交給它寫 `CONTEXT.md` / `docs/adr/` | 合併壓測入口並接入 work-item artifact contract v3 |
+| `caveman-review` | fresh-context dispatch、findings-first local review template；Critical/Important/Minor 與一行 `bug`/`risk`/`nit` 前綴互相對照 | 合併 review 風格與派發能力，避免結構化 handoff 重新引入冗長 review 儀式 |
 | `humanizer` | `stage`, `maturity`, `source`, `source_kind`; condensed optional utility with disclosure boundary | 接入 optional docs utility，保留 upstream pattern taxonomy 與 MIT notice |
 
 ## Retired source provenance

@@ -69,7 +69,7 @@ verification uses Python 3.10+; the onboarding scan uses Node.js 18+.
 
 ```bash
 git submodule add git@github.com:Chuliying/skill-commons.git .agent/skills/_shared
-git -C .agent/skills/_shared checkout v0.11.0
+git -C .agent/skills/_shared checkout v0.12.0
 mkdir -p .agent
 cp .agent/skills/_shared/shared-skill-onboarder/templates/project-manifest.md \
   .agent/project-manifest.md

@@ -49,8 +49,9 @@ PRD 結構使用 [PRD template](../prd-template.md)。欄位判斷規則見
 2. 若 manifest 指向可讀的 architecture map，讀取與需求相關區段；缺失或過時則記錄風險，不猜測架構。
 3. 讀取同一 slug 的 `meta.yml`、既有 PRD 與決策紀錄，避免重複或互相衝突。
 4. 套用 Knowledge Boundary：Hard boundary 衝突時停止；Soft boundary 衝突建立阻擋型 FU。
-5. 需要確認遠端差異時只執行 `git fetch <remote> <base>`，再用
-   `git rev-list --left-right --count HEAD...<remote>/<base>` 回報 ahead/behind。
+5. 需要確認遠端差異時，用本機 remote-tracking ref 執行
+   `git rev-list --left-right --count HEAD...<remote>/<base>` 回報 ahead/behind（註明 ref 可能過時）；
+   需要先 `git fetch` 時依 `sync-work` 取得使用者同意。
    不改動工作樹；只有使用者明確要求同步時才交給 `sync-work`。
 
 輸出一段 Context Summary：目標、目前系統、已知限制、知識缺口、ahead/behind 狀態。

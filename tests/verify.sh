@@ -312,7 +312,10 @@ while IFS=' ' read -r kind name extra || [ -n "${kind:-}" ]; do
         fi
         record_failure "$entry_id" "$kind" "$name" "$rc" "$stdout_log" "$stderr_log"
       else
-        echo "SUITE layer:$name rc=$rc secs=$secs"
+        # unittest prints skips only in its summary (stderr); show the count on a
+        # green layer so coverage lost to a missing tool is visible. Skips do not fail.
+        skipped="$(sed -n 's/.*skipped=\([0-9][0-9]*\).*/\1/p' "$stderr_log" | tail -1)"
+        echo "SUITE layer:$name rc=$rc secs=$secs${skipped:+ skipped=$skipped}"
       fi
     fi
   elif [ "$kind" = "suite" ]; then

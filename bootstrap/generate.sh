@@ -280,7 +280,8 @@ done < <(skill_commons_shared_scripts)
 # Frozen ownership inventory from every tagged pre-ledger release
 # (v0.1.0-v0.4.1). Current manageable paths are duplicated intentionally;
 # retired names remain here so explicit migration cannot strand them as
-# discoverable, unowned skills.
+# discoverable, unowned skills. scripts/run-gate.sh was a shared helper that
+# is no longer distributed; listing it keeps adoption from stranding it.
 LEGACY_PRE_LEDGER_DIRS=(
   brainstorming caveman-review codebase-understanding design-taste-frontend
   dev-kickoff domain-modeling finishing-a-development-branch grill-me
@@ -292,6 +293,7 @@ LEGACY_PRE_LEDGER_DIRS=(
 )
 LEGACY_PRE_LEDGER_FILES=(
   ARTIFACTS.md graph-context-check.md SOURCES.md CHECKLIST-CONVENTION.md
+  scripts/run-gate.sh
 )
 
 current_manageable_has() {
