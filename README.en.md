@@ -88,7 +88,7 @@ No SSH key and no questions. The first run creates a default manifest (`personal
 
 ### Advanced setup
 
-- Pin a release: `git -C .agent/skills/_shared checkout v0.13.0`, then run `onboard.sh` again. The content-bound verification, approvals, ledger and work-item commands described here ship in `v0.13.0`.
+- Pin a release: `git -C .agent/skills/_shared checkout v0.13.1`, then run `onboard.sh` again. The content-bound verification, approvals, ledger and work-item commands described here ship in `v0.13.1`.
 - Change platforms, `delivery_mode` or capability packs: edit the generated `.agent/project-manifest.md`, then run `onboard.sh` again. The example below enables all three platforms; remove `optional` for the smallest skill set:
 
 ```yaml

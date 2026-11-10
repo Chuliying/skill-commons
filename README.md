@@ -70,7 +70,7 @@ bash .agent/skills/_shared/bootstrap/onboard.sh
 
 ### 進階設定
 
-- 固定在發布版本：`git -C .agent/skills/_shared checkout v0.13.0`，再重跑 `onboard.sh`。這裡介紹的內容綁定驗證、核准、清單與工作項目指令在 `v0.13.0` 提供。
+- 固定在發布版本：`git -C .agent/skills/_shared checkout v0.13.1`，再重跑 `onboard.sh`。這裡介紹的內容綁定驗證、核准、清單與工作項目指令在 `v0.13.1` 提供。
 - 調整平台、`delivery_mode` 或 capability packs：編輯產生的 `.agent/project-manifest.md`，再重跑 `onboard.sh`。以下是三個平台都啟用的例子；只要最少技能時，移除 `optional`：
 
 ```yaml

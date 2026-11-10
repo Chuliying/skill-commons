@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-11-10
+
+### Fixed
+
+- `tests/test_project_status.sh` 的兩個 fixture 改以 `python3 -B` 執行測試。原本的寫法在 Linux 上會把測試產生的 `__pycache__` 一起 commit（已提交的快取依設計就是 scope violation），並且在同一秒內還原同樣大小的來源檔時沿用陳舊的 `.pyc`，造成 CI 失敗九項。產品行為沒有改變；受影響的只有測試本身。
+
+### 更正
+
+- v0.13.0 的 tag 訊息與公開快照 commit 訊息都寫「CI could not run for this candidate」。這對 dev repo 成立（Actions 被帳戶層級擋住），對公開 repo 不成立：推送 `bcf94fa` 觸發的 run 42733989322 確實執行並失敗。已推送的 tag 不移動，更正記於此。
+
 ## [0.13.0] - 2026-11-09
 
 ### Breaking changes

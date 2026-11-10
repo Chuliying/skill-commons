@@ -359,7 +359,7 @@ for name in sys.argv[1:]:
     section = text[start:] if start >= 0 else ""
     positions = [
         section.find("fetch --tags"),
-        section.find("checkout v0.13.0"),
+        section.find("checkout v0.13.1"),
         section.find("bootstrap/manage.sh update"),
     ]
     if not section or any(position < 0 for position in positions) or positions != sorted(positions):

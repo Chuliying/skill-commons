@@ -73,9 +73,9 @@ requires a regular `.gitignore` file. `manage.sh uninstall` removes the managed 
 state file. If a crashed install leaves a lock, confirm that the process in the reported
 lock's `pid` file has exited, remove that lock directory, and retry.
 
-## Install v0.13.0
+## Install v0.13.1
 
-The current release is v0.13.0, which carries the content-bound verification, approvals, ledger and work-item commands. Two commands, over HTTPS and without questions:
+The current release is v0.13.1, which carries the content-bound verification, approvals, ledger and work-item commands. Two commands, over HTTPS and without questions:
 
 ```bash
 git submodule add https://github.com/Chuliying/skill-commons.git .agent/skills/_shared
@@ -84,7 +84,7 @@ bash .agent/skills/_shared/bootstrap/onboard.sh
 
 When `.agent/project-manifest.md` is missing, onboarding writes a default one
 (`personal` with `capability_packs: optional`; platforms as detected below, Claude Code and Codex when none is found). To pin a release instead of the commit you
-added, run `git -C .agent/skills/_shared checkout v0.13.0` and onboard again.
+added, run `git -C .agent/skills/_shared checkout v0.13.1` and onboard again.
 
 To change the selection, edit the generated manifest and onboard again. It needs
 at least one platform and exactly one delivery mode. Example with all three platforms:
@@ -184,7 +184,7 @@ fetch, select, or checkout refs:
 
 ```bash
 git -C .agent/skills/_shared fetch --tags
-git -C .agent/skills/_shared checkout v0.13.0
+git -C .agent/skills/_shared checkout v0.13.1
 bash .agent/skills/_shared/bootstrap/manage.sh update
 bash .agent/skills/_shared/bootstrap/manage.sh doctor
 bash .agent/skills/_shared/scripts/project-status.sh

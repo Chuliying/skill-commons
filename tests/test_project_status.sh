@@ -420,7 +420,7 @@ cat > "$VE/.agent/project-manifest.md" <<'EOF'
 - tests_root: tests
 
 ## Stack
-- test_cmd: `python3 -m unittest discover -s tests`
+- test_cmd: `python3 -B -m unittest discover -s tests`
 - has_ui: false
 - has_api: false
 - typed_contracts: false
@@ -598,12 +598,20 @@ assert_eq "unknown" "$(ve_state done-b)" "evidence that names no test command is
 cp "$TMP/evidence.bak" "$VE/docs/work/done-b/verification.json"
 
 # Scope normalization, empty scope and repository mode use separate fixtures.
+# The fixtures below run their tests with `python3 -B`. Writing bytecode beside the
+# fixture source would make two environment-dependent failures that this host hides:
+# a later `git add -A` commits the cache (a committed cache is a scope violation by
+# design), and a same-size edit restored within the same second reuses a stale .pyc,
+# because CPython validates a cache by the source's size and whole-second mtime.
+# Apple's python3 keeps caches outside the tree (sys.pycache_prefix), so neither
+# shows up on macOS; Linux CI sees both. The cache-filter assertions further down
+# build their caches by hand, so they still exercise the product's own filtering.
 make_scope_repo() { # dir roots-line
   mkdir -p "$1/src" "$1/tests" "$1/.agent" "$1/docs/work/item"
   git -C "$1" init -q
   cp "$VE/src/app.py" "$1/src/app.py"; cp "$VE/tests/test_app.py" "$1/tests/test_app.py"
   printf 'readme\n' > "$1/README.md"
-  printf '## Paths\n%s\n\n## Stack\n- test_cmd: `python3 -m unittest discover -s tests`\n- typed_contracts: false\n' "$2" > "$1/.agent/project-manifest.md"
+  printf '## Paths\n%s\n\n## Stack\n- test_cmd: `python3 -B -m unittest discover -s tests`\n- typed_contracts: false\n' "$2" > "$1/.agent/project-manifest.md"
   printf '# item\n' > "$1/docs/work/item/implement-report.md"
   sed 's/^slug: .*/slug: item/' "$VE/docs/work/done-item/meta.yml" > "$1/docs/work/item/meta.yml"
   git -C "$1" add -A && git -C "$1" -c user.name=t -c user.email=t@example.invalid commit -q -m fixture

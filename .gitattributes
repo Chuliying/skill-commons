@@ -57,6 +57,11 @@
 # test boundary is declared.
 /tests/test_skill_inventory.sh export-ignore
 
+# Maintainer-only CI mirror for self-hosted runners. A self-hosted runner on a
+# public repository would run code from any fork's pull request on our machine,
+# so the public payload keeps the GitHub-hosted workflow only.
+/.github/workflows/ci-selfhosted.yml export-ignore
+
 # Maintainer-only test: it reads the QA corpus roster from docs/work/**, which is
 # itself export-ignore, so a public payload cannot satisfy it. Keeping it in the
 # payload turned the private-doc dependency into a fail-closed ERROR there.
