@@ -120,7 +120,7 @@ assert_eq "7" "$(printf '%s\n' "$core" | sed '/^$/d' | wc -l | tr -d ' ')" "core
 assert_eq "10" "$(printf '%s\n' "$optional_overlay" | sed '/^$/d' | wc -l | tr -d ' ')" "optional has ten capabilities"
 
 router_text="$(cat "$REPO/skill-router/SKILL.md")"
-assert_contains "$router_text" "七個 core owner" "router describes the T06 seven-owner core"
+assert_contains "$router_text" "seven core owners" "router describes the T06 seven-owner core"
 assert_contains "$router_text" "CAPABILITY_PACKS=optional" "router names the explicit optional-pack adoption route"
 for optional_owner in brainstorming grilling to-prd caveman-review shared-skill-onboarder; do
   assert_contains "$router_text" "$optional_owner" "router preserves optional route for $optional_owner"
@@ -376,7 +376,7 @@ if bash "$REPO/bootstrap/onboard.sh" "$NO_SELECTION" >/dev/null 2>&1; then
 else
   TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: onboard rejects a manifest without delivery selection"
 fi
-if [ -e "$NO_SELECTION/AGENTS.md" ] || [ -e "$NO_SELECTION/.codex/skills" ]; then
+if [ -e "$NO_SELECTION/AGENTS.md" ] || [ -e "$NO_SELECTION/.agents/skills" ]; then
   fail "missing delivery selection fails before platform fan-out"
 else
   TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: missing delivery selection fails before platform fan-out"
@@ -409,7 +409,7 @@ assert_contains "$support" "rule + AGENTS adapter" "Cursor support is not called
 
 for entrypoint in README.md README.en.md; do
   entrypoint_text="$(cat "$REPO/$entrypoint")"
-  assert_contains "$entrypoint_text" "v0.12.0" "$entrypoint keeps the concrete current release pin"
+  assert_contains "$entrypoint_text" "v0.13.0" "$entrypoint keeps the concrete current release pin"
   # Owner direction 2026-07-30: entry READMEs recommend the current release instead
   # of carrying the legacy pin; migration owners below retain that boundary.
   assert_not_contains "$entrypoint_text" "v0.7.1" "$entrypoint recommends upgrade instead of the legacy pin"
@@ -427,7 +427,7 @@ assert_not_contains "$readme_en_text" "fan-out generates Claude Code, Codex, and
 for public_contract in INDEX.md bootstrap/README.md docs/profile-platform-support.md; do
   contract_text="$(cat "$REPO/$public_contract")"
   assert_contains "$contract_text" "CAPABILITY_PACKS=optional" "$public_contract documents optional-pack adoption"
-  assert_contains "$contract_text" "v0.12.0" "$public_contract documents the current release pin"
+  assert_contains "$contract_text" "v0.13.0" "$public_contract documents the current release pin"
   assert_contains "$contract_text" "v0.7.1" "$public_contract documents the concrete legacy-core pin"
   assert_not_contains "$contract_text" "current next-major candidate" "$public_contract removes candidate wording after release"
 done
@@ -444,7 +444,7 @@ for migration_contract in \
 done
 if [ -f "$REPO/docs/shared-skill-onboarding-checklist.md" ]; then
   migration_text="$(cat "$REPO/docs/shared-skill-onboarding-checklist.md")"
-  assert_contains "$migration_text" "v0.12.0" "private onboarding checklist names the released boundary"
+  assert_contains "$migration_text" "v0.13.0" "private onboarding checklist names the released boundary"
   assert_contains "$migration_text" "7-owner core" "private onboarding checklist names the released seven-owner core"
   assert_not_contains "$migration_text" "current next-major candidate" "private onboarding checklist removes candidate wording after release"
   assert_not_contains "$migration_text" "non-dispatch compatibility shell" "private onboarding checklist removes the T05 compatibility-shell wording"
@@ -469,33 +469,37 @@ text = Path(sys.argv[1]).read_text(errors="replace")
 start = text.find("## Quick Start")
 end = text.find("## 安裝完成後", start)
 section = text[start:end]
-selection = section.find("`optional` 加到 `capability_packs`")
+# Owner decision 2026-10-29 (skill-commons-positioning T01): the Quick Start is two
+# commands; the generated default manifest already includes optional, so the README
+# explains the default instead of asking for a selection before onboarding.
+default = section.find("`optional` 技能包")
 onboard = section.find("bootstrap/onboard.sh")
-if start < 0 or end < 0 or selection < 0 or onboard < 0 or selection >= onboard:
-    raise SystemExit("README Quick Start must select optional capability before onboarding")
+if start < 0 or end < 0 or default < 0 or onboard < 0:
+    raise SystemExit("README Quick Start must state that the default includes optional")
 PY
 then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: Quick Start sequences optional onboarding selection before generation"
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: Quick Start states the optional default"
 else
-  fail "Quick Start sequences optional onboarding selection before generation"
+  fail "Quick Start states the optional default"
 fi
+assert_contains "$template_text" "- capability_packs: optional" "fresh manifest includes optional by default"
 # Owner direction 2026-07-30: the uninstalled-onboarder caution left the README
 # together with the legacy-pin accommodation; the manifest template still
 # documents optional-pack adoption.
 
 if [ -f "$REPO/docs/shared-skill-onboarding-checklist.md" ]; then
   onboarding_checklist="$(cat "$REPO/docs/shared-skill-onboarding-checklist.md")"
-  assert_contains "$onboarding_checklist" "v0.12.0 consuming path" "onboarding checklist names the current consuming path"
+  assert_contains "$onboarding_checklist" "v0.13.0 consuming path" "onboarding checklist names the current consuming path"
   assert_contains "$onboarding_checklist" "capability_packs: optional" "onboarding checklist selects optional before onboarding"
   assert_contains "$onboarding_checklist" "manual top-level-source maintainer path" "onboarding checklist distinguishes the manual maintainer path"
 fi
 
 bridge_text="$(cat "$REPO/docs/skill-commons-submodule-bridge.md")"
-assert_contains "$bridge_text" "## Install v0.12.0" "submodule bridge installs the current release"
-assert_contains "$bridge_text" "checkout v0.12.0" "submodule bridge preserves the concrete current checkout"
+assert_contains "$bridge_text" "## Install v0.13.0" "submodule bridge installs the current release"
+assert_contains "$bridge_text" "checkout v0.13.0" "submodule bridge preserves the concrete current checkout"
 assert_contains "$bridge_text" "v0.7.1" "submodule bridge explains the legacy compatibility pin"
 assert_not_contains "$bridge_text" "next-major" "submodule bridge removes pre-release wording"
-assert_contains "$bridge_text" "capability_packs: optional" "submodule bridge conditions v0.12.0 onboarder use"
+assert_contains "$bridge_text" "capability_packs: optional" "submodule bridge conditions v0.13.0 onboarder use"
 
 # --- 6b) Stack capabilities are strict booleans and default false ---
 cat >> "$TMP/manifest.md" <<'EOF'
@@ -515,9 +519,9 @@ else
   TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: invalid capability values fail closed"
 fi
 
-# --- 7) skill-router's documented "personal profile 硬規則" exclusion list
+# --- 7) skill-router's documented "personal profile hard rule" exclusion list
 # must never actually appear in the expanded personal bundle (docs/reality drift guard) ---
-router_excluded="$(awk '/personal profile 硬規則/{p=1} p{print} p && /不在 bundle 內/{exit}' "$REPO/skill-router/SKILL.md" |
+router_excluded="$(awk '/personal profile hard rule/{p=1} p{print} p && /not in the bundle/{exit}' "$REPO/skill-router/SKILL.md" |
   grep -oE '`[a-z0-9-]+`' | tr -d '`' | sort -u)"
 personal_expanded="$(resolve personal | sort -u)"
 drift=""

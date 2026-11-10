@@ -1,6 +1,6 @@
 # Personal feature journey
 
-Read `AGENTS.md`, then read `.codex/skills/skill-router/SKILL.md` or `.claude/skills/skill-router/SKILL.md` for your harness. Follow the router and read every dispatched skill before editing.
+Read `AGENTS.md`, then read `.agents/skills/skill-router/SKILL.md` or `.claude/skills/skill-router/SKILL.md` for your harness. Follow the router and read every dispatched skill before editing.
 
 Add an optional `punctuation` argument to `src/greet.py:greet`. The default must preserve `hello Codex`; `greet("Codex", "!")` must return `hello Codex!`. Use the personal-profile feature path and real RED-GREEN-REFACTOR evidence. Run the manifest test/lint commands. Do not commit or push.
 

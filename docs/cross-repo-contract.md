@@ -25,7 +25,7 @@ registry 宣告三件事：
 | 宣告 | 內容 |
 |---|---|
 | `execution_modes` | 四個模式（`team-feature`、`personal-feature`、`bug-fix`、`refactor`）各自的 artifact 需求：`required`、`optional`、`absent` |
-| `work_statuses` | `active`、`completed`、`abandoned` |
+| `work_statuses` | `queued`、`active`、`completed`、`abandoned` |
 | `delivery_statuses` | `not_requested` 到 `deployed`，以及每個狀態**允許**與**必須**具備的證據 |
 
 work-item v3 把「工作做完了」與「交付出去了」分成兩個欄位。這是刻意的：

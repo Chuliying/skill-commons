@@ -1,10 +1,10 @@
 # Agent Guardrails
 
-在完成專案規則探索前，先遵守以下保守邊界：
+Until the project's own rules are written down, follow these conservative limits:
 
-- 禁止 force push。
-- 禁止刪除遠端 branch。
-- 禁止讀取、修改或提交 `.env` 與其他 secrets 檔案。
-- 執行不可逆操作前，必須先說明影響並取得使用者明確確認。
+- Do not force push.
+- Do not delete remote branches.
+- Do not read, change or commit `.env` or other secrets files.
+- Before an irreversible action, explain its effect and get the user's explicit confirmation.
 
-<!-- TODO: 依專案政策補充可修改範圍、驗證命令與發布邊界。 -->
+<!-- TODO: add the project's own limits: what may change, how to verify, and release boundaries. -->

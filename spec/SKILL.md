@@ -32,7 +32,7 @@ output: <work_root>/<slug>/spec.md
 
 ## Process
 
-### Step 0: 讀取 Project Manifest
+### Step 0: 讀取 Project Manifest（本技能的 Manifest Contract）
 
 > **shared skill 不得寫死專案文件或 domain skill 路徑。**
 
@@ -48,7 +48,13 @@ output: <work_root>/<slug>/spec.md
      a. 執行 `codebase-understanding`，以 Repo Map、repository search 與直接驗證產出 `.agent/knowledge/architecture-map.md` 並更新 manifest
      b. 手寫 `.agent/knowledge/architecture-map.md`，再更新 manifest
      c. 暫時略過，並在 Spec 標記 `Architecture Map Missing` risk
-5. `system_context` 缺失時停止；capability 為 true 但對應路徑或命令缺失時才要求補齊
+5. 檢查 `system_context`：
+   - 存在且檔案可讀 → 讀取後繼續
+   - 缺席或路徑失效 → 先從 repo 推導：讀 README、`AGENTS.md`／`CLAUDE.md`、主要入口與套件設定，
+     在 Spec 的系統脈絡段寫出推導結果並標註來源。不依賴 optional 的 `codebase-understanding`，已安裝時可用。
+     推導仍無法說明系統邊界或主要依賴時，才詢問使用者
+   - 欄位缺席本身不是停止條件
+6. capability 為 true 但對應路徑或命令缺失時，才要求補齊
 
 ### Base 分支差異檢查
 
@@ -83,7 +89,7 @@ git rev-list --left-right --count HEAD...<remote>/<base>
 | **Knowledge Boundary** | 從 manifest 讀取 `knowledge_boundary`；存在則讀取，不存在則跳過 | Hard boundary 違反 → 停止；Soft → 建立 FU |
 | ** Follow-ups 阻擋** | **掃描 PRD 是否存在「阻擋型」且  待確認 的 FU（含 Boundary 後二次掃描）；未標記類型的 FU 視同阻擋型** | ** 立即停止，列出所有阻擋型/未標記類型的  FU 清單，要求回 PRD 確認後再執行** |
 | **Project Manifest** | **必須讀取** `.agent/project-manifest.md` | 停止並要求補齊 |
-| **System Context** | **必須讀取** manifest 中 `system_context` | 執行 `/init` 或 `codebase-understanding` |
+| **System Context** | 依 Step 0 決策：讀取 manifest 的 `system_context`，或已從 repo 推導並標註來源 | 推導不足時詢問使用者；不因欄位缺席停止 |
 | **System Map** | 依 Step 0 決策樹確認 manifest 中 `architecture_map` 已讀取，或已標記 risk | 未處理 decision → 停止 |
 | API Reference | `has_api: true` 時確認 `api_reference` 存在；false 為 N/A | 執行 `markdown` |
 | PRD 完整（機器檢查） | 執行 `python3 <shared_skills_root>/scripts/check-prd.py --prd <PRD 路徑> --tier <mode-tier>`，tier 依 Execution Mode 解析：`team-feature` 用 `--tier team`；`refactor` 的 optional spec 用 `--tier core`（`to-prd` 只產 core PRD 時走此路，避免固定 `--tier team` 造成契約死路）。驗證 FR/AC/ERR、FU 段存在、AC 為 GWT、無殘留 placeholder | 退出非 0 → 停止並要求修正 PRD，不得開始設計 |

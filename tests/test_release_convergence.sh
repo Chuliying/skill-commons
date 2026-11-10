@@ -359,7 +359,7 @@ for name in sys.argv[1:]:
     section = text[start:] if start >= 0 else ""
     positions = [
         section.find("fetch --tags"),
-        section.find("checkout v0.12.0"),
+        section.find("checkout v0.13.0"),
         section.find("bootstrap/manage.sh update"),
     ]
     if not section or any(position < 0 for position in positions) or positions != sorted(positions):
@@ -397,15 +397,18 @@ text = Path(sys.argv[1]).read_text(errors="replace")
 start = text.find("## Quick Start")
 end = text.find("\n## Execution Mode", start + 1) if start >= 0 else -1
 section = text[start:end if end >= 0 else len(text)] if start >= 0 else ""
-selection = section.find("delivery_mode: personal")
+# Owner decision 2026-10-29 (skill-commons-positioning T01): onboarding writes the default
+# manifest, so the Quick Start names the default delivery mode and how to change it after.
+default = section.find("`personal`")
 onboard = section.find("bootstrap/onboard.sh")
-if not section or selection < 0 or onboard < 0 or selection > onboard:
-    raise SystemExit("Quick Start must make delivery selection explicit before onboarding")
+change = section.find("delivery_mode")
+if not section or default < 0 or onboard < 0 or change < 0:
+    raise SystemExit("Quick Start must name the default delivery mode and how to change it")
 PY
 then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: Quick Start selects a delivery mode before onboarding"
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: Quick Start names the default delivery mode and how to change it"
 else
-  fail "Quick Start selects a delivery mode before onboarding"
+  fail "Quick Start names the default delivery mode and how to change it"
 fi
 if grep -qx 'skill-creator' \
     "$REPO/profiles/core" \
@@ -417,10 +420,10 @@ else
   TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: skill-creator is absent from consuming profiles"
 fi
 
-for flow in "探索" "建造" "修錯" "發布" "理解"; do
+for flow in "Explore" "Build" "Fix" "Release" "Understand"; do
   assert_contains "$(cat "$REPO/skill-router/SKILL.md")" "## Flow: $flow" "router defines $flow flow"
 done
-decision_rows="$(awk '/^## 任務判斷表/{p=1;next} p && /^## /{exit} p && /^\|/{n++} END{print n+0}' "$REPO/skill-router/SKILL.md")"
+decision_rows="$(awk '/^## Task routing table/{p=1;next} p && /^## /{exit} p && /^\|/{n++} END{print n+0}' "$REPO/skill-router/SKILL.md")"
 if [ "$decision_rows" -le 8 ]; then
   TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: router decision table has at most six data rows"
 else
@@ -429,7 +432,7 @@ fi
 
 assert_contains "$(cat "$REPO/ARTIFACTS.md")" "awaiting-approval" "artifact stages support approval waiting"
 assert_contains "$(cat "$REPO/ARTIFACTS.md")" "approved" "artifact stages support approval completion"
-assert_contains "$(cat "$REPO/ARTIFACTS.md")" "work_status: active | completed | abandoned" "artifact contract separates work completion"
+assert_contains "$(cat "$REPO/ARTIFACTS.md")" "work_status: queued | active | completed | abandoned" "artifact contract separates work completion"
 assert_contains "$(cat "$REPO/ARTIFACTS.md")" "delivery_status: not_requested | awaiting_approval | approved | pr_created | merged | deployed" "artifact contract separates evidence-backed delivery"
 assert_contains "$(cat "$REPO/ARTIFACTS.md")" "merge_sha" "artifact delivery requires merge evidence"
 assert_file "$REPO/GATE-PACKAGE.md" "Gate Package convention exists"

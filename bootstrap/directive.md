@@ -1,7 +1,9 @@
-本專案使用 **skill-commons** 開發流程框架(以 git submodule 掛載於 `.agent/skills/_shared/`)。
+This project uses **skill-commons** (git submodule, `.agent/skills/_shared/`). At session start run `bash .agent/skills/_shared/bootstrap/check.sh` (Claude Code runs it for you). Common commands; read nothing else first:
 
-任何開發任務(PRD、技術 spec、QA 方案、功能實作、除錯、code review),**必須先讀取 `.agent/skills/_shared/skill-router/SKILL.md`**,並依其「任務類型判斷表」載入對應 skill,再開始動作。
+- Start: `bash .agent/skills/_shared/scripts/work-items.sh new <slug>` (backlog: `--queued`, later `start <slug>`; modes: `--help`)
+- Verify and record: `bash .agent/skills/_shared/verification-before-completion/scripts/verify.sh --work-item <slug>`
+- Status: `bash .agent/skills/_shared/scripts/project-status.sh` (one row per item: `--ledger`)
+- Approve (the person, own terminal): `python3 .agent/skills/_shared/scripts/verification_evidence.py approve --work-item <slug>`
+- Finish: `bash .agent/skills/_shared/scripts/work-items.sh complete <slug> --na "<reason>"` (or `--doc <path>`), then verify again.
 
-session 開始時請先執行 `bash .agent/skills/_shared/bootstrap/check.sh` 確認 bootstrap 設定正確;若出現警告,依指示修正後再繼續。
-
-domain 專屬模式(檔案組織、命名、API 慣例)見 `.agent/project-manifest.md` 指向的 domain skills。
+Other tasks, or unsure which skill: read `.agent/skills/_shared/skill-router/SKILL.md` first. Domain conventions: `.agent/project-manifest.md`.

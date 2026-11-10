@@ -15,6 +15,7 @@ error() {
 . "$HERE/lib/render.sh"
 . "$HERE/lib/manifest.sh"
 . "$HERE/lib/ownership.sh"
+. "$HERE/lib/fanout.sh"
 
 usage() {
   cat <<'EOF'
@@ -36,6 +37,11 @@ EOF
 # fanned skills into it, wrote root files, and reported success. Typing --help at an
 # unfamiliar script is the most likely first thing a new consumer does, so answering it
 # with a silent real installation is the worst available behavior.
+refresh_only=0
+if [ "${1:-}" = --refresh-ignored ]; then
+  refresh_only=1
+  shift
+fi
 case "${1:-}" in
   -h|--help)
     usage
@@ -69,13 +75,17 @@ validate_project_managed_ancestors "$PROJECT_ROOT" || exit 1
 # without taking the lock itself, so delegation cannot self-deadlock.
 INSTALL_LOCK_DIR="$(project_install_lock_path "$PROJECT_ROOT")"
 if ! mkdir "$INSTALL_LOCK_DIR" 2>/dev/null; then
-  error "project installation is locked: $PROJECT_ROOT ($INSTALL_LOCK_DIR)"
+  error "project installation is locked: $PROJECT_ROOT ($INSTALL_LOCK_DIR). If the process in its pid file has exited, remove the stale lock directory and rerun onboarding."
   exit 1
 fi
 printf '%s\n' "$$" > "$INSTALL_LOCK_DIR/pid"
 blockfile=""
+pointerfile=""
+legacy_lock=""
 cleanup() {
   [ -z "$blockfile" ] || rm -f -- "$blockfile" || true
+  [ -z "$pointerfile" ] || rm -f -- "$pointerfile" || true
+  [ -z "$legacy_lock" ] || rm -rf -- "$legacy_lock" || true
   rm -rf -- "$INSTALL_LOCK_DIR" || true
 }
 trap cleanup EXIT
@@ -108,10 +118,112 @@ _ensure_router_prerequisite() {
   atomic_publish_file "$tmp" "$target" || { rm -f -- "$tmp"; return 1; }
 }
 
+if [ "$refresh_only" -eq 1 ]; then
+  manifest_rel="${MANIFEST#"$PROJECT_ROOT"/}"
+  [ -f "$MANIFEST" ] && [ ! -L "$MANIFEST" ] &&
+    git -C "$PROJECT_ROOT" cat-file -e "HEAD:$manifest_rel" 2>/dev/null &&
+    git -C "$PROJECT_ROOT" diff --quiet HEAD -- "$manifest_rel" &&
+    git -C "$PROJECT_ROOT" diff --cached --quiet HEAD -- "$manifest_rel" || {
+      error "project manifest has local changes or is not committed"
+      exit 1
+    }
+fi
+
+manifest_existed=0
+[ -e "$MANIFEST" ] && manifest_existed=1
 _ensure_router_prerequisite \
   "$SKELETONS/project-manifest.md" \
   "$MANIFEST"
 validate_bootstrap_manifest_keys "$MANIFEST" || exit 1
+
+# A new manifest names the agents this repository already uses; the template default
+# (Claude Code and Codex) applies only when none is found. An existing manifest is kept.
+if [ "$manifest_existed" -eq 0 ]; then
+  detected_platforms=""
+  { [ -d "$PROJECT_ROOT/.claude" ] || [ -f "$PROJECT_ROOT/CLAUDE.md" ]; } && detected_platforms="claude-code"
+  # AGENTS.md alone is a vendor-neutral convention, so it does not mean Codex.
+  # `.agents/skills` is a cross-tool convention, so only our own ledger there means Codex.
+  { [ -d "$PROJECT_ROOT/.codex" ] || [ -f "$PROJECT_ROOT/.agents/skills/$OWNERSHIP_FILE" ]; } \
+    && detected_platforms="${detected_platforms:+$detected_platforms, }codex"
+  { [ -d "$PROJECT_ROOT/.cursor" ] || [ -f "$PROJECT_ROOT/.cursorrules" ]; } && detected_platforms="${detected_platforms:+$detected_platforms, }cursor"
+  if [ -n "$detected_platforms" ]; then
+    platforms_tmp="$(mktemp "$MANIFEST.skill-commons.XXXXXX")" || exit 1
+    DETECTED="$detected_platforms" awk '
+      /^- platforms: / && !done { print "- platforms: " ENVIRON["DETECTED"]; done = 1; next }
+      { print }
+    ' "$MANIFEST" > "$platforms_tmp" && atomic_publish_file "$platforms_tmp" "$MANIFEST" || { rm -f -- "$platforms_tmp"; exit 1; }
+    echo "platforms found in this repository: $detected_platforms"
+  fi
+  case " $detected_platforms " in
+    *codex*) ;;
+    *) [ -n "$detected_platforms" ] && [ -f "$PROJECT_ROOT/AGENTS.md" ] && \
+         echo "note: AGENTS.md alone does not select Codex; add codex to '- platforms:' in $MANIFEST and run onboard.sh again if you use it." ;;
+  esac
+  # The template's note about this replacement has served its purpose.
+  note_tmp="$(mktemp "$MANIFEST.skill-commons.XXXXXX")" || exit 1
+  grep -v '^<!-- onboard.sh replaces this with the agents it finds' "$MANIFEST" > "$note_tmp"
+  atomic_publish_file "$note_tmp" "$MANIFEST" || { rm -f -- "$note_tmp"; exit 1; }
+fi
+
+# Verification evidence fingerprints source_roots and tests_root; without them every
+# file in the repository counts, so a README edit makes finished work stale. A manifest
+# onboarding just created gets derived roots; an existing one stays user-owned.
+if [ "$refresh_only" -eq 0 ]; then
+  derived_roots="$(derive_scope_roots "$PROJECT_ROOT")"
+  derived_src="${derived_roots%%|*}"; derived_tst="${derived_roots#*|}"
+  if [ -z "$(_manifest_value "$MANIFEST" source_roots)$(_manifest_value "$MANIFEST" tests_root)" ] \
+     && [ -n "$derived_src$derived_tst" ]; then
+    derived_lines=""
+    [ -n "$derived_src" ] && derived_lines="- source_roots: $derived_src"
+    [ -n "$derived_tst" ] && derived_lines="${derived_lines:+$derived_lines
+}- tests_root: $derived_tst"
+    # Narrowing the scope must not drop code: write roots only when a source root was found
+    # and the roots hold at least 90% of tracked code files (a Python package at the root
+    # plus tests/ would otherwise verify tests only).
+    read -r covered_code all_code <<< "$(scope_coverage "$PROJECT_ROOT" "$derived_src,$derived_tst")"
+    roots_complete=0
+    if [ -n "$derived_src" ] && [ "${all_code:-0}" -gt 0 ] && [ $((covered_code * 10)) -ge $((all_code * 9)) ]; then
+      roots_complete=1
+    fi
+    if [ "$manifest_existed" -eq 0 ] && [ "$roots_complete" -eq 1 ]; then
+      paths_tmp="$(mktemp "$MANIFEST.skill-commons.XXXXXX")" || exit 1
+      DERIVED_LINES="$derived_lines" awk '
+        /^<!-- TODO: discover and record project document, source, test, and work-item paths\. -->$/ && !done {
+          print "<!-- source_roots and tests_root were derived by onboard.sh from top-level directories; check them. -->"
+          print ENVIRON["DERIVED_LINES"]; done = 1; next
+        }
+        { print }
+      ' "$MANIFEST" > "$paths_tmp" && atomic_publish_file "$paths_tmp" "$MANIFEST" || { rm -f -- "$paths_tmp"; exit 1; }
+      echo "derived from top-level directories and written to $MANIFEST (check them):"
+    else
+      echo "note: $MANIFEST has no source_roots or tests_root, so verification covers every file."
+      [ "$roots_complete" -eq 1 ] || echo "these roots hold ${covered_code:-0} of ${all_code:-0} tracked code files; add the missing directories before using them."
+      echo "suggested lines from top-level directories (check them, then add under ## Paths):"
+    fi
+    printf '%s\n' "$derived_lines"
+  fi
+
+  # verify.sh needs a test command; a fresh install had none, so the first verification
+  # stopped (competitor test round 2, criterion C). Same ownership rule as the roots.
+  derived_test="$(derive_test_cmd "$PROJECT_ROOT")"
+  if [ -z "$(_manifest_value "$MANIFEST" test_cmd)" ] && [ -n "$derived_test" ]; then
+    if [ "$manifest_existed" -eq 0 ]; then
+      stack_tmp="$(mktemp "$MANIFEST.skill-commons.XXXXXX")" || exit 1
+      DERIVED_TEST="$derived_test" awk '
+        /^<!-- TODO: discover the project.s typecheck, lint, and test commands\. -->$/ && !done {
+          print "<!-- test_cmd was derived by onboard.sh from project files; check it. TODO: typecheck and lint commands. -->"
+          print "- test_cmd: " ENVIRON["DERIVED_TEST"]; done = 1; next
+        }
+        { print }
+      ' "$MANIFEST" > "$stack_tmp" && atomic_publish_file "$stack_tmp" "$MANIFEST" || { rm -f -- "$stack_tmp"; exit 1; }
+      echo "derived test command written to $MANIFEST (check it):"
+    else
+      echo "note: $MANIFEST has no test_cmd, so verify.sh cannot run tests."
+      echo "suggested line from project files (check it, then add under ## Stack):"
+    fi
+    echo "- test_cmd: $derived_test"
+  fi
+fi
 
 stamp="$(compute_stamp "$DIRECTIVE")"
 platforms="$(get_explicit_platforms "$MANIFEST")"
@@ -122,6 +234,7 @@ capability_packs="$(get_capability_packs "$MANIFEST")"
 
 # Refuse ambiguous or implicit consuming selections before guardrail, shim, or
 # generated-skill publication. The fresh skeleton already has explicit values.
+report_missing_selection "$MANIFEST" "$platforms" "$legacy_profile" "$delivery_mode" || exit 1
 validate_platform_selection "$platforms" || exit 1
 validate_profile_selection "$legacy_profile" "$delivery_mode" "$capability_packs" || exit 1
 validate_submodule_path "$subpath" "$PROJECT_ROOT" || exit 1
@@ -260,7 +373,7 @@ _preflight_cursor_rule() {
   local rule="$PROJECT_ROOT/.cursor/rules/skill-commons.mdc" rendered
   _validate_cursor_rule_candidate "$rule" || return 1
   rendered="$(mktemp)" || return 1
-  render_cursor_rule "$DIRECTIVE" "$stamp" > "$rendered" || { rm -f -- "$rendered"; return 1; }
+  render_cursor_rule "$DIRECTIVE" "$stamp" "$subpath" > "$rendered" || { rm -f -- "$rendered"; return 1; }
   grep -Fq 'alwaysApply: true' "$rendered" && grep -Fq "skill-commons-stamp: $stamp" "$rendered" || {
     error "staged Cursor rule is malformed: $rule"
     rm -f -- "$rendered"
@@ -274,7 +387,7 @@ _publish_cursor_rule() {
   mkdir -p "$(dirname "$rule")"
   _validate_cursor_rule_candidate "$rule" || return 1
   tmp="$(mktemp "$rule.skill-commons.XXXXXX")" || return 1
-  render_cursor_rule "$DIRECTIVE" "$stamp" > "$tmp" || { rm -f -- "$tmp"; return 1; }
+  render_cursor_rule "$DIRECTIVE" "$stamp" "$subpath" > "$tmp" || { rm -f -- "$tmp"; return 1; }
   grep -Fq 'alwaysApply: true' "$tmp" && grep -Fq "skill-commons-stamp: $stamp" "$tmp" || {
     echo "ERROR: staged Cursor rule is malformed: $rule" >&2
     rm -f -- "$tmp"
@@ -287,12 +400,21 @@ _publish_cursor_rule() {
 # its real discovery/ledger/collision preflight as part of this installation.
 gen_targets=()
 case " $platforms " in *" claude-code "*) gen_targets+=("$PROJECT_ROOT/.claude/skills");; esac
-case " $platforms " in *" codex "*) gen_targets+=("$PROJECT_ROOT/.codex/skills");; esac
+case " $platforms " in *" codex "*) gen_targets+=("$PROJECT_ROOT/.agents/skills");; esac
+# Earlier installs wrote Codex copies to .codex/skills. They move to .agents/skills: the
+# legacy ledger is preflighted with the rest, and its units are removed only after the new
+# copies are published.
+legacy_codex=""
+legacy_ledger="$PROJECT_ROOT/$FANOUT_LEGACY_CODEX/$OWNERSHIP_FILE"
+if platform_is_selected "$platforms" codex && { [ -e "$legacy_ledger" ] || [ -L "$legacy_ledger" ]; }; then
+  legacy_codex="$PROJECT_ROOT/$FANOUT_LEGACY_CODEX"
+fi
 
 _run_generation() {
   local preflight_only="$1"
-  SKILLS_SRC="$(cd "$HERE/.." && pwd)" \
+  SKILLS_SRC="$ROOT" \
     SKILL_COMMONS_PROJECT_ROOT="$PROJECT_ROOT" \
+    SKILL_COMMONS_REFRESH_IGNORED="$refresh_only" \
     SKILL_COMMONS_PREFLIGHT_ONLY="$preflight_only" \
     PROFILE="$legacy_profile" \
     DELIVERY_MODE="$delivery_mode" \
@@ -300,11 +422,39 @@ _run_generation() {
     bash "$HERE/generate.sh" "${gen_targets[@]}"
 }
 
+publish_fanout_state() {
+  local statefile
+  statefile="$(mktemp "$PROJECT_ROOT/$FANOUT_STATE.XXXXXX")" || return 1
+  fanout_signature "$ROOT" "$stamp" > "$statefile" &&
+    atomic_publish_file "$statefile" "$PROJECT_ROOT/$FANOUT_STATE" || {
+      rm -f -- "$statefile"
+      return 1
+    }
+}
+
+if [ "$refresh_only" -eq 1 ]; then
+  [ "${#gen_targets[@]}" -gt 0 ] || exit 0
+  [ -z "$legacy_codex" ] || { error "earlier Codex copies need an explicit migration"; exit 1; }
+  validate_ignore_block "$PROJECT_ROOT/.gitignore" || { error "the managed .gitignore block is missing or malformed"; exit 1; }
+  validate_fanout_state "$PROJECT_ROOT" || exit 1
+  preflight_writable_file_parent "$PROJECT_ROOT/$FANOUT_STATE" "skill copy state destination" || exit 1
+  [ "$(cd "$PROJECT_ROOT/$subpath" 2>/dev/null && pwd -P)" = "$ROOT" ] || {
+    error "project manifest points to another toolkit mount"
+    exit 1
+  }
+  _run_generation 0
+  publish_fanout_state
+  exit 0
+fi
+
 # Validate every selected adapter and dependency before publishing guardrails,
 # shims, rules, hooks, or generated skills. Publication repeats local checks so
 # a non-cooperating external edit still fails closed.
 blockfile="$(mktemp)"
-render_block "$DIRECTIVE" "$stamp" > "$blockfile"
+render_block "$DIRECTIVE" "$stamp" "$subpath" > "$blockfile"
+# With AGENTS.md also managed, CLAUDE.md imports it instead of repeating the directive.
+pointerfile="$(mktemp)"
+render_block "$HERE/directive-pointer.md" "$stamp" > "$pointerfile"
 if platform_is_selected "$platforms" codex || platform_is_selected "$platforms" cursor; then
   _preflight_shim_candidate "$PROJECT_ROOT/AGENTS.md" || exit 1
 fi
@@ -335,6 +485,28 @@ fi
 if [ "${#gen_targets[@]}" -gt 0 ]; then
   [ -f "$HERE/generate.sh" ] || { error "skill generator is missing: $HERE/generate.sh"; exit 1; }
   _run_generation 1 >/dev/null || exit 1
+  # The generated copies are ignored, not committed (T13): the .gitignore block must be
+  # writable and well formed before anything is published.
+  if [ -e "$PROJECT_ROOT/.gitignore" ] || [ -L "$PROJECT_ROOT/.gitignore" ]; then
+    [ -f "$PROJECT_ROOT/.gitignore" ] && [ ! -L "$PROJECT_ROOT/.gitignore" ] || { error ".gitignore is not a regular file"; exit 1; }
+    if grep -qF "$GI_START" "$PROJECT_ROOT/.gitignore" || grep -qF "$GI_END" "$PROJECT_ROOT/.gitignore"; then
+      validate_ignore_block "$PROJECT_ROOT/.gitignore" || { error "the skill-commons block in .gitignore is malformed"; exit 1; }
+    fi
+  fi
+  preflight_writable_file_parent "$PROJECT_ROOT/.gitignore" ".gitignore destination" || exit 1
+  validate_fanout_state "$PROJECT_ROOT" || exit 1
+  preflight_writable_file_parent "$PROJECT_ROOT/$FANOUT_STATE" "skill copy state destination" || exit 1
+  if [ -n "$legacy_codex" ]; then
+    legacy_lock_candidate="$(ownership_lock_path "$legacy_codex")"
+    mkdir "$legacy_lock_candidate" 2>/dev/null || { error "generation target is locked: $legacy_codex"; exit 1; }
+    legacy_lock="$legacy_lock_candidate"
+    printf '%s\n' "$$" > "$legacy_lock/pid"
+    legacy_seen="$(mktemp)"
+    preflight_owned_ledger "$legacy_codex" "$legacy_ledger" "$legacy_seen" 1 || { rm -f -- "$legacy_seen"; exit 1; }
+    rm -f -- "$legacy_seen"
+    validate_fanout_payload "$legacy_codex" "$legacy_ledger" "$ROOT" 1 \
+      "$(fanout_previous_revision "$PROJECT_ROOT")" "$(fanout_recorded_revision "$PROJECT_ROOT" "$ROOT")" || exit 1
+  fi
 fi
 
 _ensure_router_prerequisite \
@@ -351,7 +523,10 @@ for p in $platforms; do
       _publish_cursor_rule
       ;;
     claude-code)
-      upsert_block "$PROJECT_ROOT/CLAUDE.md" "$blockfile"
+      case " $platforms " in
+        *" codex "*|*" cursor "*) upsert_block "$PROJECT_ROOT/CLAUDE.md" "$pointerfile" ;;
+        *) upsert_block "$PROJECT_ROOT/CLAUDE.md" "$blockfile" ;;
+      esac
       _merge_cc_hook "$PROJECT_ROOT/.claude/settings.json"
       ;;
     *)
@@ -367,6 +542,33 @@ if [ "${#gen_targets[@]}" -gt 0 ]; then
   # A shim without generated skills gives users a false-successful onboarding:
   # the agent loads instructions, but `/skill-name` cannot resolve.
   _run_generation 0
+  ignorefile="$(mktemp)"
+  render_ignore_block "$PROJECT_ROOT" "$platforms" > "$ignorefile"
+  upsert_ignore_block "$PROJECT_ROOT/.gitignore" "$ignorefile"
+  rm -f -- "$ignorefile"
+  if git -C "$PROJECT_ROOT" check-ignore -q .gitignore 2>/dev/null; then
+    echo "note: .gitignore is itself ignored (for example by a global excludes file), so teammates would"
+    echo "      not get the skill-commons block. Commit it with: git add -f .gitignore"
+  fi
+  if [ -n "$legacy_codex" ]; then
+    legacy_tracked="$(git -C "$PROJECT_ROOT" ls-files -- "$FANOUT_LEGACY_CODEX" 2>/dev/null || true)"
+    validate_fanout_payload "$legacy_codex" "$legacy_ledger" "$ROOT" 1 \
+      "$(fanout_previous_revision "$PROJECT_ROOT")" "$(fanout_recorded_revision "$PROJECT_ROOT" "$ROOT")" || exit 1
+    remove_preflighted_owned_units "$legacy_codex" "$legacy_ledger"
+    rmdir "$legacy_codex/scripts" "$legacy_codex" 2>/dev/null || true
+    rmdir "$PROJECT_ROOT/.codex" 2>/dev/null || true
+    echo "moved the Codex skill copies from $FANOUT_LEGACY_CODEX to .agents/skills (the location Codex documents)"
+    [ -z "$legacy_tracked" ] || echo "note: Git tracked the earlier Codex copies; commit their deletion from $FANOUT_LEGACY_CODEX"
+  fi
+  publish_fanout_state
+  tracked="$(fanout_tracked "$PROJECT_ROOT" "$platforms")"
+  if [ -n "$tracked" ]; then
+    echo "note: the generated skill copies are now ignored, but Git still tracks earlier copies."
+    echo "      They are regenerated at session start, so you can stop tracking them (files stay on disk):"
+    printf '      git rm -r --cached --'
+    while IFS= read -r file; do printf ' %q' "$file"; done <<< "$tracked"
+    printf '\n'
+  fi
 fi
 
 if [ -n "$legacy_profile" ]; then

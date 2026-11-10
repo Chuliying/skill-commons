@@ -205,10 +205,12 @@ assert_contains "$negative_output" "excess=" "ceiling failure names the excess"
 
 router_lines="$(wc -l < "$REPO/skill-router/SKILL.md" | tr -d ' ')"
 router_bytes="$(wc -c < "$REPO/skill-router/SKILL.md" | tr -d ' ')"
-if [ "$router_lines" -le 180 ] && [ "$router_bytes" -lt 6747 ]; then
-  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: context budget suite owns router 180-line/6747-byte gate"
+# 6747 -> 6800 (2026-10-31, T09): the English router restores rule wording a byte-squeezed
+# translation had weakened; see router_budget_amendments in the ceilings fixture.
+if [ "$router_lines" -le 180 ] && [ "$router_bytes" -lt 6800 ]; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: context budget suite owns router 180-line/6800-byte gate"
 else
-  fail "context budget suite owns router 180-line/6747-byte gate"
+  fail "context budget suite owns router 180-line/6800-byte gate"
 fi
 
 if python3 - "$REPO" "$SECTIONS" <<'PY'

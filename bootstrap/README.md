@@ -11,7 +11,7 @@ Cross-platform auto-load for the skill-commons skill set (Claude Code / Cursor /
    ```
    ## skill-commons bootstrap
    - submodule_path: .agent/skills/_shared
-   - platforms: claude-code, cursor, codex
+   - platforms: claude-code, codex, cursor
    - delivery_mode: personal
    - capability_packs: frontend, optional
    ```
@@ -25,7 +25,7 @@ Cross-platform auto-load for the skill-commons skill set (Claude Code / Cursor /
    keys. Bundle lists live in `profiles/`.
    The 7-owner core is released in `v0.10.0`, with `sync-work` as the sole
    Git-delivery owner. Repositories that still need the legacy 13-owner core
-   remain pinned to `v0.7.1`. `v0.12.0` personal adopters select manifest
+   remain pinned to `v0.7.1`. `v0.13.0` personal adopters select manifest
    `capability_packs: optional`; direct generation uses
    `DELIVERY_MODE=personal CAPABILITY_PACKS=optional`. That pack supplies
    personal discovery, PRD, review, and onboarding capabilities. This profile
@@ -37,8 +37,12 @@ This writes/updates `AGENTS.md` (Codex+Cursor), `CLAUDE.md` + a `.claude/setting
 SessionStart hook (Claude Code), and `.cursor/rules/skill-commons.mdc` (Cursor).
 User content outside the `skill-commons:start/end` fences is preserved.
 For enabled Claude Code and Codex platforms it also regenerates `.claude/skills/`
-and `.codex/skills/`. Skill generation failure makes onboarding fail instead of
-reporting a partial success. Missing, unknown, or duplicate platform selections
+and `.agents/skills/` (Codex's documented location; copies an earlier install left in
+`.codex/skills/` are moved), lists them in `.gitignore` instead of committing them, and
+`check.sh` can regenerate ignored copies at session start without rewriting project
+settings. For skills to appear on the first turn after a clone, prepare the checkout
+before launching the agent. See the [bridge guide](../docs/skill-commons-submodule-bridge.md#layout).
+A skill generation failure causes onboarding to fail. Missing, unknown, or duplicate platform selections
 fail before any shim or generated skill is changed. Selected adapter ownership,
 hook dependencies, and generated-target collisions are also preflighted before
 the first managed publication.
@@ -141,7 +145,7 @@ roots; resolving that host discovery boundary belongs to a later context task.
 - A v0.6 manifest with blank `profile:` must first be changed to one explicit
   `delivery_mode` plus optional `capability_packs` (or one non-empty legacy
   delivery mode). Legacy and new selection fields cannot coexist.
-- A repository adopting the `v0.12.0` 7-owner core adds
+- A repository adopting the `v0.13.0` 7-owner core adds
   `optional` before onboarding if it depends on the personal
   discovery/PRD/review/onboarding owners. A repository deferring that migration
   keeps its `v0.7.1` pin.
@@ -149,5 +153,5 @@ roots; resolving that host discovery boundary belongs to a later context task.
   bootstrap only generates the cross-platform auto-load shims.
 - If you also have the superpowers plugin installed, consider disabling it for this project to avoid two routers.
 
-The v0.12.0 release retains the same seven-owner core. v0.11.0 added the optional
+The v0.13.0 release retains the same seven-owner core. v0.11.0 added the optional
 pre-PR overview and understanding test within sync-work; opting out adds no gate.

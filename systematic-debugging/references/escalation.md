@@ -1,82 +1,82 @@
-# Phase 5: Escalation（上報流程）
+# Phase 5: Escalation (reporting to the user)
 
-> 由 `systematic-debugging` 在無法自行解決時載入。
+> Loaded by `systematic-debugging` when the problem cannot be solved without help.
 
-當 AI 無法自行解決問題時，**必須**停止並上報給用戶。
+When the AI cannot solve a problem on its own, it **must** stop and escalate to the user.
 
-## 觸發條件
+## Triggers
 
-| 條件 | 說明 | 行動 |
+| Condition | Why | Action |
 |------|------|------|
-| **3+ 修復嘗試失敗** | 可能是架構問題，非單純 bug | 停止 → 上報 |
-| **超過 30 分鐘未解決** | 避免無限迴圈消耗時間 | 停止 → 上報 |
-| **影響生產環境** | 需人工決策風險 | 立即上報 |
-| **涉及安全問題** | 超出 AI 決策範圍 | 立即上報 |
-| **需存取受保護資源** | 違反 guardrails | 停止 → 上報 |
-| **根因無法識別** | 完成 Phase 1 但仍不明 | 上報並附上調查結果 |
+| **3+ failed fix attempts** | Likely an architecture problem, not a simple bug | Stop → escalate |
+| **Unresolved for more than 30 minutes** | Avoid burning time in an endless loop | Stop → escalate |
+| **Affects production** | Risk needs a human decision | Escalate immediately |
+| **Involves a security issue** | Outside the scope of AI decisions | Escalate immediately |
+| **Needs access to protected resources** | Would violate guardrails | Stop → escalate |
+| **Root cause cannot be identified** | Phase 1 is complete but the cause is still unclear | Escalate with the investigation results |
 
-## Escalation 格式
+## Escalation format
 
-上報時**必須**使用以下格式：
+When escalating, you **must** use the following format:
 
 ```markdown
 ## 🆘 Escalation Report
 
-### 問題摘要
-[一句話描述問題]
+### Problem summary
+[One sentence describing the problem]
 
-### 已嘗試的修復
-| # | 假設 | 修復動作 | 結果 |
+### Fixes attempted
+| # | Hypothesis | Fix action | Result |
 |---|------|---------|------|
-| 1 | [假設內容] | [修復動作] |  失敗 - [原因] |
-| 2 | [假設內容] | [修復動作] |  失敗 - [原因] |
-| 3 | [假設內容] | [修復動作] |  失敗 - [原因] |
+| 1 | [hypothesis] | [fix action] |  Failed - [reason] |
+| 2 | [hypothesis] | [fix action] |  Failed - [reason] |
+| 3 | [hypothesis] | [fix action] |  Failed - [reason] |
 
-### 調查發現
-- **錯誤訊息**: [完整錯誤]
-- **重現步驟**: [步驟]
-- **最近變更**: [相關 commit/變更]
-- **資料流追蹤**: [追蹤結果]
+### Investigation findings
+- **Error message**: [full error]
+- **Steps to reproduce**: [steps]
+- **Recent changes**: [related commits/changes]
+- **Data flow trace**: [trace results]
 
-### 可能的根因（猜測）
-1. [可能原因 1]
-2. [可能原因 2]
+### Possible root causes (guesses)
+1. [possible cause 1]
+2. [possible cause 2]
 
-### 建議下一步
-- [ ] [建議行動 1]
-- [ ] [建議行動 2]
+### Suggested next steps
+- [ ] [suggested action 1]
+- [ ] [suggested action 2]
 
-### 需要人工決策
-- [需要決策的問題]
+### Needs a human decision
+- [question that needs a decision]
 ```
 
-## Escalation 後的行為
+## Behavior after escalation
 
 ```
-1. 停止當前修復嘗試
-2. 輸出 Escalation Report
-3. 等待用戶指示
-4. 不要自行繼續嘗試新的修復
+1. Stop the current fix attempt
+2. Output the Escalation Report
+3. Wait for the user's instructions
+4. Do not continue trying new fixes on your own
 ```
 
-## 常見需要 Escalation 的情境
+## Common situations that need escalation
 
-| 情境 | 為什麼需要上報 |
+| Situation | Why it needs escalation |
 |------|---------------|
-| 測試環境與生產環境行為不一致 | 可能需要存取生產環境資料 |
-| 第三方服務異常 | 超出程式碼可控範圍 |
-| 效能問題根因不明 | 可能需要 profiling 工具 |
-| 資料庫 schema 問題 | 需要 DBA 協助 |
-| 認證/授權失敗 | 涉及安全敏感操作 |
+| Test and production environments behave differently | May need access to production data |
+| A third-party service is failing | Outside what the code can control |
+| Root cause of a performance problem is unclear | May need profiling tools |
+| Database schema problem | Needs help from a DBA |
+| Authentication/authorization failure | Involves security-sensitive operations |
 
-## 與 Phase 4.5 的關係
+## Relationship to Phase 4.5
 
-Phase 4.5（Question Architecture）是**技術判斷**：
-- 判斷是否為架構問題
-- 建議是否需要重構
+Phase 4.5 (Question Architecture) is a **technical judgment**:
+- Decide whether this is an architecture problem
+- Recommend whether a refactor is needed
 
-Phase 5（Escalation）是**流程中斷**：
-- 停止 AI 自主操作
-- 移交控制權給用戶
+Phase 5 (Escalation) is a **process interruption**:
+- Stop autonomous AI work
+- Hand control over to the user
 
-**順序**：Phase 4.5 判斷後，如確認需要人工介入 → 觸發 Phase 5
+**Order**: after the Phase 4.5 judgment, if human intervention is confirmed to be needed → trigger Phase 5

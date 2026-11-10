@@ -121,7 +121,7 @@ fi
 
 MALFORMED="$TMP/malformed"
 new_project "$MALFORMED" codex
-printf '%s\n' 'skill-commons-ownership-v1' $'D\t../escape' > "$MALFORMED/.codex/skills/.skill-commons-ownership-v1"
+printf '%s\n' 'skill-commons-ownership-v1' $'D\t../escape' > "$MALFORMED/.agents/skills/.skill-commons-ownership-v1"
 if bash "$MANAGE" doctor "$MALFORMED" >/dev/null 2>&1; then
   fail "doctor rejects a malformed ledger"
 else
@@ -130,7 +130,7 @@ fi
 
 MISSING="$TMP/missing-unit"
 new_project "$MISSING" codex
-rm -rf "$MISSING/.codex/skills/skill-router"
+rm -rf "$MISSING/.agents/skills/skill-router"
 if bash "$MANAGE" doctor "$MISSING" >/dev/null 2>&1; then
   fail "doctor rejects a missing generated unit"
 else
@@ -139,7 +139,7 @@ fi
 
 MISSING_TARGET="$TMP/missing-target"
 new_project "$MISSING_TARGET" codex
-rm -rf "$MISSING_TARGET/.codex/skills"
+rm -rf "$MISSING_TARGET/.agents/skills"
 if bash "$MANAGE" doctor "$MISSING_TARGET" >/dev/null 2>&1; then
   fail "doctor rejects a missing generated target"
 else
@@ -148,7 +148,7 @@ fi
 
 DRIFT="$TMP/drift"
 new_project "$DRIFT" codex
-printf '\nforeign drift\n' >> "$DRIFT/.codex/skills/skill-router/SKILL.md"
+printf '\nforeign drift\n' >> "$DRIFT/.agents/skills/skill-router/SKILL.md"
 if bash "$MANAGE" doctor "$DRIFT" >/dev/null 2>&1; then
   fail "doctor rejects generated-content drift"
 else
@@ -165,8 +165,8 @@ fi
 # required shared file and its row together must not make doctor false-healthy.
 INCOMPLETE_LEDGER="$TMP/incomplete-ledger"
 new_project "$INCOMPLETE_LEDGER" codex
-incomplete_ledger="$INCOMPLETE_LEDGER/.codex/skills/.skill-commons-ownership-v1"
-rm -f "$INCOMPLETE_LEDGER/.codex/skills/protocol-registry.json"
+incomplete_ledger="$INCOMPLETE_LEDGER/.agents/skills/.skill-commons-ownership-v1"
+rm -f "$INCOMPLETE_LEDGER/.agents/skills/protocol-registry.json"
 awk -F $'\t' '
   !($1 == "F" && $2 == "protocol-registry.json") { print }
 ' "$incomplete_ledger" > "$incomplete_ledger.next"
@@ -192,11 +192,11 @@ printf 'KEEP CLAUDE\n' > "$UNINSTALL/CLAUDE.md"
 new_project "$UNINSTALL" "claude-code, cursor, codex"
 mkdir -p \
   "$UNINSTALL/.claude/skills/foreign-skill" \
-  "$UNINSTALL/.codex/skills/foreign-skill" \
+  "$UNINSTALL/.agents/skills/foreign-skill" \
   "$UNINSTALL/.cursor/rules" \
   "$UNINSTALL/.agent/skills/_shared"
 printf 'foreign\n' > "$UNINSTALL/.claude/skills/foreign-skill/KEEP"
-printf 'foreign\n' > "$UNINSTALL/.codex/skills/foreign-skill/KEEP"
+printf 'foreign\n' > "$UNINSTALL/.agents/skills/foreign-skill/KEEP"
 printf 'foreign rule\n' > "$UNINSTALL/.cursor/rules/foreign.mdc"
 printf 'submodule marker\n' > "$UNINSTALL/.agent/skills/_shared/KEEP"
 settings_tmp="$(mktemp)"
@@ -215,11 +215,11 @@ guardrails_hash="$(shasum -a 256 "$UNINSTALL/.agent/guardrails.md")"
 
 bash "$MANAGE" uninstall "$UNINSTALL" >/dev/null
 assert_missing "$UNINSTALL/.claude/skills/skill-router" "uninstall removes Claude ledger-owned skills"
-assert_missing "$UNINSTALL/.codex/skills/skill-router" "uninstall removes Codex ledger-owned skills"
+assert_missing "$UNINSTALL/.agents/skills/skill-router" "uninstall removes Codex ledger-owned skills"
 assert_missing "$UNINSTALL/.claude/skills/.skill-commons-ownership-v1" "uninstall removes Claude ownership ledger"
-assert_missing "$UNINSTALL/.codex/skills/.skill-commons-ownership-v1" "uninstall removes Codex ownership ledger"
+assert_missing "$UNINSTALL/.agents/skills/.skill-commons-ownership-v1" "uninstall removes Codex ownership ledger"
 assert_file "$UNINSTALL/.claude/skills/foreign-skill/KEEP" "uninstall preserves foreign Claude skills"
-assert_file "$UNINSTALL/.codex/skills/foreign-skill/KEEP" "uninstall preserves foreign Codex skills"
+assert_file "$UNINSTALL/.agents/skills/foreign-skill/KEEP" "uninstall preserves foreign Codex skills"
 assert_contains "$(cat "$UNINSTALL/AGENTS.md")" "KEEP AGENTS" "uninstall preserves foreign AGENTS content"
 assert_not_contains "$(cat "$UNINSTALL/AGENTS.md")" "skill-commons:start" "uninstall removes managed AGENTS block"
 assert_contains "$(cat "$UNINSTALL/CLAUDE.md")" "KEEP CLAUDE" "uninstall preserves foreign CLAUDE content"
@@ -243,7 +243,7 @@ assert_file "$UNINSTALL/.agent/skills/_shared/KEEP" "uninstall preserves the sub
 # Every target and shim is preflighted before the first deletion.
 PARTIAL="$TMP/partial"
 new_project "$PARTIAL" "claude-code, codex"
-printf '%s\n' 'bad-schema' > "$PARTIAL/.codex/skills/.skill-commons-ownership-v1"
+printf '%s\n' 'bad-schema' > "$PARTIAL/.agents/skills/.skill-commons-ownership-v1"
 if bash "$MANAGE" uninstall "$PARTIAL" >/dev/null 2>&1; then
   fail "uninstall rejects a malformed later target"
 else
@@ -255,10 +255,10 @@ assert_file "$PARTIAL/.claude/skills/.skill-commons-ownership-v1" "later target 
 # Canonical path and symlink validation apply before deletion.
 SYMLINK_PROJECT="$TMP/symlink-project"
 SYMLINK_OUTSIDE="$TMP/symlink-outside"
-mkdir -p "$SYMLINK_PROJECT/.agent" "$SYMLINK_PROJECT/.codex" "$SYMLINK_OUTSIDE"
+mkdir -p "$SYMLINK_PROJECT/.agent" "$SYMLINK_PROJECT/.agents" "$SYMLINK_OUTSIDE"
 printf '%s\n' '## skill-commons bootstrap' '- platforms: codex' '- delivery_mode: personal' > "$SYMLINK_PROJECT/.agent/project-manifest.md"
 printf 'outside\n' > "$SYMLINK_OUTSIDE/KEEP"
-ln -s "$SYMLINK_OUTSIDE" "$SYMLINK_PROJECT/.codex/skills"
+ln -s "$SYMLINK_OUTSIDE" "$SYMLINK_PROJECT/.agents/skills"
 if bash "$MANAGE" uninstall "$SYMLINK_PROJECT" >/dev/null 2>&1; then
   fail "uninstall rejects a symlinked skill target"
 else
@@ -281,11 +281,11 @@ assert_missing "$MANAGE_CURSOR_OUTSIDE/rules/skill-commons.mdc" "manage ancestor
 
 SPACED="$TMP/project with spaces"
 new_project "$SPACED" codex
-mkdir -p "$SPACED/.codex/skills/foreign-skill"
-printf 'foreign\n' > "$SPACED/.codex/skills/foreign-skill/KEEP"
+mkdir -p "$SPACED/.agents/skills/foreign-skill"
+printf 'foreign\n' > "$SPACED/.agents/skills/foreign-skill/KEEP"
 bash "$MANAGE" uninstall "$SPACED" >/dev/null
-assert_file "$SPACED/.codex/skills/foreign-skill/KEEP" "uninstall handles spaces without deleting foreign content"
-assert_missing "$SPACED/.codex/skills/.skill-commons-ownership-v1" "spaced-path uninstall removes only its ledger"
+assert_file "$SPACED/.agents/skills/foreign-skill/KEEP" "uninstall handles spaces without deleting foreign content"
+assert_missing "$SPACED/.agents/skills/.skill-commons-ownership-v1" "spaced-path uninstall removes only its ledger"
 
 # Cursor has managed shims/rules but no generated skill target or ownership
 # ledger. Empty target sets must remain valid on the Bash 3.2 shipped by macOS.

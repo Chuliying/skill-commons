@@ -31,7 +31,7 @@ assert_invalid_platform_selection() {
   assert_missing "$root/AGENTS.md" "$name platform rejection happens before AGENTS shim mutation"
   assert_missing "$root/CLAUDE.md" "$name platform rejection happens before CLAUDE shim mutation"
   assert_missing "$root/.cursor/rules/skill-commons.mdc" "$name platform rejection happens before Cursor shim mutation"
-  assert_missing "$root/.codex/skills" "$name platform rejection happens before skill mutation"
+  assert_missing "$root/.agents/skills" "$name platform rejection happens before skill mutation"
   assert_missing "$root/.agent/guardrails.md" "$name platform rejection happens before guardrail publication"
 }
 
@@ -114,7 +114,7 @@ if bash "$REPO/bootstrap/onboard.sh" "$UNUSED_CURSOR_SYMLINK" >/dev/null 2>&1; t
 else
   fail "Codex-only onboard ignores an unused foreign Cursor symlink"
 fi
-assert_file "$UNUSED_CURSOR_SYMLINK/.codex/skills/skill-router/SKILL.md" "selected Codex adapter still converges"
+assert_file "$UNUSED_CURSOR_SYMLINK/.agents/skills/skill-router/SKILL.md" "selected Codex adapter still converges"
 assert_missing "$UNUSED_CURSOR_OUTSIDE/rules/skill-commons.mdc" "unused Cursor symlink receives no managed writes"
 
 UNUSED_CLAUDE_SYMLINK="$TMP/unused-claude-symlink"
@@ -127,7 +127,7 @@ if bash "$REPO/bootstrap/onboard.sh" "$UNUSED_CLAUDE_SYMLINK" >/dev/null 2>&1; t
 else
   fail "Codex-only onboard ignores an unused foreign CLAUDE symlink"
 fi
-assert_file "$UNUSED_CLAUDE_SYMLINK/.codex/skills/skill-router/SKILL.md" "Codex converges beside an unused CLAUDE symlink"
+assert_file "$UNUSED_CLAUDE_SYMLINK/.agents/skills/skill-router/SKILL.md" "Codex converges beside an unused CLAUDE symlink"
 
 UNUSED_SETTINGS_SYMLINK="$TMP/unused-settings-symlink"
 UNUSED_SETTINGS_OUTSIDE="$TMP/unused-settings-outside"
@@ -209,7 +209,7 @@ assert_eq "$ambiguous_before" "$(shasum -a 256 "$AMBIGUOUS_HOOK_PROJECT/.claude/
 assert_eq "$ambiguous_agents_before" "$(shasum -a 256 "$AMBIGUOUS_HOOK_PROJECT/AGENTS.md")" "ambiguous hook fails before AGENTS publication"
 assert_eq "$ambiguous_claude_before" "$(shasum -a 256 "$AMBIGUOUS_HOOK_PROJECT/CLAUDE.md")" "ambiguous hook fails before CLAUDE publication"
 assert_missing "$AMBIGUOUS_HOOK_PROJECT/.agent/guardrails.md" "ambiguous hook fails before guardrail publication"
-assert_missing "$AMBIGUOUS_HOOK_PROJECT/.codex/skills" "ambiguous hook fails before generated-skill publication"
+assert_missing "$AMBIGUOUS_HOOK_PROJECT/.agents/skills" "ambiguous hook fails before generated-skill publication"
 
 # A selected adapter dependency failure is also a preflight failure. A jq that
 # cannot execute must not leave earlier platform shims behind.
@@ -247,7 +247,7 @@ chmod 0755 "$READONLY_CURSOR_PROJECT/.cursor"
 assert_neq "0" "$readonly_cursor_rc" "onboard preflights selected adapter writability"
 assert_contains "$readonly_cursor_output" "not writable" "adapter writability failure is actionable"
 assert_missing "$READONLY_CURSOR_PROJECT/AGENTS.md" "adapter writability failure precedes shim publication"
-assert_missing "$READONLY_CURSOR_PROJECT/.codex/skills" "adapter writability failure precedes generated skills"
+assert_missing "$READONLY_CURSOR_PROJECT/.agents/skills" "adapter writability failure precedes generated skills"
 
 # manifest enabling all three platforms; pre-existing AGENTS.md user content
 mkdir -p "$TMP/.agent"
@@ -344,7 +344,7 @@ set -e
 assert_neq "0" "$generate_rc" "onboard fails when skill generation fails"
 assert_missing "$FAIL_PROJECT/AGENTS.md" "skill-generation preflight fails before AGENTS publication"
 assert_eq "$fail_guardrail_before" "$(shasum -a 256 "$FAIL_PROJECT/.agent/guardrails.md")" "skill-generation preflight preserves an existing guardrail"
-assert_missing "$FAIL_PROJECT/.codex/skills" "skill-generation preflight publishes no partial target"
+assert_missing "$FAIL_PROJECT/.agents/skills" "skill-generation preflight publishes no partial target"
 
 # security regression: a malicious submodule_path from an untrusted manifest must not
 # escape into the generated SessionStart hook command. onboard.sh never runs this
@@ -388,7 +388,7 @@ bash "$REPO/bootstrap/onboard.sh" "$FRESH" >/dev/null
 
 assert_file "$FRESH/.agent/project-manifest.md" "fresh repo gets minimal project manifest"
 assert_file "$FRESH/.agent/guardrails.md" "fresh repo gets conservative guardrails"
-assert_file "$FRESH/.codex/skills/skill-router/SKILL.md" "fresh repo gets generated skill-router"
+assert_file "$FRESH/.agents/skills/skill-router/SKILL.md" "fresh repo gets generated skill-router"
 
 fresh_manifest="$(cat "$FRESH/.agent/project-manifest.md")"
 assert_contains "$fresh_manifest" "## skill-commons bootstrap" "minimal manifest has bootstrap section"
@@ -403,9 +403,9 @@ assert_contains "$fresh_manifest" "has_e2e: false" "minimal manifest defaults E2
 
 fresh_guardrails="$(cat "$FRESH/.agent/guardrails.md")"
 assert_contains "$fresh_guardrails" "force push" "guardrails forbid force push"
-assert_contains "$fresh_guardrails" "遠端 branch" "guardrails forbid remote branch deletion"
+assert_contains "$fresh_guardrails" "delete remote branches" "guardrails forbid remote branch deletion"
 assert_contains "$fresh_guardrails" ".env" "guardrails protect environment files"
-assert_contains "$fresh_guardrails" "不可逆" "guardrails require confirmation for irreversible operations"
+assert_contains "$fresh_guardrails" "irreversible action" "guardrails require confirmation for irreversible operations"
 
 manifest_before="$(shasum -a 256 "$FRESH/.agent/project-manifest.md")"
 guardrails_before="$(shasum -a 256 "$FRESH/.agent/guardrails.md")"
@@ -418,10 +418,10 @@ assert_eq "$guardrails_before" "$guardrails_after" "onboard does not overwrite g
 # Agent skill roots are shared discovery locations, not disposable
 # skill-commons-only directories. Rerunning onboarding must preserve entries
 # installed by the user or another plugin.
-mkdir -p "$FRESH/.codex/skills/foreign-skill"
-printf 'foreign\n' > "$FRESH/.codex/skills/foreign-skill/marker"
+mkdir -p "$FRESH/.agents/skills/foreign-skill"
+printf 'foreign\n' > "$FRESH/.agents/skills/foreign-skill/marker"
 bash "$REPO/bootstrap/onboard.sh" "$FRESH" >/dev/null
-assert_file "$FRESH/.codex/skills/foreign-skill/marker" "onboard preserves foreign skills"
+assert_file "$FRESH/.agents/skills/foreign-skill/marker" "onboard preserves foreign skills"
 
 # A project path is one argv item even when it contains spaces. Run from an
 # isolated cwd so a regression cannot create relative wrong-target directories
@@ -434,7 +434,7 @@ mkdir -p "$SPACED_PROJECT" "$SPACED_RUN"
   cd "$SPACED_RUN" || exit 1
   bash "$REPO/bootstrap/onboard.sh" "$SPACED_PROJECT" >/dev/null
 )
-assert_file "$SPACED_PROJECT/.codex/skills/skill-router/SKILL.md" "onboard handles project paths with spaces"
+assert_file "$SPACED_PROJECT/.agents/skills/skill-router/SKILL.md" "onboard handles project paths with spaces"
 if [ -e "$SPACED_PARENT/project" ] || [ -e "$SPACED_RUN/with" ] || [ -e "$SPACED_RUN/spaces" ]; then
   fail "onboard generated into split wrong-target paths"
 else

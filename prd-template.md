@@ -11,7 +11,7 @@ Tier markers are authoring guidance for which sections a producer should populat
 every marked section); a `core` PRD may omit `team` sections entirely but must not
 leave placeholders unfilled. Headings are matched by name, not by number. -->
 
-# [功能名稱] PRD
+# [Feature name] PRD
 
 <!-- tier: team -->
 
@@ -31,7 +31,7 @@ leave placeholders unfilled. Headings are matched by name, not by number. -->
 <!-- tier: core -->
 
 Blocking FU must be closed before `spec`. Non-blocking FU needs an owner and close-by point.
-When there is nothing open, state it explicitly (for example `無 Blocking FU。Non-blocking FU: N/A。`).
+When there is nothing open, state it explicitly (for example `No blocking FU. Non-blocking FU: N/A.`).
 
 ### FU-001: [decision title]
 
@@ -110,7 +110,7 @@ flowchart TD
 
 ### FR-001: [requirement name]
 
-**使用者價值**: [why this matters to the user or business]
+**User value**: [why this matters to the user or business]
 
 **Behavior**: [what the system does]
 

@@ -121,3 +121,23 @@ work-item/v3 生命週期契約取代。
 3. `adr.md` / `glossary.md` 中仍長期有效的內容升級到專案層，work item 原件保留。
 
 `finishing-a-development-branch` 在使用者選擇 merge／PR 後、實際執行前 closeout；保留或放棄 branch 不標 `shipped`。`qa validate` PASS 時提示可 closeout。
+
+## ADR-010 — 對外英文、內部繁體中文（2026-10-31）
+
+目標讀者以英文為主，使用者本人讀繁體中文。分工如下：
+
+1. 產生到使用者 repo 的文字一律英文：`AGENTS.md` 指令卡、`CLAUDE.md` 引用說明、Cursor rule、guardrails 範本、`check.sh` 與 `verify.sh` 的訊息、腳本輸出、PRD 範本本文。不設語言選項，也沒有中文指令卡的替代方式；使用者的 repo 在下次 onboard 時換成英文指令卡（stamp 變動會觸發）。`check.sh` 的 `AGENT_DIRECTIVE` 只影響它自己的輸出與 stamp，onboard 與 manage 不讀它，不能當作中文指令卡的出口（T09 Fable 審查第 1 點）。
+2. 代理在第一次使用時實際會讀的技能改為英文：`skill-router`、`implement`、`verification-before-completion`、`systematic-debugging`、`sync-work`。順序依實測紀錄（skill-commons-positioning 第二輪 run 9、10 的 S2–S5）。技能的 `description` 改為英文並統一用 `Trigger keywords:`，原本的中文觸發詞移除：描述比對是語意比對，中文提問仍會對到英文描述，但字面比對不再成立。其他技能暫時維持中英混合（包括仍寫 `觸發關鍵字:` 的技能、`prd-interview` 與 `spec` 裡的「PRD 核可」「team 設計核可」、`CHECKLIST-CONVENTION.md`、`shared-skill-onboarder/templates/git-workflow-skill.md`），列為已知限制。
+3. router 的 flow 名稱改為 Explore、Build、Fix、Release、Understand，人工核可標籤改為 `Human gate: PRD approval`、`Human gate: team design approval`、`Human gate: release approval`；`flows.json` 的 `router_heading` 與 `router_label` 同步。公開 Repo Map 的其他顯示文字（`label`、`intent`、條件）維持中文，因為整個頁面是中文。
+4. 這個 repo 自己的內部文件（`docs/work/`、`CLAUDE.md`、計劃與紀錄、維護者 checkout 的 directive）維持繁體中文，文件 lint 的台灣用語規則照舊適用於中文內容。
+
+## ADR-011 — 核准記錄取得方式，不驗證身分（2026-11-01）
+
+第四輪競品實測：Lians 的人工確認需要互動終端機，代理無法代替人確認；skill-commons 的 `approve` 原本由代理執行，紀錄的是代理說誰核准。檔案式設計無法防止手改檔案，所以不做防竄改，只讓紀錄如實說明取得方式（T11）：
+
+1. `terminal`：從 `/dev/tty` 讀取 `yes`，且沒有偵測到代理環境變數（`scripts/activity.py` 的 `AGENT_VARS`）。不看 stdin／stdout 是否被導向。
+2. `agent-reported`：代理加 `--agent-reported`，附 `--quote` 或 `--reason`。給沒有 shell 的使用者（例如雲端對話）用；不自動偵測雲端。
+3. schema 1 的舊核准顯示為 `recorded before levels`，不拒絕。
+4. `reaffirm` 改到核准過的段落時走相同的確認；核准的有效等級取原核准與所有 reaffirm 中最低者。
+5. 已知限制：能取得 PTY 並清除代理變數的程序仍可寫出 `terminal`；人在會設定這些變數的終端機（例如 Cursor 的內建終端機、shell profile 設了 `CODEX_HOME`）會被拒絕，拒絕訊息提供 `env -u` 的寫法。
+

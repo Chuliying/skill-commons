@@ -170,6 +170,78 @@ complete ten-session protocol is recorded as not passed. A future protocol must 
 self-completion verification to an external post-run validator and let the model review
 only facts available before its own launch.
 
+## Competitor comparison (October 2026)
+
+A pre-registered test compared skill-commons with GitHub Spec Kit (`specify-cli` 1.2.5) and
+SpecWeave 3.1.15. The pass definitions were committed before the runs they scored; step S6b and
+criteria E to G were added later, before the runs that used them. Each product got the same
+task: a small Python CLI, one feature with at least two acceptance criteria, then, after the product marked
+the work done, a one-line code change, a one-sentence change inside a criterion, and a change outside
+any criterion. Executors were Claude Haiku (competitors, and skill-commons rounds 1 and 2) and
+Claude Sonnet (skill-commons round 3); scoring was by a second model and spot-checked by a third.
+
+| Criterion | Spec Kit 1.2.5 | SpecWeave 3.1.15 | skill-commons `6f7ae22` |
+|---|---|---|---|
+| Status flags a code change after done, without a rerun | no (no per-item state) | no (`Completed`; `verify` catches it on rerun) | yes, 3 of 3 runs |
+| Status flags a criterion change after done | no | no | yes, 3 of 3 runs |
+| Approval records approver, scope and content fingerprint | not in the core flow (optional review gates not exercised) | no (`approvedAt` only) | yes |
+| Install with at most two commands and no question, then the full flow | no (three commands, one prompt) | no (test command had to be given; `--cmd` and `--reason` were both available, and the refusal is counted blocking because the product should derive the command) | yes, 2 valid runs |
+| Test command found without being told | no | no | yes |
+| One list of all work items with stage files, verification and approver | no | partial (per increment) | yes |
+| AI tool and time recorded by the product | no | yes (agent claim and time) | yes |
+| Session identifier recorded by the product | no | yes (in its task ledger) | yes (Claude Code, Codex; Cursor reports none) |
+
+Limits: each competitor has one designated run and two supplemental runs from the same round, and
+none was rerun after skill-commons changed. One Spec Kit supplemental run applied the LLM convergence
+step by hand and flagged both changes; it is excluded from the first two rows because they ask for a
+status command, a rule written after that run.
+skill-commons reached these results after fixes made in response to earlier runs of the same test,
+whose failures are kept in the private record. One of the three final runs had an inconclusive
+install and is not counted for install-related measures. A planted-defect handoff check did not
+separate the products. skill-commons writes more root entries (six in a two-agent repository) than
+Spec Kit (two in a Claude-only repository).
+Six competitor runs shared containers with skill-commons runs or with each other, and every
+scoring subagent loaded the development repository's own `CLAUDE.md`; one Spec Kit run describes
+its implement skill in skill-commons wording.
+
+### Agent-verification tools (November 2026)
+
+The same steps and definitions, pre-registered before the runs, were applied to two tools that
+bind agent verification to repository state: Lians 0.5.0 (commit `4eb78dc`) and ProofFlow v0.1.8
+(`0662ee4`). One run each, Claude Sonnet executor. Neither defines a requirement file, so the
+executor wrote a plain `requirements.md`.
+
+| Criterion | Lians 0.5.0 | ProofFlow v0.1.8 | skill-commons `6f7ae22` |
+|---|---|---|---|
+| Status flags a code change, without a rerun | yes (`stale`) | no (`ready_for_review` while tests failed) | yes |
+| Status flags a criterion change | yes, but with the same reasons as any file change | no | yes |
+| Status ignores a change outside any criterion | no (flagged) | yes | yes |
+| Approval records approver, scope and content fingerprint | not tested (needs an interactive terminal) | no | yes |
+| Install with at most two commands and no question, then the full flow | no (tasks only through MCP; no done step) | no (five commands; MCP server failed to start) | yes |
+| Test command found without being told | no (it does not run tests) | no | yes |
+| One list of all work items with stage files, verification and approver | no (counts only) | partial (all cases, without those fields) | yes |
+| AI tool and session recorded by the product | no (agent-typed `client`) | no (timestamps only) | yes |
+| Files added to the repository by install | none | none | six root entries |
+
+Lians reacts to any change in the workspace; skill-commons reacts only to changes in the files and
+criteria a verification covers. ProofFlow reports on what the agent recorded, so it does not see
+later code changes until the agent takes a new snapshot. Limits: one run per tool, MCP calls made
+through a hand-written client (Lians) or the REST API the MCP tools wrap (ProofFlow), and Lians's
+`report --json` and human confirmation were not exercised.
+
+### Approval levels and allowed scope (November 2026)
+
+Two more pre-registered checks ran on skill-commons `6fd9bed` (two Sonnet runs; competitors scored
+from their earlier records). H asks whether an agent can record a person's confirmation: in both
+runs the plain `approve` was refused in the agent session with the person's command printed, and
+the approval finally recorded said `agent-reported`. Lians's human confirmation needs an
+interactive terminal and has no agent-reported path, so it is not comparable; ProofFlow's decision
+records no level. I asks whether changes outside a declared scope are listed: both runs listed a
+committed `__pycache__` file and an out-of-scope `README.md`, and not an in-scope edit. Lians and
+ProofFlow flagged a committed `__pycache__` in their own runs; an out-of-scope source file was not
+tested for them. The same runs measured the install after the generated copies stopped being
+committed: 7 root entries (including a new `.gitignore`), 466 files on disk, 8 tracked files.
+
 ## Product-value test still needed
 
 The cold-start handoff instrument below was built and piloted on 2026-08-24

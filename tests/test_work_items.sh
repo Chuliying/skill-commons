@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-TMP="$(mktemp -d)"
+TMP="$(mktemp -d)" && [ -n "$TMP" ] && [ -d "$TMP" ] || { echo "cannot create a temp directory" >&2; exit 1; }
 trap 'rm -rf "$TMP"' EXIT
 . "$REPO/tests/bootstrap/lib/assert.sh"
 
@@ -456,5 +456,196 @@ orphan_output="$(bash "$REPO/scripts/work-items.sh" --work-root "$ORPHAN_ROOT" c
 assert_neq "0" "$orphan_rc" "a lifecycle artifact without meta.yml fails the check"
 assert_contains "$orphan_output" "demo" "the orphaned work item is named"
 assert_not_contains "$orphan_output" "notes-only" "a supporting-notes folder is not treated as a work item"
+
+# A handoff checks one work item, and the natural reading of "this work item" points
+# --work-root at the item's own directory. The checker scans only the work root's
+# children, so that root reported "0 valid" and passed. A work root that is itself a
+# work item is refused, and `check --item <slug>` checks exactly one work item.
+SCOPE_WS="$TMP/scope-ws"
+SCOPE_ROOT="$SCOPE_WS/docs/work"
+mkdir -p "$SCOPE_ROOT"
+write_doc_impact_item "$SCOPE_ROOT" scope-valid 'n/a:scoped check fixture'
+# Completed work that never recorded its implement stage.
+write_doc_impact_item "$SCOPE_ROOT" scope-invalid 'n/a:scoped check fixture'
+sed -i.bak '/^  implement:/d' "$SCOPE_ROOT/scope-invalid/meta.yml"
+rm -f "$SCOPE_ROOT/scope-invalid/meta.yml.bak"
+# A sibling holding a lifecycle artifact but no meta.yml, which a whole-root check fails.
+mkdir -p "$SCOPE_ROOT/scope-orphan"
+printf '# PRD\n' > "$SCOPE_ROOT/scope-orphan/prd.md"
+# Valid work items reachable only through a path, never through a slug: one nested
+# below the work root and one beside it.
+write_doc_impact_item "$SCOPE_ROOT/scope-nest" inner 'n/a:scoped check fixture'
+write_doc_impact_item "$SCOPE_WS/docs" scope-outside 'n/a:scoped check fixture'
+
+item_root_rc=0
+item_root_output="$(bash "$REPO/scripts/work-items.sh" --work-root "$SCOPE_ROOT/scope-valid" check 2>&1)" || item_root_rc=$?
+assert_neq "0" "$item_root_rc" "check refuses a work root that is itself a work item"
+assert_contains "$item_root_output" "is a work item, not the directory that holds work items" "the refusal says the work root is a work item"
+assert_contains "$item_root_output" "/docs/work check --item scope-valid" "the refusal names the parent work root and the --item form"
+assert_not_contains "$item_root_output" "work-item check passed" "a work-item directory as work root is never a vacuous pass"
+
+item_root_item_rc=0
+item_root_item_output="$(bash "$REPO/scripts/work-items.sh" --work-root "$SCOPE_ROOT/scope-valid" check --item scope-valid 2>&1)" || item_root_item_rc=$?
+assert_neq "0" "$item_root_item_rc" "check --item also refuses a work root that is itself a work item"
+assert_contains "$item_root_item_output" "is a work item, not the directory that holds work items" "check --item gives the same refusal"
+
+absent_rc=0
+absent_output="$(bash "$REPO/scripts/work-items.sh" --work-root "$SCOPE_ROOT" check --item scope-absent 2>&1)" || absent_rc=$?
+assert_neq "0" "$absent_rc" "check --item fails when the named work item does not exist"
+assert_contains "$absent_output" "scope-absent/meta.yml: work item metadata is missing" "check --item names the missing meta.yml"
+assert_not_contains "$absent_output" "work-item check passed" "a missing work item is never a pass"
+
+orphan_item_rc=0
+orphan_item_output="$(bash "$REPO/scripts/work-items.sh" --work-root "$SCOPE_ROOT" check --item scope-orphan 2>&1)" || orphan_item_rc=$?
+assert_neq "0" "$orphan_item_rc" "check --item fails for a folder with lifecycle artifacts but no meta.yml"
+assert_contains "$orphan_item_output" "scope-orphan/meta.yml: work item metadata is missing" "check --item names the orphan's missing meta.yml"
+
+invalid_item_rc=0
+invalid_item_output="$(bash "$REPO/scripts/work-items.sh" --work-root "$SCOPE_ROOT" check --item scope-invalid 2>&1)" || invalid_item_rc=$?
+assert_neq "0" "$invalid_item_rc" "check --item fails for an invalid work item"
+assert_contains "$invalid_item_output" "scope-invalid/meta.yml: personal-feature completed work requires stage: implement" "check --item prints the work item's FAIL lines"
+assert_contains "$invalid_item_output" "work-item check failed: 1/1 invalid" "check --item counts only the named work item"
+
+valid_item_rc=0
+valid_item_output="$(bash "$REPO/scripts/work-items.sh" --work-root "$SCOPE_ROOT" check --item scope-valid 2>&1)" || valid_item_rc=$?
+assert_eq "0" "$valid_item_rc" "check --item passes a valid work item although siblings are invalid"
+if printf '%s\n' "$valid_item_output" | grep -q '^PASS .*/docs/work/scope-valid/meta\.yml$'; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: check --item prints the PASS line for that work item"
+else
+  fail "check --item prints the PASS line for that work item"
+fi
+assert_contains "$valid_item_output" "work-item check passed: 1 valid" "check --item reports exactly one valid work item"
+assert_not_contains "$valid_item_output" "scope-invalid" "check --item does not report an invalid sibling"
+assert_not_contains "$valid_item_output" "scope-orphan" "check --item leaves sibling orphans to the whole-root check"
+
+# --item takes a slug, never a path: each of these would otherwise reach the work root
+# itself, a nested item, an item beside the root, or an absolute location.
+for bad_item in '..' '.' '' 'scope-nest/inner' '../scope-outside' 'scope-valid/' "$SCOPE_WS/docs/scope-outside"; do
+  bad_rc=0
+  bad_output="$(bash "$REPO/scripts/work-items.sh" --work-root "$SCOPE_ROOT" check --item "$bad_item" 2>&1)" || bad_rc=$?
+  assert_neq "0" "$bad_rc" "check --item rejects '$bad_item'"
+  assert_contains "$bad_output" "is not a work-item slug" "check --item says why '$bad_item' is rejected"
+  assert_not_contains "$bad_output" "PASS " "check --item '$bad_item' validates nothing"
+done
+
+# A repeated --item would silently check only the last one and could pass while an
+# earlier named item is invalid, so it is refused.
+repeat_rc=0
+repeat_output="$(bash "$REPO/scripts/work-items.sh" --work-root "$SCOPE_ROOT" check --item scope-invalid --item scope-valid 2>&1)" || repeat_rc=$?
+assert_neq "0" "$repeat_rc" "check refuses a repeated --item instead of checking only the last one"
+assert_contains "$repeat_output" "names one work item" "the repeated --item refusal says why"
+assert_not_contains "$repeat_output" "PASS " "a repeated --item validates nothing"
+
+# Compatibility: a new consuming repository has an empty work root, and list/stale are
+# informational, so neither changes behavior.
+EMPTY_ROOT="$TMP/empty-ws/docs/work"
+mkdir -p "$EMPTY_ROOT"
+empty_rc=0
+empty_output="$(bash "$REPO/scripts/work-items.sh" --work-root "$EMPTY_ROOT" check 2>&1)" || empty_rc=$?
+assert_eq "0" "$empty_rc" "an empty work root still passes check"
+assert_contains "$empty_output" "work-item check passed: 0 valid" "an empty work root still reports 0 valid"
+for informational in list stale; do
+  info_rc=0
+  bash "$REPO/scripts/work-items.sh" --work-root "$SCOPE_ROOT/scope-valid" "$informational" >/dev/null 2>&1 || info_rc=$?
+  assert_eq "0" "$info_rc" "$informational keeps exit 0 on a work-item directory"
+done
+
+# T07: `new` creates a valid work item so an agent need not read ARTIFACTS.md and the PRD
+# template first (competitor test round 2, criterion D).
+NEW_ROOT="$(mktemp -d)"
+new_rc=0; new_output="$(bash "$REPO/scripts/work-items.sh" --work-root "$NEW_ROOT" new due-date --title "Add due dates" --input user:owner-2026-10-30 2>&1)" || new_rc=$?
+assert_eq "0" "$new_rc" "new creates a work item"
+assert_file "$NEW_ROOT/due-date/meta.yml" "new writes meta.yml"
+assert_file "$NEW_ROOT/due-date/prd.md" "new writes a PRD skeleton for personal-feature"
+assert_file "$NEW_ROOT/due-date/implement-report.md" "new writes an implement report stub"
+assert_contains "$new_output" "complete due-date" "new names the close-out command"
+check_new_rc=0; bash "$REPO/scripts/work-items.sh" --work-root "$NEW_ROOT" check --item due-date >/dev/null 2>&1 || check_new_rc=$?
+assert_eq "0" "$check_new_rc" "the new work item passes check"
+assert_contains "$(cat "$NEW_ROOT/due-date/prd.md")" "### AC-001:" "the skeleton has an acceptance criterion to fill"
+assert_not_contains "$(cat "$NEW_ROOT/due-date/prd.md")" "Non-functional Requirements" "team-tier sections are left out"
+prd_rc=0; python3 "$REPO/scripts/check-prd.py" --prd "$NEW_ROOT/due-date/prd.md" --tier core >/dev/null 2>&1 || prd_rc=$?
+assert_neq "0" "$prd_rc" "an unfilled skeleton does not pass the PRD check"
+again_rc=0; bash "$REPO/scripts/work-items.sh" --work-root "$NEW_ROOT" new due-date >/dev/null 2>&1 || again_rc=$?
+assert_eq "2" "$again_rc" "new refuses an existing work item"
+bad_rc=0; bash "$REPO/scripts/work-items.sh" --work-root "$NEW_ROOT" new ../escape >/dev/null 2>&1 || bad_rc=$?
+assert_neq "0" "$bad_rc" "new refuses a path as a slug"
+assert_eq "0" "$([ -e "$NEW_ROOT/../escape" ] && echo 1 || echo 0)" "a refused slug writes nothing"
+bash "$REPO/scripts/work-items.sh" --work-root "$NEW_ROOT" new fix-crash --mode bug-fix >/dev/null 2>&1
+assert_eq "0" "$([ -e "$NEW_ROOT/fix-crash/prd.md" ] && echo 1 || echo 0)" "a bug-fix work item has no PRD"
+bash "$REPO/scripts/work-items.sh" --work-root "$NEW_ROOT" new no-prd --no-prd >/dev/null 2>&1
+assert_eq "0" "$([ -e "$NEW_ROOT/no-prd/prd.md" ] && echo 1 || echo 0)" "--no-prd skips the PRD skeleton"
+all_rc=0; bash "$REPO/scripts/work-items.sh" --work-root "$NEW_ROOT" check >/dev/null 2>&1 || all_rc=$?
+assert_eq "0" "$all_rc" "every generated work item passes check"
+# Fable T07 review: the core skeleton keeps every core FR field and drops only team blocks.
+skeleton="$(cat "$NEW_ROOT/due-date/prd.md")"
+for field in "**Data source**" "**Permissions / Visibility**" "**Boundary conditions**" "### Risk and evidence"; do
+  assert_contains "$skeleton" "$field" "the core skeleton keeps $field"
+done
+assert_not_contains "$skeleton" "**Input**:" "a label whose block is team-only is dropped"
+assert_not_contains "$skeleton" "NFR has measurable" "Gate 1 does not ask about a section the core tier lacks"
+assert_contains "$(cat "$NEW_ROOT/due-date/meta.yml")" "  - user:owner-2026-10-30" "--input is recorded"
+team_rc=0; team_output="$(bash "$REPO/scripts/work-items.sh" --work-root "$NEW_ROOT" new team-thing --mode team-feature 2>&1)" || team_rc=$?
+assert_eq "0" "$team_rc" "new creates a team-feature item"
+assert_contains "$(cat "$NEW_ROOT/team-thing/prd.md")" "Non-functional Requirements" "a team-feature PRD keeps the team tier"
+assert_contains "$team_output" "--tier team" "a team-feature item names the team PRD check"
+assert_contains "$team_output" "spec (spec)" "new lists the stages the mode still needs"
+team_meta_before="$(cat "$NEW_ROOT/team-thing/meta.yml")"
+refuse_rc=0; refuse_output="$(bash "$REPO/scripts/work-items.sh" --work-root "$NEW_ROOT" complete team-thing --na x 2>&1)" || refuse_rc=$?
+assert_eq "1" "$refuse_rc" "complete refuses an item that does not pass check"
+assert_contains "$refuse_output" "requires stage: spec" "complete says what is missing"
+assert_eq "$team_meta_before" "$(cat "$NEW_ROOT/team-thing/meta.yml")" "a refused complete leaves meta.yml unchanged"
+both_rc=0; bash "$REPO/scripts/work-items.sh" --work-root "$NEW_ROOT" complete due-date >/dev/null 2>&1 || both_rc=$?
+assert_eq "2" "$both_rc" "complete needs --doc or --na"
+done_rc=0; bash "$REPO/scripts/work-items.sh" --work-root "$NEW_ROOT" complete due-date --na "single-file CLI change" >/dev/null 2>&1 || done_rc=$?
+assert_eq "0" "$done_rc" "complete closes out a personal-feature item"
+done_meta="$(cat "$NEW_ROOT/due-date/meta.yml")"
+assert_contains "$done_meta" "work_status: completed" "complete sets work_status"
+assert_contains "$done_meta" "documentation_impact: n/a:single-file CLI change" "complete records documentation_impact"
+assert_not_contains "$done_meta" "status: in_progress" "complete leaves no unfinished stage"
+rm -rf "$NEW_ROOT"
+
+# T08: queued items, start, complete edge cases, and the activity log.
+Q_ROOT="$(mktemp -d)"
+wi() { bash "$REPO/scripts/work-items.sh" --work-root "$Q_ROOT" "$@"; }
+q_rc=0; wi new later-thing --queued >/dev/null 2>&1 || q_rc=$?
+assert_eq "0" "$q_rc" "new --queued creates a backlog item"
+assert_contains "$(cat "$Q_ROOT/later-thing/meta.yml")" "work_status: queued" "a backlog item is queued"
+qc_rc=0; wi check --item later-thing >/dev/null 2>&1 || qc_rc=$?
+assert_eq "0" "$qc_rc" "a queued item passes check"
+early_rc=0; early_out="$(wi complete later-thing --na x 2>&1)" || early_rc=$?
+assert_eq "2" "$early_rc" "complete refuses a queued item"
+assert_contains "$early_out" "start first" "complete says to start a queued item first"
+st_rc=0; wi start later-thing >/dev/null 2>&1 || st_rc=$?
+assert_eq "0" "$st_rc" "start moves a queued item to active"
+assert_contains "$(cat "$Q_ROOT/later-thing/meta.yml")" "work_status: active" "the started item is active"
+again_st=0; wi start later-thing >/dev/null 2>&1 || again_st=$?
+assert_eq "2" "$again_st" "start refuses an item that is not queued"
+wi complete later-thing --na "single-file change" >/dev/null 2>&1
+lines_before="$(wc -l < "$Q_ROOT/later-thing/activity.jsonl")"
+redo_out="$(wi complete later-thing --na other 2>&1)"
+assert_contains "$redo_out" "already completed" "complete on a completed item changes nothing"
+assert_eq "$lines_before" "$(wc -l < "$Q_ROOT/later-thing/activity.jsonl")" "a repeated complete adds no activity line"
+assert_not_contains "$(cat "$Q_ROOT/later-thing/meta.yml")" "n/a:other" "a repeated complete keeps documentation_impact"
+events="$(python3 -c 'import json,sys; print(" ".join(json.loads(l)["event"] for l in open(sys.argv[1])))' "$Q_ROOT/later-thing/activity.jsonl")"
+assert_eq "new start complete" "$events" "new, start and complete each log one event"
+wi new team-item --mode team-feature >/dev/null 2>&1
+team_lines="$(wc -l < "$Q_ROOT/team-item/activity.jsonl")"
+wi complete team-item --na x >/dev/null 2>&1 || true
+assert_eq "$team_lines" "$(wc -l < "$Q_ROOT/team-item/activity.jsonl")" "a refused complete logs nothing"
+mkdir -p "$Q_ROOT/abandoned-item"
+sed -e 's/^slug: .*/slug: abandoned-item/' -e 's/^work_status: .*/work_status: abandoned/' "$Q_ROOT/team-item/meta.yml" > "$Q_ROOT/abandoned-item/meta.yml"
+cp "$Q_ROOT/team-item/prd.md" "$Q_ROOT/team-item/implement-report.md" "$Q_ROOT/abandoned-item/"
+ab_rc=0; wi complete abandoned-item --na x >/dev/null 2>&1 || ab_rc=$?
+assert_eq "2" "$ab_rc" "complete refuses an abandoned item"
+assert_contains "$(cat "$Q_ROOT/abandoned-item/meta.yml")" "work_status: abandoned" "a refused complete leaves the abandoned item as it was"
+agents="$(env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u CLAUDE_PLUGIN_ROOT -u CURSOR_TRACE_ID -u CURSOR_PLUGIN_ROOT CODEX_THREAD_ID=thread-1 CODEX_SANDBOX=seatbelt CLAUDECODE=1 CLAUDE_CODE_SESSION_ID=claude-1 bash "$REPO/scripts/work-items.sh" --work-root "$Q_ROOT" new nested >/dev/null 2>&1; tail -1 "$Q_ROOT/nested/activity.jsonl")"
+assert_contains "$agents" '"tool": "codex"' "an inherited environment records codex"
+assert_contains "$agents" '"tool": "claude-code"' "and the claude-code parent, without choosing one"
+none_line="$(SKILL_COMMONS_SESSION=none CLAUDECODE=1 CLAUDE_CODE_SESSION_ID=claude-1 bash "$REPO/scripts/work-items.sh" --work-root "$Q_ROOT" new private >/dev/null 2>&1; tail -1 "$Q_ROOT/private/activity.jsonl")"
+assert_not_contains "$none_line" "claude-1" "SKILL_COMMONS_SESSION=none records no session id"
+assert_contains "$none_line" '"tool": "claude-code"' "SKILL_COMMONS_SESSION=none still records the tool"
+plain="$(env -i PATH="$PATH" HOME="$HOME" bash "$REPO/scripts/work-items.sh" --work-root "$Q_ROOT" new plain >/dev/null 2>&1; tail -1 "$Q_ROOT/plain/activity.jsonl")"
+assert_contains "$plain" '"agents": []' "a plain terminal records no tool"
+rm -rf "$Q_ROOT"
 
 finish

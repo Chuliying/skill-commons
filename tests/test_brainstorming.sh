@@ -87,7 +87,7 @@ assert_contains "$router_text" "material ambiguity" "router uses the qualificati
 assert_contains "$router_text" "Skip / Quick / Standard / Deep" "router names the bounded modes"
 assert_contains "$router_text" "Research" "router keeps qualified Research inside discovery"
 assert_contains "$router_text" "Wayfinding" "router names consented Deep Wayfinding"
-assert_contains "$router_text" "事實問題" "router keeps factual questions on direct evidence path"
+assert_contains "$router_text" "Answer facts from repo" "router keeps factual questions on direct evidence path"
 assert_not_contains "$router_text" 'personal 預設 `brainstorming → to-prd`' "router does not force personal discovery"
 assert_not_contains "$subagent_text" "先用 brainstorming + plan-sync" "subagent fallback does not force brainstorming"
 assert_contains "$subagent_text" "Fog" "subagent execution rejects unresolved discovery Fog"

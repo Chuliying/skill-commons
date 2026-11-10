@@ -1,7 +1,11 @@
 #!/bin/bash
 # verify.sh — verification-before-completion skill
-# 執行完整 CI 驗證並輸出結構化摘要
-# Usage: bash scripts/verify.sh [--skip-test]
+# Runs the manifest's type-check, lint and tests and prints a structured summary
+# Usage: bash scripts/verify.sh [--skip-test] [--work-item <slug> [--covers <file>#<ID>]...]
+#   --work-item writes <work_root>/<slug>/verification.json with the result and a
+#   content fingerprint, so project-status can tell when the result goes stale.
+#   --covers binds named acceptance segments; without it, every AC- segment in the
+#   item's prd.md and spec.md is bound.
 
 set -o pipefail
 
@@ -14,6 +18,38 @@ fi
 # shellcheck source=../../scripts/manifest-stack.sh
 source "$STACK_HELPER"
 
+SKIP_TESTS=0
+WORK_ITEM=""
+COVERS=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --skip-test) SKIP_TESTS=1 ;;
+    --work-item)
+      if [[ -z "${2:-}" || "${2:-}" == -* ]]; then
+        echo "❌ --work-item needs a work-item slug"
+        exit 2
+      fi
+      WORK_ITEM="$2"; shift ;;
+    --covers)
+      if [[ -z "${2:-}" || "${2:-}" == -* ]]; then
+        echo "❌ --covers needs a segment reference such as prd.md#AC-002"
+        exit 2
+      fi
+      COVERS+=(--covers "$2"); shift ;;
+    *) echo "❌ unknown argument: $1"; exit 2 ;;
+  esac
+  shift
+done
+if [[ ${#COVERS[@]} -gt 0 && -z "$WORK_ITEM" ]]; then
+  echo "❌ --covers needs --work-item"
+  exit 2
+fi
+if [[ -n "$WORK_ITEM" && ! "$WORK_ITEM" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo "❌ --work-item must be a work-item slug"
+  exit 2
+fi
+
+STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%S+00:00)"
 PASS="✅"
 FAIL="❌"
 SKIP="⏩"
@@ -59,10 +95,12 @@ fi
 echo ""
 
 # ── Tests ────────────────────────────────────
-if [[ "${1:-}" != "--skip-test" ]]; then
+TESTS_RAN=0
+if [[ "$SKIP_TESTS" -eq 0 ]]; then
   echo "▶ Running tests..."
   if run_manifest_stack_command test_cmd tests required 2>&1; then
     RAN=$((RAN + 1))
+    TESTS_RAN=1
     echo "$PASS tests PASSED"
   else
     echo "$FAIL tests FAILED"
@@ -84,5 +122,26 @@ else
 fi
 echo "══════════════════════════════════════════"
 echo ""
+
+# ── Evidence ─────────────────────────────────
+# Only a run whose tests executed and whose checks all passed is passing evidence.
+if [[ -n "$WORK_ITEM" ]]; then
+  if [[ $EXIT_CODE -ne 0 ]]; then
+    RESULT=fail
+  elif [[ $TESTS_RAN -eq 0 ]]; then
+    RESULT=skipped
+  else
+    RESULT=pass
+  fi
+  if [[ "$RESULT" = "skipped" ]]; then
+    echo "$SKIP tests did not run; recorded as skipped, which is not completion evidence"
+  fi
+  if ! SKILL_COMMONS_VERIFY_RUN=1 python3 "$SCRIPT_DIR/../../scripts/verification_evidence.py" record \
+      --work-item "$WORK_ITEM" --result "$RESULT" --exit-code "$EXIT_CODE" \
+      --checks "$RAN" --command-text "$(manifest_stack_value test_cmd)" --started-at "$STARTED_AT" ${COVERS[@]+"${COVERS[@]}"}; then
+    echo "$FAIL could not record verification evidence"
+    EXIT_CODE=1
+  fi
+fi
 
 exit $EXIT_CODE

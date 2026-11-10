@@ -19,3 +19,25 @@ Object.keys(PROTOTYPE_MAP.routes).forEach(function(sid) {
   AC_DATA[sid] = Object.create(null);
   route.pages.forEach(function(id) { AC_DATA[sid][id] = PROTOTYPE_MAP.pages[id].acs; });
 });
+
+/* frames.js runs next and is arbitrary code. Deep-freeze the map and its projections and make
+ * their global names read-only, so frame code cannot rewrite the data the AC panel and the
+ * report are built from (it can still change the DOM and behavior). SCENARIO_STATE stays
+ * mutable: frames keep form input there between steps. */
+(function() {
+  // Children first, so a frozen object always has a frozen subtree and shared arrays are walked once.
+  function deepFreeze(value) {
+    if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
+      Object.keys(value).forEach(function(key) { deepFreeze(value[key]); });
+      Object.freeze(value);
+    }
+    return value;
+  }
+  ['PROTOTYPE_MAP', 'SCENARIO_TITLES', 'NAV_PATH', 'STEPS', 'STEPPER_LABELS', 'PANEL_MAP', 'AC_DATA']
+    .forEach(function(name) {
+      // Pass the value too: in a Node vm context a descriptor without one leaves the binding undefined.
+      Object.defineProperty(globalThis, name, {
+        value: deepFreeze(globalThis[name]), enumerable: true, writable: false, configurable: false
+      });
+    });
+})();

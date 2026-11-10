@@ -1,172 +1,172 @@
 ---
 name: skill-router
 description: |
-  AI 任務分發器。每個新任務先讀本檔，用五條 flow 選擇最小必要 skills 與 Execution Mode。
-  觸發時機: 每次對話開始、收到新任務時
+  AI task dispatcher. Read first on each new task; five flows pick minimal skills and Execution Mode.
+  Trigger keywords: conversation start, new task
 source_kind: original
 stage: skill
 ---
 
 # Skill Router
 
-把意圖路由到最小 workflow；utility 由各 skill 的 `description` 觸發。本檔只維護
-跨階段 flow。Execution Mode 契約以 [`../protocol-registry.json`](../protocol-registry.json)
-為 machine source；registry 是 declarative contract，不負責 runtime 或 scheduling。
+Route intent to the smallest workflow; utilities trigger from their `description`. This file keeps only
+cross-stage flows. Execution Mode machine source: [`../protocol-registry.json`](../protocol-registry.json);
+it is a declarative contract, not runtime or scheduling.
 
 ## Global Iron Laws
 
-1. 持久狀態與交接結果落檔，不能只存在對話 context。
-2. 成功宣稱必須附 fresh verification evidence。
-3. push、merge、刪除、history rewrite 等不可逆或外部副作用，執行前必須取得明確確認。
+1. Persist state and handoff results to files, not only in context.
+2. Success claims must have fresh verification evidence.
+3. Irreversible or external side effects (e.g. push, merge, delete, history rewrite) must get explicit confirmation first.
 
-會寫檔、執行命令、改 Git 或呼叫外部服務時，preflight 讀 guardrails 與 manifest；
-缺席就探測 repo 慣例，仍無法界定不可逆動作才詢問。派發前讀必要 `SKILL.md` 與相關
-Domain Skill；相對 reference 從該 skill 解析。read-only 任務不建立骨架。
+Before writing files, running commands, changing Git or calling external services, read guardrails and manifest;
+if absent, probe repo conventions; ask only if irreversible actions stay unclear. Before dispatch, read needed `SKILL.md` and relevant
+Domain Skill; resolve relative refs from that skill. Read-only tasks: no skeleton.
 
-## Profile 邊界
+## Profile boundaries
 
-- `personal`：七個 core owner；輕量 artifact 與直接驗證。
-- `team-sprint`：core 加正式 PRD / Spec / QA / prototype / domain modeling。
-- `frontend`：前端相關任務；`optional`：個人探索、PRD、review、onboarding 與 utilities。
+- `personal`: seven core owners; light artifacts, direct verification.
+- `team-sprint`: core plus formal PRD / Spec / QA / prototype / domain modeling.
+- `frontend`: frontend work. `optional`: personal discovery, PRD, review, onboarding, utilities.
 
-**personal profile 硬規則**：`prd-interview`、`spec`、`qa`、`prototype`、`domain-modeling` 不在 bundle 內。
+**personal profile hard rule**: `prd-interview`, `spec`, `qa`, `prototype`, `domain-modeling` are not in the bundle.
 
-`brainstorming`、`grilling`、`to-prd`、`caveman-review`、`shared-skill-onboarder` 與
-utilities 只在 `CAPABILITY_PACKS=optional` 時可派發；缺席就說明 selection，不模擬該
-owner。`skill-creator` 只供 maintainer 使用。
+`brainstorming`, `grilling`, `to-prd`, `caveman-review`, `shared-skill-onboarder` and
+utilities dispatch only with `CAPABILITY_PACKS=optional`; if absent, explain the selection; never simulate that
+owner. `skill-creator` is maintainer-only.
 
-## 任務判斷表
+## Task routing table
 
-| 意圖 | 判斷 | Flow |
+| Intent | Signal | Flow |
 |---|---|---|
-| 探索 | 有會改變實作的 material ambiguity、需求訪談、計畫壓測 | [探索](#flow-探索) |
-| 建造 | 新功能、需求變更、重構、開始實作 | [建造](#flow-建造) |
-| 修錯 | bug、測試失敗、行為異常 | [修錯](#flow-修錯) |
-| 發布 | review、commit、PR、merge、恢復 branch | [發布](#flow-發布) |
-| 理解 | codebase、架構、依賴與 domain 探索 | [理解](#flow-理解) |
+| Explore | Material ambiguity changing implementation, requirement interview, plan stress test | [Explore](#flow-explore) |
+| Build | New feature, requirement change, refactor, implementation start | [Build](#flow-build) |
+| Fix | bug, test failure, unexpected behavior | [Fix](#flow-fix) |
+| Release | review, commit, PR, merge, branch recovery | [Release](#flow-release) |
+| Understand | explore codebase, architecture, dependencies, domain | [Understand](#flow-understand) |
 
-## Flow: 探索
+## Flow: Explore
 
-用於仍需釐清「做什麼」或壓測決策，且已安裝 `optional`。`brainstorming` 只處理 repo
-evidence 無法回答、且會改變 scope、架構、公開行為或驗收方式的 material ambiguity。
+To clarify "what to build" or stress-test decisions, with `optional` installed. `brainstorming` only handles material ambiguity that repo
+evidence cannot answer and that changes scope, architecture, public behavior or acceptance.
 
 ```text
-brainstorming（qualified discovery；artifact 只在 durable handoff 時建立）
-  → to-prd（已有共識時快照）或 prd-interview（team 正式訪談）
-  → grilling（高風險時逐題壓測；需要交接才開 durable docs mode）
-  → domain-modeling（已安裝時寫 `CONTEXT.md` / `docs/adr/`）
+brainstorming (qualified discovery; artifact only for a durable handoff)
+  → to-prd (consensus snapshot) or prd-interview (formal team interview)
+  → grilling (stress test per question if high risk; durable docs mode only for handoff)
+  → domain-modeling (if installed, writes `CONTEXT.md` / `docs/adr/`)
 ```
 
-- 依成本選 Skip / Quick / Standard / Deep；Standard 最多三問，Deep 需使用者同意。
-- 清楚的 micro-task、bug、review、既有 spec 實作與 repo 可回答的問題 Skip。
-- 事實問題直接用 repo 或權威來源回答；只有 qualified Standard / Deep 決策才條件式使用 Research。
-- 跨 session 的 unresolved Fog 經使用者 consent 才進 Deep Wayfinding；route 清楚後才交給 plan-sync。
-- personal 需要持久共識才 handoff optional `to-prd`；team 用 `prd-interview`。
-- `grilling` 僅壓測高風險方案。
+- Pick Skip / Quick / Standard / Deep by cost; Standard: at most three questions; Deep needs user consent.
+- Skip clear micro-tasks, bugs, reviews, existing-spec work, repo-answerable questions.
+- Answer facts from repo or authoritative source; Research only for qualified Standard / Deep decisions.
+- Unresolved cross-session Fog enters Deep Wayfinding only with user consent; plan-sync only after the route is clear.
+- personal hands off to optional `to-prd` only for durable consensus; team uses `prd-interview`.
+- `grilling` stress-tests only high-risk options.
 
-## Flow: 建造
+## Flow: Build
 
 ### Team feature
 
-Execution Mode: `team-feature`。
+Execution Mode: `team-feature`.
 
 ```text
-prd-interview → 人工：PRD 核可
-  → spec → 人工：team 設計核可
+prd-interview → Human gate: PRD approval
+  → spec → Human gate: team design approval
   → qa plan → plan-sync canonical plan → implement
   → qa validate → verification-before-completion
 ```
 
-QA traceability 與 Plan Sync consistency 都是 machine gate。
+QA traceability and Plan Sync consistency: machine gates.
 
 ### Personal feature
 
-Execution Mode: `personal-feature`。
+Execution Mode: `personal-feature`.
 
 ```text
-optional `to-prd`（需要持久共識時）→ plan-sync canonical（多步或跨 session 時）
+optional `to-prd` (if durable consensus needed) → plan-sync canonical (if multi-step or cross-session)
   → implement → verification-before-completion
 ```
 
 ### Refactor
 
-Execution Mode: `refactor`。
+Execution Mode: `refactor`.
 
 ```text
-既有 PRD 或 optional `to-prd` → spec（team 或設計風險高時）
+existing PRD or optional `to-prd` → spec (team, or high design risk)
   → implement → verification-before-completion
 ```
 
-### Micro-task 直達
+### Micro-task direct path
 
-以下三項全部成立才可 native 直達：
+Native direct path only if all three hold:
 
-| 條件 | 客觀邊界 |
+| Condition | Objective boundary |
 |---|---|
-| 單檔或少數檔 | 不超過 3 個互相關聯實作檔；tests 與 generate 產物不計 |
-| 無新依賴 | 不新增 package、plugin、service 或 dependency graph |
-| 無 schema/API 變更 | 不改持久化格式、公開 API、event 或跨服務 contract |
+| One or few files | At most 3 related implementation files; tests and generated output not counted |
+| No new dependency | No new package, plugin, service or dependency graph |
+| No schema/API change | Persisted format, public API, events and cross-service contracts unchanged |
 
-任一條件不成立或不確定就走 personal feature。直達是 native 實作（先寫 failing
-test）→ `verification-before-completion`；不建立 work item 與 plan，
-不派發 `implement`。
+If any fails or is unsure: personal feature. Direct path: native implementation (failing
+test first) → `verification-before-completion`; no work item or plan,
+no `implement` dispatch.
 
-Plan selection：需要多步、handoff、resume 或
-drift tracking 的工作使用 canonical `plan/plan.md`。
+Plan selection: work needing multi-step, handoff, resume or
+drift tracking uses canonical `plan/plan.md`.
 
-## Flow: 修錯
+## Flow: Fix
 
-Execution Mode: `bug-fix`。條件式 artifacts 與 handoff 依 registry。
+Execution Mode: `bug-fix`. Conditional artifacts and handoff follow the registry.
 
 ```text
-systematic-debugging（重現與 root cause）
-  → implement（observed failing test → fix）
+systematic-debugging (reproduction and root cause)
+  → implement (observed failing test → fix)
   → verification-before-completion
 ```
 
-建置、整合或測試失敗也走本 flow；缺件時記錄現象、最小重現與 evidence。
+Build, integration, test failures use it too; if anything is missing, record symptom, minimal repro, evidence.
 
-## Flow: 發布
+## Flow: Release
 
 ```text
 verification-before-completion
-  → optional caveman-review（需要且已安裝時）
+  → optional caveman-review (if needed and installed)
   → security
-  → 人工：發布核可
+  → Human gate: release approval
   → sync-work
 ```
 
-- `sync-work` 是 Scoped Save、Integrate、Finish、Recovery 的單一 Git delivery 入口；
-  branch / commit / push / merge / PR / 保留 / 放棄都由其模式處理。
-- 先驗證 review finding；Critical/Important 修正後重跑 evidence。缺 remote、權限或
-  artifact 就安全停止，不建立 remote 或繞過 protected branch。
+- `sync-work` is the single Git delivery entry for Scoped Save, Integrate, Finish, Recovery;
+  its modes handle branch / commit / push / merge / PR / keep / discard.
+- Verify review findings first; rerun evidence after Critical/Important fixes. Missing remote, permission or
+  artifact: stop safely; never create a remote or bypass protected branches.
 
-## Flow: 理解
+## Flow: Understand
 
-若 optional `codebase-understanding` 已安裝：
+If optional `codebase-understanding` is installed:
 
 ```text
 codebase-understanding → architecture map / domain candidates
-  → 必要時更新 manifest 指標
+  → update manifest pointers if needed
 ```
 
-未安裝時使用 repo 搜尋與既有文件；接入 shared skills 需 optional
-`shared-skill-onboarder`。
+Else use repo search and docs; onboarding shared skills needs optional
+`shared-skill-onboarder`.
 
-## Utility 自觸發
+## Utility self-triggers
 
-匹配 description 且已安裝時直接讀：文件轉換用 optional `markdown`；shared skill
-接入用 optional `shared-skill-onboarder`；lo-fi 用 team `prototype`；多 task subagent
-工作用 optional `subagent-driven-development`；建立或評測 skill 用 maintainer
-`skill-creator`。
+If installed and the description matches, read: for doc conversion use optional `markdown`; for shared skill
+onboarding, optional `shared-skill-onboarder`; for lo-fi, team `prototype`; for multi-task subagent
+work, optional `subagent-driven-development`; for skill creation or evals, maintainer
+`skill-creator`.
 
 ## Dispatch Checklist
 
 ```text
-□ 已選定一條 flow 與 Execution Mode
-□ side-effect 任務已讀 guardrails / manifest 或記錄 fallback
-□ 已實際讀取所有派發 skills
-□ 條件式 artifact 沒有被補造
-□ 人工 Gate 只停在 PRD、team 設計、發布
-□ 完成宣稱有 fresh test report；有 work item 時 `meta.yml` 填 `documentation_impact`（見 ARTIFACTS.md）
+□ One flow and Execution Mode chosen
+□ Side-effect tasks read guardrails / manifest or logged fallback
+□ Each dispatched skill actually read
+□ No conditional artifact faked
+□ Human gates stop only at PRD, team design, release
+□ Completion claims have a fresh test report; a work item's `meta.yml` fills `documentation_impact` (see ARTIFACTS.md)
 ```

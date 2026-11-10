@@ -8,32 +8,43 @@ stage: infra
 
 # Verification Before Completion
 
-> **與 `superpowers:verification-before-completion` 同名**：本工作流以此版為準（已對齊本 repo 的 verify 流程與 guardrails）。若 plugin 版同時載入，以本版優先。
+> **Same name as `superpowers:verification-before-completion`**: this workflow uses this version (aligned with this repo's verify flow and guardrails). If the plugin version also loads, this wins.
 
 ## Overview
 
-完成宣稱要附上本次變更後實際跑過的驗證輸出。過期或部分的證據會讓使用者以為工作已完成，
-回頭重工的成本遠高於多跑一次命令。
+A completion claim needs verification output actually run after this change. Stale or partial evidence makes users think work is done,
+and rework costs far more than one more run.
 
 ## Available Script
 
-`<skill-dir>` = 本檔絕對目錄；不得假設固定 fan-out 或 submodule mount。
+`<skill-dir>` = this file's absolute dir; never assume a fixed fan-out or submodule mount.
 
 ```bash
-# 一鍵執行 type-check + lint + tests，輸出結構化摘要
+# Run type-check + lint + tests at once; print a structured summary
 bash <skill-dir>/scripts/verify.sh
 
-# 跳過測試（快速檢查）
+# Skip tests (quick check)
 bash <skill-dir>/scripts/verify.sh --skip-test
 ```
 
-> 使用腳本取代手動逐一執行命令，每次都能獲得一致的輸出格式。
-> 腳本從 consuming repo 的 `.agent/project-manifest.md` 讀取 capability flags 與 stack commands；
-> `typed_contracts: false` 時 type-check 為 N/A，不假設 package manager。
+For a work item add `--work-item <slug>`: the script writes the result and a content fingerprint to `<work_root>/<slug>/verification.json` (manifest `source_roots`, `tests_root`; if unset, files outside the work item dir and agent-generated dirs, uncommitted content included). Each run also logs one line to the item's `activity.jsonl` (start/end time, result, AI tool and session the environment reports), shown by `project-status.sh --ledger`; a queued item needs `work-items.sh start` first. The fingerprint includes the manifest's check commands, so weakening the test command also makes the evidence stale. If these files change, `project-status` marks the item stale; when a newer item passes on the same scope with no fewer files, the old one becomes covered: "current checks pass on current content", not that the original checks still hold. Pass means tests actually ran and all passed. Never hand-write or edit this file.
+
+Evidence also binds to acceptance criteria: by default every `AC-` section in the item's `prd.md`, `spec.md`; `--covers prd.md#AC-002` binds only named sections. If those sections change (whitespace or punctuation only does not count), evidence goes stale.
+
+```bash
+# Approval: hand this to the person to run in their terminal; run by an agent it is refused and prints the fallback
+python3 <skill-dir>/../scripts/verification_evidence.py approve --work-item <slug>
+# Section changed, meaning did not: give the reason; only for acceptance criteria and approval, not code or tests
+python3 <skill-dir>/../scripts/verification_evidence.py reaffirm --work-item <slug> --ref prd.md#AC-002 --reason "<reason>"
+```
+
+> Use the script instead of running commands by hand for consistent output each time.
+> It reads capability flags and stack commands from the consuming repo's `.agent/project-manifest.md`;
+> with `typed_contracts: false`, type-check is N/A; no package manager is assumed.
 
 ## Core Rule
 
-最後一次程式變更之後沒有跑過的驗證，不能拿來宣稱通過。
+Verification not run after the last code change cannot back a pass claim.
 
 ## The Gate Function
 
@@ -76,27 +87,27 @@ Apply this before commits, PRs, handing off, or moving to the next task.
 
 ---
 
-## Execution Checklist 驗證
+## Execution Checklist verification
 
-**當其他 Skill 交接 durable artifact 時，必須驗證該 artifact 內的 Execution Checklist：**
-
-```
-驗證項目:
-□ Artifact handoff 是否包含 Checklist？（未輸出 = 該交接未完成）
-□ 每個 Step 是否有證據？（無證據 = 未執行）
-□ Gate 檢查是否有實際執行結果？（無結果 = 未驗證）
-□ 備註是否合理？（可疑內容需追問）
-```
-
-**Red Flags（需要追問）：**
-
-- 所有 Step 都是「完成」但無證據
-- Gate 檢查全部 PASS 但沒有命令輸出
-- 備註為空或過於簡單
-- 時間戳記不合理（如未來時間）
-
-**驗證失敗時：**
+**When another skill hands off a durable artifact, verify its Execution Checklist:**
 
 ```
-要求 AI 重新執行 Skill 並輸出完整 Checklist
+Verification items:
+□ Does the artifact handoff include the Checklist? (missing = handoff incomplete)
+□ Does every Step have evidence? (no evidence = not executed)
+□ Do gate checks have actual run results? (no result = not verified)
+□ Are notes reasonable? (question anything suspicious)
+```
+
+**Red Flags (follow up):**
+
+- Every Step "done" with no evidence
+- All gate checks PASS with no command output
+- Notes are empty or too thin
+- Timestamps are implausible (for example, in the future)
+
+**When verification fails:**
+
+```
+Ask the AI to rerun the skill and output the full Checklist
 ```

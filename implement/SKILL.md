@@ -1,8 +1,8 @@
 ---
 name: implement
 description: |
-  使用 RED-GREEN-REFACTOR 實作 feature、bug fix 或 refactor。Use when: router 已指定 Execution Mode，且需要測試先行的程式碼變更。
-  觸發關鍵字: implement, 實作, TDD, test first
+  Implement a feature, bug fix or refactor with RED-GREEN-REFACTOR. Use when: the router set an Execution Mode and the change needs tests first.
+  Trigger keywords: implement, TDD, test first
 source: obra/superpowers@d884ae04edebef577e82ff7c4e143debd0bbec99
 source_kind: adapted
 stage: implement
@@ -11,103 +11,103 @@ output: <work_root>/<slug>/implement-report.md
 
 # Implement
 
-依 router 指定的 Execution Mode 與條件式輸入，直接完成測試先行的實作迴圈。
+Run the test-first loop directly, per the router's Execution Mode and conditional inputs.
 
 ## Iron Laws
 
-1. 沒有先觀察到正確原因的失敗測試，不寫 production code。
-2. 沒有 fresh verification evidence，不宣告完成。
-3. Bug 沒有 root-cause evidence，不開始修復。
+1. No production code before a failing test observed to fail for the right reason.
+2. No completion claim without fresh verification evidence.
+3. No bug fix without root-cause evidence.
 
-若 production code 先於測試出現，移除該變更並從 RED 重來。例外只限 throwaway prototype、generated code 或純設定，且必須先取得使用者同意。
+If production code comes before its test, remove it and restart from RED. Only exceptions: throwaway prototype, generated code or pure config, and only with the user's consent first.
 
-## Execution Mode 與條件式輸入
+## Execution Mode and conditional inputs
 
-Router 派發時必須指定 Execution Mode。Artifact requirement、producer 與 handoff
-由 [`../protocol-registry.json`](../protocol-registry.json) 的對應 mode record
-定義；本 skill 不複製 execution matrix。開始前只查表與驗證輸入，不把 registry
-當成 executable workflow、state machine 或 scheduler。
+The router must set the Execution Mode at dispatch. Artifact requirement, producer and handoff
+are defined by the mode record in [`../protocol-registry.json`](../protocol-registry.json);
+this skill does not copy the execution matrix. Before starting, only look up and validate inputs; never treat the registry
+as an executable workflow, state machine or scheduler.
 
-Artifact requirement 的語意只有：
+Artifact requirement meanings:
 
-- `required`：缺件就停止回報，不猜測或補造。
-- `optional`：存在就讀，不存在仍可繼續。
-- `absent`：此路徑不產該 artifact。
+- `required`: if missing, stop and report; never guess or fabricate.
+- `optional`: read if present; continue if not.
+- `absent`: this path does not produce it.
 
-替代證據：
+Substitute evidence:
 
-- `bug-fix`：`systematic-debugging` 的 root-cause evidence 與可重現 RED。
-- `refactor`：既有行為的 characterization test；Spec 存在時遵循其邊界。
-- `personal-feature`：有 PRD/plan 就讀；micro-task 以使用者訊息與 RED 為契約。
+- `bug-fix`: `systematic-debugging` root-cause evidence and a reproducible RED.
+- `refactor`: characterization tests of existing behavior; follow the Spec's boundaries if it exists.
+- `personal-feature`: read PRD/plan if present; a micro-task's contract is the user message and RED.
 
-## Step 1：環境與邊界
+## Step 1: Environment and boundaries
 
-1. 核對 Execution Mode 與條件式輸入，把已讀、optional-missing、absent 記入報告。
-2. 讀 `.agent/project-manifest.md`；不存在時用 repo 慣例定位 stack、tests 與 work root，並在報告記錄 fallback。
-3. manifest 有 architecture map 或 Domain Skill Names 時，只讀與本次範圍相關者。
-4. `has_ui: true` 時讀 design tokens；有 mockup 且任務改 UI 時，實作前建立對照清單。
-5. 只修改任務與 failing test 所界定的範圍，維持未授權的外部契約。
+1. Check Execution Mode and conditional inputs; record each input's state (read, optional-missing, absent) in the report.
+2. Read `.agent/project-manifest.md`; if missing, find stack, tests and work root from repo conventions and log the fallback.
+3. If the manifest has an architecture map or Domain Skill Names, read only those in scope.
+4. When `has_ui: true`, read design tokens; if a mockup exists and the task changes UI, list comparisons before implementing.
+5. Change only what the task and failing test define; leave external contracts you were not authorized to change untouched.
 
-## Step 2：RED → GREEN → REFACTOR
+## Step 2: RED → GREEN → REFACTOR
 
-每個行為都完成一個完整迴圈，再進下一個。
+Finish one full loop per behavior before the next.
 
 ### RED
 
-1. 寫一條最小測試，名稱描述單一可觀察行為。
-2. 使用 manifest `test_cmd` 或 repo 慣例執行該測試。
-3. 必須取得 **observed failing test**：測試是 FAIL，不是載入錯誤；訊息符合預期；原因是行為尚未存在。
-4. 測試立刻 PASS 時，修正測試或確認這不是新行為；不得把它當 RED evidence。
+1. Write one minimal test named for one observable behavior.
+2. Run it with manifest `test_cmd` or repo convention.
+3. Get an **observed failing test**: it FAILS (not a load error), the failure message matches the expected one, and the cause is missing behavior.
+4. If it PASSES at once, fix the test or confirm the behavior is not new; never count it as RED evidence.
 
 ### GREEN
 
-1. 只寫讓目前 RED 通過的最小 production code，不預做下一個需求。
-2. 重跑目標測試，再跑受影響測試；必須全部 PASS。
-3. 測試失敗時修 code，不改弱 assertion 來迎合實作。
+1. Write only the minimal production code to pass the current RED; do not build ahead.
+2. Rerun the target test, then affected tests; all must PASS.
+3. On failure, fix the code; never weaken assertions to fit it.
 
 ### REFACTOR
 
-1. 只在 GREEN 後移除重複、改善命名或抽 helper，不新增行為。
-2. 每次調整後重跑測試，保持 GREEN。
-3. 有 UI 變更時，同步執行適用的 design-token gate。
+1. Only after GREEN: remove duplication, rename or extract helpers; add no behavior.
+2. Rerun tests after each change; stay GREEN.
+3. For UI changes, also run the applicable design-token gate.
 
-測試優先使用真實 code；mock 無法避免時，先讀 [`references/testing-anti-patterns.md`](references/testing-anti-patterns.md)。同一問題連續三次修復失敗，停止並回到 `systematic-debugging` 的 Phase 4.5。
+Prefer real code in tests; if a mock is unavoidable, first read [`references/testing-anti-patterns.md`](references/testing-anti-patterns.md). After three failed fixes in a row on one problem, stop and return to `systematic-debugging` Phase 4.5.
 
-## Step 3：專案模式與完整驗證
+## Step 3: Project patterns and full verification
 
-1. 核對檔案位置、命名、API、domain rules、tokens 與 mockup。
-2. 執行 manifest 宣告的 `test_cmd`；`lint_cmd` 有設定就執行；只有 `typed_contracts: true` 才要求 `typecheck_cmd`。
-3. capability false 的檢查明確記 `N/A`，不製造假 evidence。
+1. Check file locations, naming, APIs, domain rules, tokens and mockup.
+2. Run the manifest's `test_cmd`; run `lint_cmd` if set; require `typecheck_cmd` only when `typed_contracts: true`.
+3. Mark a check `N/A` when its manifest capability is false; never fake evidence.
 
-禁止在沒有輸出證據時使用「應該通過」「大概可用」等完成敘述。
+Without output evidence, never use completion wording like "should pass" or "probably works".
 
 ## Output
 
-1. 測試與功能程式碼依 manifest 或 repo 慣例放置。
-2. 將每輪 RED/GREEN/REFACTOR、命令、輸出摘要與 gate 結果寫入 `<work_root>/<slug>/implement-report.md`。
-3. 更新工作項 `meta.yml`，遵循 [`../ARTIFACTS.md`](../ARTIFACTS.md)。
+1. Place tests and code per manifest or repo conventions.
+2. Write each RED/GREEN/REFACTOR round, commands, output summary and gate results to `<work_root>/<slug>/implement-report.md`.
+3. Update the work item `meta.yml` per [`../ARTIFACTS.md`](../ARTIFACTS.md).
 
 ## Next Step
 
-- `team-feature` → `qa validate` → `verification-before-completion`。
-- 其他 mode → `verification-before-completion`。
-- 需要 fresh-context review 時 → `caveman-review`。
+- `team-feature` → `qa validate` → `verification-before-completion`.
+- Other modes → `verification-before-completion`.
+- Fresh-context review needed → `caveman-review`.
 
-## Execution Checklist（artifact handoff 必填）
+## Execution Checklist (required for artifact handoff)
 
 ```text
 Skill: implement
 Executed At: YYYY-MM-DD HH:MM
-Files: [新增/修改檔案]
+Files: [added/changed files]
 Report: <work_root>/<slug>/implement-report.md
 
 Steps:
-Step 1: 環境與邊界 - [PASS/SKIP]
-  Evidence: [mode；輸入狀態；manifest/fallback]
+Step 1: Environment and boundaries - [PASS/SKIP]
+  Evidence: [mode; input status; manifest/fallback]
 Step 2: RED-GREEN-REFACTOR - [PASS/SKIP]
-  Evidence: [RED 預期失敗；GREEN/REFACTOR 指令與結果]
-Step 3: 專案模式與完整驗證 - [PASS/SKIP]
-  Evidence: [domain/UI 規則；完整驗證輸出]
+  Evidence: [RED expected failure; GREEN/REFACTOR commands, results]
+Step 3: Project patterns and full verification - [PASS/SKIP]
+  Evidence: [domain/UI rules; full verification output]
 
 Gate:
   type-check: [PASS/FAIL/N/A]
@@ -116,4 +116,4 @@ Gate:
   UI mockup: [PASS/N/A]
 ```
 
-未輸出 checklist 時，這次 artifact handoff 尚未完成。
+Without the checklist, this artifact handoff is incomplete.

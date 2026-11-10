@@ -196,14 +196,14 @@ def main() -> int:
 """,
     )
     with (dest / ".gitignore").open("a", encoding="utf-8") as handle:
-        handle.write("\n.claude/skills/\n.codex/\n")
+        handle.write("\n.claude/skills/\n.agents/skills/\n")
 
     configure_scenario(args.scenario, dest)
     run(
         "bash",
         str(skills_root / "bootstrap/generate.sh"),
         str(dest / ".claude/skills"),
-        str(dest / ".codex/skills"),
+        str(dest / ".agents/skills"),
         env={
             **os.environ,
             "DELIVERY_MODE": SCENARIOS[args.scenario],

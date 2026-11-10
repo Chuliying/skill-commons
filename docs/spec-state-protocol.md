@@ -45,8 +45,8 @@ inherit the full team-feature chain.
 
 `meta.yml` separates two facts:
 
-- `work_status`: whether the requested engineering work is active, completed, or
-  abandoned;
+- `work_status`: whether the requested engineering work is queued (backlog), active,
+  completed, or abandoned;
 - `delivery_status`: whether approval, PR creation, merge, or deployment actually
   happened.
 

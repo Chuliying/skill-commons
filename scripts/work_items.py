@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -15,6 +17,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import execution_modes  # noqa: E402  (path set above so the CLI runs from any cwd)
+try:
+    import activity  # noqa: E402
+except ImportError:  # an older or partial install: commands still work, the log is skipped
+    activity = None
+
+
+def _log(item_dir: Path, event: str, result: str = "ok", **extra) -> None:
+    if activity is None:
+        print("warning: activity.py is missing; activity.jsonl was not written", file=sys.stderr)
+        return
+    activity.try_append(item_dir, event, result, **extra)
 
 
 LEGACY_WORK_ITEM_STATUSES = {"active", "shipped", "abandoned"}
@@ -66,7 +79,10 @@ V3_REQUIRED_FIELDS = {
 }
 CONTAINER_FIELDS = {"stages", "inputs", "delivery_evidence"}
 LEGACY_ALLOWED_FIELDS = LEGACY_REQUIRED_FIELDS | {"schema_version"}
-V3_ALLOWED_FIELDS = V3_REQUIRED_FIELDS | {"delivery_evidence", "documentation_impact"}
+# allowed_paths and base_commit (T12): the paths a work item may change, and the commit it
+# started from. Both optional; verify.sh --work-item checks the scope when allowed_paths is set.
+V3_ALLOWED_FIELDS = V3_REQUIRED_FIELDS | {"delivery_evidence", "documentation_impact", "allowed_paths", "base_commit"}
+BASE_COMMIT_RE = re.compile(r"^[0-9a-f]{7,64}$")
 DOCUMENTATION_IMPACT_FORMS = "doc:<project-document> or n/a:<bounded reason>"
 DOCUMENTATION_IMPACT_MAX_REASON = 200
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -270,6 +286,14 @@ def validate(item: WorkItem) -> list[str]:
         if execution_mode and execution_mode not in EXECUTION_MODES:
             errors.append(f"invalid execution mode: {execution_mode}")
         errors.extend(validate_delivery(item, work_status, delivery_status))
+        if "allowed_paths" in item.fields:
+            value = item.fields["allowed_paths"]
+            if not [part for part in value.split(",") if part.strip()]:
+                errors.append("allowed_paths must be a comma-separated list of paths or globs on one line")
+            elif any(ch in value for ch in "#\"'"):
+                errors.append("allowed_paths must not contain quotes or a # comment; list paths separated by commas")
+        if "base_commit" in item.fields and not BASE_COMMIT_RE.fullmatch(item.fields["base_commit"]):
+            errors.append(f"invalid base_commit: {item.fields['base_commit']}")
     else:
         status = item.fields.get("status", "")
         if status and status not in LEGACY_WORK_ITEM_STATUSES:
@@ -380,6 +404,17 @@ def validate_execution_artifacts(
 
 
 @lru_cache(maxsize=None)
+def head_commit(directory: Path) -> str | None:
+    """HEAD of the repository holding `directory`, or None (no Git, no commits yet)."""
+    try:
+        proc = subprocess.run(["git", "-C", str(directory), "rev-parse", "--verify", "-q", "HEAD"],
+                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, check=False)
+    except OSError:
+        return None
+    value = proc.stdout.strip()
+    return value if proc.returncode == 0 and BASE_COMMIT_RE.fullmatch(value) else None
+
+
 def _git_toplevel(directory: str) -> str:
     """The Git working-tree top level containing `directory`, or "" if there is none.
 
@@ -616,9 +651,13 @@ def normalized_delivery_status(item: WorkItem) -> str:
     return "legacy_shipped" if item.fields.get("status") == "shipped" else "legacy_unrecorded"
 
 
-def metadata_files(work_root: Path) -> list[Path]:
+def require_work_root(work_root: Path) -> None:
     if not work_root.is_dir():
         raise ValueError(f"work root does not exist: {work_root}")
+
+
+def metadata_files(work_root: Path) -> list[Path]:
+    require_work_root(work_root)
     return sorted(
         child / "meta.yml"
         for child in work_root.iterdir()
@@ -626,12 +665,13 @@ def metadata_files(work_root: Path) -> list[Path]:
     )
 
 
+def load_item(path: Path) -> tuple[WorkItem, list[str]]:
+    item, parse_errors = parse_meta(path)
+    return item, parse_errors + validate(item)
+
+
 def load_items(work_root: Path) -> list[tuple[WorkItem, list[str]]]:
-    loaded = []
-    for path in metadata_files(work_root):
-        item, parse_errors = parse_meta(path)
-        loaded.append((item, parse_errors + validate(item)))
-    return loaded
+    return [load_item(path) for path in metadata_files(work_root)]
 
 
 def render_item(item: WorkItem, extra: str = "") -> str:
@@ -668,7 +708,7 @@ def command_stale(args: argparse.Namespace) -> int:
     now = parse_timestamp(args.now) if args.now else datetime.now(timezone.utc)
     print("work_status\tdelivery_status\tupdated_at\tslug\ttitle\tmeta\tage_days")
     for item, _ in load_items(args.work_root):
-        if normalized_work_status(item) != "active":
+        if normalized_work_status(item) not in {"active", "queued"}:
             continue
         try:
             updated = parse_timestamp(item.fields["updated_at"])
@@ -698,13 +738,59 @@ def orphaned_work_items(work_root: Path) -> list[Path]:
     )
 
 
+def item_slug(value: str) -> str:
+    """`check --item` names one work-item directory under the work root, never a path.
+
+    The value must have the kebab-case slug shape ARTIFACTS.md gives every work item,
+    so `..`, `.`, separators, absolute paths and the empty string are refused before
+    any path is built and cannot reach outside the work root.
+    """
+    if not SLUG_RE.fullmatch(value):
+        raise argparse.ArgumentTypeError(
+            f"{value!r} is not a work-item slug; name one <slug> directory under the "
+            "work root (kebab-case, no path separators)"
+        )
+    return value
+
+
+class SingleItem(argparse.Action):
+    """Refuse a repeated `--item`, which would otherwise keep only the last value."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        if getattr(namespace, self.dest, None) is not None:
+            parser.error(f"{option_string} names one work item; run check once per work item")
+        setattr(namespace, self.dest, values)
+
+
 def command_check(args: argparse.Namespace) -> int:
+    work_root = args.work_root
+    require_work_root(work_root)
+    # The work root holds <slug>/meta.yml. A root holding meta.yml itself is a work item:
+    # its children are not work items, so scanning it would pass with nothing checked.
+    if os.path.lexists(work_root / "meta.yml"):
+        raise ValueError(
+            "work root is a work item, not the directory that holds work items: "
+            f"{work_root} contains meta.yml; pass its parent as --work-root, or check this "
+            f"work item with --work-root {work_root.parent} check --item {work_root.name}"
+        )
+    if args.item is None:
+        items = load_items(work_root)
+        missing = [
+            (orphan, "lifecycle artifact present but meta.yml is missing")
+            for orphan in orphaned_work_items(work_root)
+        ]
+    else:
+        # Scoped to the named work item: sibling folders, orphans included, are the
+        # whole-root check's concern. The named item itself must have its meta.yml.
+        meta = work_root / args.item / "meta.yml"
+        if meta.is_file():
+            items, missing = [load_item(meta)], []
+        else:
+            items, missing = [], [(meta, "work item metadata is missing")]
     failures = 0
-    items = load_items(args.work_root)
-    orphans = orphaned_work_items(args.work_root)
-    for orphan in orphans:
+    for path, reason in missing:
         failures += 1
-        print(f"FAIL {orphan}: lifecycle artifact present but meta.yml is missing")
+        print(f"FAIL {path}: {reason}")
     for item, errors in items:
         if not errors:
             print(f"PASS {item.path}")
@@ -713,9 +799,237 @@ def command_check(args: argparse.Namespace) -> int:
         for error in errors:
             print(f"FAIL {item.path}: {error}")
     if failures:
-        print(f"work-item check failed: {failures}/{len(items) + len(orphans)} invalid")
+        print(f"work-item check failed: {failures}/{len(items) + len(missing)} invalid")
         return 1
     print(f"work-item check passed: {len(items)} valid")
+    return 0
+
+
+def prd_skeleton(template: str, title: str, tier: str = "core") -> str:
+    """A PRD skeleton from prd-template.md. Placeholders stay, so check-prd.py fails until
+    they are filled. For the core tier, a `<!-- tier: team -->` marker removes only the
+    block it marks: up to the next heading, the next `**Label**:` line or `---`."""
+    lines = template.splitlines()
+    first = next((i for i, line in enumerate(lines) if line.startswith("# ")), -1)
+    if tier == "team":
+        return "\n".join([f"# {title}", *lines[first + 1:]]).rstrip() + "\n"
+    out: list[str] = [f"# {title}", ""]
+    section: list[str] = []
+    keep_section = False
+    skipping = False
+    started = False
+
+    def flush() -> None:
+        while section and not section[-1].strip():
+            section.pop()
+        if section and keep_section:
+            out.extend([*section, ""])
+
+    for line in lines:
+        if line.startswith("## "):
+            flush()
+            section, keep_section, skipping, started = [line], False, False, True
+            continue
+        if not started:
+            continue
+        marker = re.match(r"^<!-- tier: (core|team) -->$", line.strip())
+        if marker:
+            if marker.group(1) == "core":
+                keep_section, skipping = True, False
+                continue
+            skipping = True
+            # The heading or label that introduces a team-only block goes with it.
+            while section and not section[-1].strip():
+                section.pop()
+            if section and (section[-1].startswith("### ") or re.fullmatch(r"\*\*[^*]+\*\*:\s*", section[-1])):
+                section.pop()
+            continue
+        if skipping and (line.startswith("#") or line.startswith("**") or line.strip() == "---"):
+            skipping = False
+        if skipping:
+            continue
+        if section and section[0].startswith("## ") and "Gate 1" in section[0] and "NFR" in line:
+            continue  # The core tier has no NFR section.
+        section.append(line)
+    flush()
+    return "\n".join(out).rstrip() + "\n"
+
+
+def _producer(mode: dict, artifact: str, roster: set[str]) -> str | None:
+    for skill in mode["artifacts"][artifact]["producers"]:
+        if not roster or skill in roster:
+            return skill
+    return None
+
+
+def command_new(args: argparse.Namespace) -> int:
+    """Create a valid work item: meta.yml, a PRD skeleton when the mode has a PRD and a PRD
+    skill is installed, and an implement-report stub. Other required stages are listed, not
+    stubbed: their skills write them, and an empty plan would fail the plan check."""
+    work_root = args.work_root
+    work_root.mkdir(parents=True, exist_ok=True)
+    item_root = work_root / args.slug
+    if os.path.lexists(item_root):
+        raise ValueError(f"work item already exists: {item_root}")
+    mode = PROTOCOL_REGISTRY["execution_modes"][args.mode]
+    roster = skill_roster()
+    template = REPO_ROOT / "prd-template.md"
+    prd_requirement = mode["artifacts"]["prd"]["requirement"]
+    prd_skill = _producer(mode, "prd", roster)
+    tier = "team" if args.mode == "team-feature" else "core"
+    warnings: list[str] = []
+    wants_prd = not args.no_prd and prd_requirement in {"required", "optional"}
+    if wants_prd and (prd_skill is None or not template.is_file()):
+        wants_prd = False
+        if prd_requirement == "required":
+            warnings.append(f"{args.mode} requires a PRD, but no PRD skill or template is installed")
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    title = args.title or args.slug.replace("-", " ").capitalize()
+    stages: list[str] = []
+    files: dict[str, str] = {}
+    if wants_prd:
+        stages.append(f"  prd: {{ skill: {prd_skill}, file: prd.md, status: in_progress }}")
+        files["prd.md"] = prd_skeleton(template.read_text(encoding="utf-8"), title, tier)
+    stages.append("  implement: { skill: implement, file: implement-report.md, status: pending }")
+    files["implement-report.md"] = f"# Implement report: {title}\n\n<!-- The implement skill fills this in. -->\n"
+    inputs = args.input or ["user:request"]
+    meta = "\n".join([
+        "schema_version: work-item/v3",
+        f"slug: {args.slug}",
+        f"title: {title}",
+        f"created_at: {now}",
+        f"updated_at: {now}",
+        f"execution_mode: {args.mode}",
+        f"work_status: {'queued' if args.queued else 'active'}",
+        "delivery_status: not_requested",
+        *([f"base_commit: {base}"] if (base := head_commit(work_root)) else []),
+        "stages:",
+        *stages,
+        "inputs:",
+        *[f"  - {value}" for value in inputs],
+        "",
+    ])
+    item_root.mkdir()
+    try:
+        for name, text in files.items():
+            (item_root / name).write_text(text, encoding="utf-8")
+        (item_root / "meta.yml").write_text(meta, encoding="utf-8")
+        _item, errors = load_item(item_root / "meta.yml")
+        if errors:
+            raise ValueError("generated work item is invalid: " + "; ".join(errors))
+    except BaseException:
+        shutil.rmtree(item_root, ignore_errors=True)
+        raise
+    _log(item_root, "new", mode=args.mode, work_status="queued" if args.queued else "active")
+    relative = os.path.relpath(item_root)
+    scripts = os.path.relpath(REPO_ROOT / "scripts")
+    print(f"created {relative}/ ({args.mode}{', queued' if args.queued else ''}): {', '.join(['meta.yml', *files])}")
+    if args.queued:
+        print(f"queued: start it with bash {os.path.relpath(REPO_ROOT / 'scripts')}/work-items.sh start {args.slug}")
+    for warning in warnings:
+        print(f"warning: {warning}")
+    if wants_prd:
+        print(f"next: fill {relative}/prd.md, then run python3 {scripts}/check-prd.py --prd {relative}/prd.md --tier {tier}")
+    later = [
+        f"{execution_modes.stage_name(artifact)} ({' or '.join(mode['artifacts'][artifact]['producers'])})"
+        for artifact in sorted(mode["artifacts"])
+        if mode["artifacts"][artifact]["requirement"] == "required"
+        and artifact not in {"implement-report"} and not (artifact == "prd" and wants_prd)
+    ]
+    if later:
+        print(f"before completion this mode also needs: {', '.join(later)}")
+    if not args.input:
+        print("inputs: replace user:request in meta.yml with what started this work, or pass --input")
+    print(f"when done: bash {scripts}/work-items.sh complete {args.slug} --na \"<reason>\" (or --doc <path>), then verify")
+    return 0
+
+
+def command_start(args: argparse.Namespace) -> int:
+    """queued -> active. Refuses any other status and leaves meta.yml unchanged on failure."""
+    meta_path = args.work_root / args.slug / "meta.yml"
+    if not meta_path.is_file():
+        raise ValueError(f"work item metadata is missing: {meta_path}")
+    item, _errors = parse_meta(meta_path)
+    status = item.fields.get("work_status", "")
+    if status != "queued":
+        raise ValueError(f"start needs a queued work item; {args.slug} is {status or 'without work_status'}")
+    original = meta_path.read_text(encoding="utf-8")
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    lines = []
+    base = head_commit(meta_path.parent)
+    for line in original.splitlines():
+        if line.startswith("work_status:"):
+            line = "work_status: active"
+        elif line.startswith("updated_at:"):
+            line = f"updated_at: {now}"
+        elif line.startswith("base_commit:"):
+            continue  # a queued item's scope starts when it starts (T12)
+        lines.append(line)
+        if line == "delivery_status: not_requested" and base:
+            lines.append(f"base_commit: {base}")
+    if base and not any(line.startswith("base_commit:") for line in lines):
+        lines.append(f"base_commit: {base}")
+    meta_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _item, errors = load_item(meta_path)
+    if errors:
+        meta_path.write_text(original, encoding="utf-8")
+        for error in errors:
+            print(f"FAIL {meta_path}: {error}")
+        print("start refused; meta.yml is unchanged")
+        return 1
+    _log(meta_path.parent, "start")
+    print(f"started {os.path.relpath(meta_path.parent)}: work_status active")
+    return 0
+
+
+def command_complete(args: argparse.Namespace) -> int:
+    """Close out a work item: unfinished stages become done, work_status completed,
+    updated_at now, one documentation_impact. Refuses and leaves meta.yml unchanged when
+    the result does not pass check."""
+    meta_path = args.work_root / args.slug / "meta.yml"
+    if not meta_path.is_file():
+        raise ValueError(f"work item metadata is missing: {meta_path}")
+    if bool(args.doc) == bool(args.na):
+        raise ValueError("complete needs exactly one of --doc <project document> or --na <reason>")
+    impact = f"doc:{args.doc}" if args.doc else f"n/a:{args.na}"
+    original = meta_path.read_text(encoding="utf-8")
+    item, parse_errors = parse_meta(meta_path)
+    status = item.fields.get("work_status", "")
+    if status == "completed":
+        print(f"{os.path.relpath(meta_path.parent)} is already completed; nothing changed")
+        return 0
+    if status != "active":
+        raise ValueError(f"complete needs an active work item; {args.slug} is {status or 'without work_status'}"
+                         + ("; run work-items.sh start first" if status == "queued" else ""))
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    lines = []
+    has_impact = False
+    for line in original.splitlines():
+        if line.startswith("work_status:"):
+            line = "work_status: completed"
+        elif line.startswith("updated_at:"):
+            line = f"updated_at: {now}"
+        elif line.startswith("documentation_impact:"):
+            line, has_impact = f"documentation_impact: {impact}", True
+        else:
+            line = re.sub(r"(status:\s*)(pending|ready|in_progress)(\s*})", r"\1done\3", line)
+        lines.append(line)
+    if not has_impact:
+        at = next((i for i, line in enumerate(lines) if line.startswith(("delivery_status:", "work_status:"))), None)
+        if at is None:
+            raise ValueError(f"meta.yml has no work_status or delivery_status line: {meta_path}")
+        lines.insert(at + 1, f"documentation_impact: {impact}")
+    meta_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _item, errors = load_item(meta_path)
+    if errors:
+        meta_path.write_text(original, encoding="utf-8")
+        for error in errors:
+            print(f"FAIL {meta_path}: {error}")
+        print("complete refused; meta.yml is unchanged")
+        return 1
+    _log(meta_path.parent, "complete", documentation_impact=impact)
+    print(f"completed {os.path.relpath(meta_path.parent)}: work_status completed, documentation_impact {impact}")
+    print(f"next: bash verify.sh --work-item {args.slug} records evidence for the finished state")
     return 0
 
 
@@ -739,7 +1053,33 @@ def build_parser() -> argparse.ArgumentParser:
     stale_parser.set_defaults(handler=command_stale)
 
     check_parser = subparsers.add_parser("check", help="validate metadata and artifact paths")
+    check_parser.add_argument(
+        "--item",
+        action=SingleItem,
+        type=item_slug,
+        metavar="SLUG",
+        help="check only the work item <work-root>/SLUG/meta.yml",
+    )
     check_parser.set_defaults(handler=command_check)
+
+    new_parser = subparsers.add_parser("new", help="create a valid work item skeleton")
+    new_parser.add_argument("slug", type=item_slug)
+    new_parser.add_argument("--mode", choices=sorted(EXECUTION_MODES), default="personal-feature")
+    new_parser.add_argument("--title")
+    new_parser.add_argument("--no-prd", action="store_true", help="skip the PRD skeleton")
+    new_parser.add_argument("--input", action="append", help="what started this work (typed reference or path); repeatable")
+    new_parser.add_argument("--queued", action="store_true", help="add to the backlog without starting it")
+    new_parser.set_defaults(handler=command_new)
+
+    start_parser = subparsers.add_parser("start", help="move a queued work item to active")
+    start_parser.add_argument("slug", type=item_slug)
+    start_parser.set_defaults(handler=command_start)
+
+    complete_parser = subparsers.add_parser("complete", help="close out a work item and check it")
+    complete_parser.add_argument("slug", type=item_slug)
+    complete_parser.add_argument("--doc", help="the project document this work updated")
+    complete_parser.add_argument("--na", help="why no project document changed (one line)")
+    complete_parser.set_defaults(handler=command_complete)
     return parser
 
 

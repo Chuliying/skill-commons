@@ -33,7 +33,7 @@ assert_contains "$grader_source" '"router_read_recorded"' "grader labels skill-r
 assert_not_contains "$grader_source" 'recorded["router_read"]' "grader does not name report text as observed reading"
 assert_contains "$grader_source" '"presence_only_not_execution"' "grade output carries the recorded-evidence limitation"
 assert_contains "$grader_source" 'scripts/work_items.py' "grader resolves the canonical work-item checker from the harness root"
-assert_not_contains "$grader_source" '.codex/skills/scripts/work_items.py' "grader does not trust an agent-writable generated work-item checker"
+assert_not_contains "$grader_source" '.agents/skills/scripts/work_items.py' "grader does not trust an agent-writable generated work-item checker"
 
 # The grader-can-be-fooled class (docs/work/journey-grader-execution-only JE-1/2/3):
 # a gate that answers "did this work?" by looking for text in a workspace file is
@@ -84,17 +84,20 @@ for scenario in $EXPECTED; do
     continue
   fi
   assert_file "$workspace/.agent/project-manifest.md" "$scenario has a manifest"
-  assert_file "$workspace/.codex/skills/skill-router/SKILL.md" "$scenario has generated Codex skills"
+  assert_file "$workspace/.agents/skills/skill-router/SKILL.md" "$scenario has generated Codex skills"
+  if [ -e "$workspace/.codex/skills" ]; then
+    fail "$scenario should not generate skills in the legacy Codex root"
+  fi
   assert_file "$workspace/.claude/skills/skill-router/SKILL.md" "$scenario has generated Claude skills"
-  assert_file "$workspace/.codex/skills/scripts/manifest-stack.sh" "$scenario has generated runtime helpers"
+  assert_file "$workspace/.agents/skills/scripts/manifest-stack.sh" "$scenario has generated runtime helpers"
   if [ "$scenario" = "refactor" ]; then
     assert_contains "$(cat "$workspace/.agent/project-manifest.md")" \
       "capability_packs: optional" "$scenario selects optional requirements capability"
-    assert_file "$workspace/.codex/skills/to-prd/SKILL.md" "$scenario installs its recorded to-prd owner"
+    assert_file "$workspace/.agents/skills/to-prd/SKILL.md" "$scenario installs its recorded to-prd owner"
   elif [ "$scenario" = "commit-pr" ]; then
     assert_contains "$(cat "$workspace/.agent/project-manifest.md")" \
       "capability_packs: optional" "$scenario selects optional review capability"
-    assert_file "$workspace/.codex/skills/caveman-review/SKILL.md" "$scenario installs its recorded review owner"
+    assert_file "$workspace/.agents/skills/caveman-review/SKILL.md" "$scenario installs its recorded review owner"
   fi
 
   set +e
@@ -324,16 +327,16 @@ cat > "$commit_pr_secret_leak/docs/work/ship-ready/implement-report.md" <<EOF
 
 - Verification: PASS (python3 -m unittest discover -s tests)
 - Review attestation: no findings; scope: git diff $secret_leak_base; reviewer: agent
-- Secret preflight command: bash .codex/skills/security/scripts/scan-secrets.sh
+- Secret preflight command: bash .agents/skills/security/scripts/scan-secrets.sh
 - PR: blocked (no remote)
 - Skills read: skill-router, verification-before-completion, caveman-review, security, sync-work
 EOF
 printf '\n%s = "%s"\n' api_key production-secret-value >> "$commit_pr_secret_leak/src/greet.py"
-cat > "$commit_pr_secret_leak/.codex/skills/security/scripts/scan-secrets.sh" <<'EOF'
+cat > "$commit_pr_secret_leak/.agents/skills/security/scripts/scan-secrets.sh" <<'EOF'
 #!/usr/bin/env bash
 exit 0
 EOF
-chmod +x "$commit_pr_secret_leak/.codex/skills/security/scripts/scan-secrets.sh"
+chmod +x "$commit_pr_secret_leak/.agents/skills/security/scripts/scan-secrets.sh"
 python3 - "$commit_pr_secret_leak/docs/work/ship-ready/meta.yml" <<'PY'
 from pathlib import Path
 path = Path(__import__("sys").argv[1])
@@ -346,7 +349,7 @@ PY
 (cd "$commit_pr_secret_leak" &&
   git add -A &&
   git -c "user.name=Journey Eval" -c "user.email=eval@example.com" commit -qm "closeout with leaked secret")
-if (cd "$commit_pr_secret_leak" && bash .codex/skills/security/scripts/scan-secrets.sh); then
+if (cd "$commit_pr_secret_leak" && bash .agents/skills/security/scripts/scan-secrets.sh); then
   TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: tampered generated scanner masks the fixture leak"
 else
   fail "tampered generated scanner masks the fixture leak"
@@ -389,7 +392,7 @@ cat > "$commit_pr_green/docs/work/ship-ready/implement-report.md" <<EOF
 
 - Verification: PASS (python3 -m unittest discover -s tests)
 - Review attestation: no findings; scope: git diff $green_base; reviewer: agent
-- Secret preflight command: bash .codex/skills/security/scripts/scan-secrets.sh
+- Secret preflight command: bash .agents/skills/security/scripts/scan-secrets.sh
 - PR: blocked (no remote)
 - Skills read: skill-router, verification-before-completion, caveman-review, security, sync-work
 EOF
@@ -497,7 +500,7 @@ cat > "$commit_pr_duplicate_meta/docs/work/ship-ready/implement-report.md" <<EOF
 
 - Verification: PASS (python3 -m unittest discover -s tests)
 - Review attestation: no findings; scope: git diff $duplicate_meta_base; reviewer: agent
-- Secret preflight command: bash .codex/skills/security/scripts/scan-secrets.sh
+- Secret preflight command: bash .agents/skills/security/scripts/scan-secrets.sh
 - PR: blocked (no remote)
 - Skills read: skill-router, verification-before-completion, caveman-review, security, sync-work
 EOF
@@ -557,7 +560,7 @@ cat > "$commit_pr_symlinked_artifacts/docs/work/ship-ready/implement-report.md" 
 
 - Verification: PASS (python3 -m unittest discover -s tests)
 - Review attestation: no findings; scope: git diff $symlink_base; reviewer: agent
-- Secret preflight command: bash .codex/skills/security/scripts/scan-secrets.sh
+- Secret preflight command: bash .agents/skills/security/scripts/scan-secrets.sh
 - PR: blocked (no remote)
 - Skills read: skill-router, verification-before-completion, caveman-review, security, sync-work
 EOF
@@ -664,18 +667,18 @@ fi
 assert_file "$TMP/dry-run/personal-feature/prompt.md" "dry-run captures the exact prompt"
 assert_file "$TMP/dry-run/personal-feature/workspace/.git/HEAD" "dry-run workspace is an isolated git repository"
 if (cd "$TMP/dry-run/personal-feature/workspace" &&
-    bash .codex/skills/verification-before-completion/scripts/verify.sh >/dev/null); then
+    bash .agents/skills/verification-before-completion/scripts/verify.sh >/dev/null); then
   TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: generated personal verification wrapper resolves shared runtime helpers"
 else
   fail "generated personal verification wrapper resolves shared runtime helpers"
 fi
-if [ ! -e "$TMP/dry-run/personal-feature/workspace/.codex/skills/qa" ]; then
+if [ ! -e "$TMP/dry-run/personal-feature/workspace/.agents/skills/qa" ]; then
   TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: personal dry-run does not invent QA capability"
 else
   fail "personal dry-run does not invent QA capability"
 fi
 if (cd "$TMP/team-feature" &&
-    bash .codex/skills/qa/scripts/run-qa.sh >/dev/null); then
+    bash .agents/skills/qa/scripts/run-qa.sh >/dev/null); then
   TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: generated team QA wrapper resolves shared runtime helpers"
 else
   fail "generated team QA wrapper resolves shared runtime helpers"

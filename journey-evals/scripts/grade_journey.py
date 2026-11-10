@@ -250,7 +250,7 @@ def secret_preflight_command_recorded(path: Path) -> bool:
         path,
         evidence_line_pattern(
             r"Secret preflight command:\s*bash\s+"
-            r"\.(?:codex|claude)/skills/security/scripts/scan-secrets\.sh"
+            r"\.(?:agents|codex|claude)/skills/security/scripts/scan-secrets\.sh"
             r"(?:\s+[A-Za-z0-9._/-]+)?\s*$"
         ),
     )

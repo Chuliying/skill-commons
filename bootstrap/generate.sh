@@ -26,6 +26,7 @@ PROFILE_LABEL=""
 PROJECT_ROOT_GUARD="${SKILL_COMMONS_PROJECT_ROOT:-}"
 ADOPT_LEGACY="${SKILL_COMMONS_ADOPT_LEGACY:-0}"
 PREFLIGHT_ONLY="${SKILL_COMMONS_PREFLIGHT_ONLY:-0}"
+REFRESH_IGNORED="${SKILL_COMMONS_REFRESH_IGNORED:-}"
 OWNERSHIP_FILE=".skill-commons-ownership-v1"
 OWNERSHIP_HEADER="skill-commons-ownership-v1"
 
@@ -51,6 +52,7 @@ error() {
 }
 
 . "$HERE/lib/ownership.sh"
+. "$HERE/lib/fanout.sh"
 
 if [ -n "$PROJECT_ROOT_GUARD" ]; then
   [ -d "$PROJECT_ROOT_GUARD" ] || { error "project root does not exist: $PROJECT_ROOT_GUARD"; exit 1; }
@@ -308,8 +310,10 @@ current_manageable_has() {
 
 TEMP_ROOT="$(mktemp -d)"
 LOCK_DIRS=()
+staged_target=""
 cleanup() {
   local lock
+  [ -z "$staged_target" ] || rm -rf -- "$staged_target"
   for lock in ${LOCK_DIRS[@]+"${LOCK_DIRS[@]}"}; do rm -rf -- "$lock"; done
   rm -rf "$TEMP_ROOT"
 }
@@ -341,7 +345,7 @@ done | LC_ALL=C sort >> "$DESIRED_LEDGER"
 for target in "${TARGETS[@]}"; do
   lock_dir="$(ownership_lock_path "$target")"
   if ! mkdir "$lock_dir" 2>/dev/null; then
-    error "generation target is locked: $target ($lock_dir)"
+    error "generation target is locked: $target ($lock_dir). If the process in its pid file has exited, remove the stale lock directory and retry."
     exit 1
   fi
   printf '%s\n' "$$" > "$lock_dir/pid"
@@ -356,6 +360,35 @@ is_legacy_generated_root() {
     grep -Eq '^name:[[:space:]]*skill-router[[:space:]]*$' "$target/skill-router/SKILL.md"
 }
 
+
+preflight_ignored_refresh() {
+  local target="$1" ledger="$2" relative="${1#"$PROJECT_ROOT_GUARD"/}" path kind unit
+  local tracked_paths=("$relative/$OWNERSHIP_FILE" "$FANOUT_STATE")
+  for path in "${DESIRED_PATHS[@]}"; do tracked_paths+=("$relative/$path"); done
+  if [ -f "$ledger" ]; then
+    while IFS=$'\t' read -r kind unit || [ -n "${kind:-}${unit:-}" ]; do
+      [ -z "$unit" ] || tracked_paths+=("$relative/$unit")
+    done < <(tail -n +2 "$ledger")
+  fi
+  local tracked
+  tracked="$(git -C "$PROJECT_ROOT_GUARD" --literal-pathspecs ls-files -- "${tracked_paths[@]}")" || return 1
+  if [ -n "$tracked" ]; then
+    error "generated skill copies are committed or staged; explicitly migrate them first"
+    return 1
+  fi
+
+  {
+    printf '%s\0' "$relative/$OWNERSHIP_FILE" "$FANOUT_STATE"
+    while IFS= read -r -d '' path; do printf '%s/%s\0' "$relative" "${path#./}"; done \
+      < <(cd "$PAYLOAD" && find . ! -type d -print0)
+  } > "$TEMP_ROOT/refresh-paths"
+  git -C "$PROJECT_ROOT_GUARD" check-ignore --no-index -z --stdin \
+    < "$TEMP_ROOT/refresh-paths" > "$TEMP_ROOT/ignored-paths" || true
+  if ! cmp -s "$TEMP_ROOT/refresh-paths" "$TEMP_ROOT/ignored-paths"; then
+    error "the fan-out ignore rules need an explicit update"
+    return 1
+  fi
+}
 
 # Preflight every ledger, owned path, symlink boundary, and unowned collision
 # before changing the first target.
@@ -429,6 +462,16 @@ for target in "${TARGETS[@]}"; do
       fi
     fi
   done
+  if [ "$REFRESH_IGNORED" = 1 ]; then
+    [ -n "$PROJECT_ROOT_GUARD" ] || { error "ignored refresh requires a project root"; exit 1; }
+    preflight_ignored_refresh "$target" "$ledger" || exit 1
+  fi
+  # Explicit consumer onboarding (0) may repair generated drift, but must
+  # preserve files that do not come from the toolkit.
+  if [ -n "$REFRESH_IGNORED" ] && [ -f "$ledger" ]; then
+    validate_fanout_payload "$target" "$ledger" "$ROOT" "$REFRESH_IGNORED" \
+      "$(fanout_previous_revision "$PROJECT_ROOT_GUARD")" "$(fanout_recorded_revision "$PROJECT_ROOT_GUARD" "$ROOT")" || exit 1
+  fi
   preflight_writable_directory "$target" "generation target" || exit 1
   TARGET_MODES+=("$target_mode")
   target_index=$((target_index + 1))
@@ -448,6 +491,10 @@ fi
 target_index=0
 for target in "${TARGETS[@]}"; do
   mkdir -p "$target"
+  # Copy on the target filesystem before removing old units. An interrupted copy
+  # leaves no partial payload at a discovery path that the next run would reject.
+  staged_target="$(mktemp -d "$target/.skill-commons-stage.XXXXXX")"
+  cp -R "$PAYLOAD/." "$staged_target/"
   ledger="$target/$OWNERSHIP_FILE"
   target_mode="${TARGET_MODES[$target_index]}"
   if [ "$target_mode" = ledger ]; then
@@ -474,12 +521,10 @@ for target in "${TARGETS[@]}"; do
     relative="${DESIRED_PATHS[$i]}"
     destination="$target/$relative"
     mkdir -p "$(dirname "$destination")"
-    if [ "${DESIRED_KINDS[$i]}" = D ]; then
-      cp -R "$PAYLOAD/$relative" "$destination"
-    else
-      cp "$PAYLOAD/$relative" "$destination"
-    fi
+    mv "$staged_target/$relative" "$destination"
   done
+  rm -rf -- "$staged_target"
+  staged_target=""
   ledger_tmp="$(mktemp "$target/$OWNERSHIP_FILE.tmp.XXXXXX")"
   [ -f "$ledger_tmp" ] && [ ! -L "$ledger_tmp" ] || { error "failed to create a regular ledger temp file: $ledger_tmp"; exit 1; }
   cp "$DESIRED_LEDGER" "$ledger_tmp"

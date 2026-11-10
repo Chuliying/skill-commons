@@ -24,31 +24,31 @@ commit_as() { # name email msg
 
 commit_as "Exporter" "exporter@example.com" "baseline"
 BASE="$(git -C "$FIXTURE" rev-parse HEAD)"
-commit_as "Renee Wang" "renee@example.com" "feat: one"
+commit_as "Jordan Lin" "jordan@example.com" "feat: one"
 commit_as "Alex Chen" "alex@example.com" "fix: two"
-commit_as "Renee Wang" "renee@example.com" "feat: three"
+commit_as "Jordan Lin" "jordan@example.com" "feat: three"
 commit_as "Exporter" "exporter@example.com" "chore: self"
 MID="$(git -C "$FIXTURE" rev-parse HEAD)"
 commit_as "Casey Liu" "casey@example.com" "docs: four"
 
 # Full range since baseline: both colleagues once each, self excluded.
 out="$(bash "$SCRIPT" -C "$FIXTURE" "$BASE")"
-assert_contains "$out" "Co-authored-by: Renee Wang <renee@example.com>" "colleague author becomes a trailer"
+assert_contains "$out" "Co-authored-by: Jordan Lin <jordan@example.com>" "colleague author becomes a trailer"
 assert_contains "$out" "Co-authored-by: Alex Chen <alex@example.com>" "second colleague becomes a trailer"
 assert_contains "$out" "Co-authored-by: Casey Liu <casey@example.com>" "post-mid colleague included up to HEAD"
 assert_not_contains "$out" "exporter@example.com" "exporting author is excluded by default"
-renee_count="$(printf '%s\n' "$out" | grep -c "renee@example.com")"
-assert_eq "1" "$renee_count" "repeat author is deduplicated to one trailer"
+jordan_count="$(printf '%s\n' "$out" | grep -c "jordan@example.com")"
+assert_eq "1" "$jordan_count" "repeat author is deduplicated to one trailer"
 
 # Bounded range: until stops before Casey's commit.
 bounded="$(bash "$SCRIPT" -C "$FIXTURE" "$BASE" "$MID")"
 assert_not_contains "$bounded" "casey@example.com" "until ref bounds the scanned range"
-assert_contains "$bounded" "renee@example.com" "bounded range still reports in-range authors"
+assert_contains "$bounded" "jordan@example.com" "bounded range still reports in-range authors"
 
 # Extra exclusion drops a listed colleague.
 pruned="$(bash "$SCRIPT" -C "$FIXTURE" --exclude "alex@example.com" "$BASE")"
 assert_not_contains "$pruned" "alex@example.com" "--exclude removes the given email"
-assert_contains "$pruned" "renee@example.com" "--exclude leaves other authors intact"
+assert_contains "$pruned" "jordan@example.com" "--exclude leaves other authors intact"
 
 # Empty range: no output, success exit.
 empty="$(bash "$SCRIPT" -C "$FIXTURE" HEAD HEAD)"

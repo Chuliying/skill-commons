@@ -84,6 +84,85 @@ get_capability_packs() {
   printf '%s' "$(printf '%s' "$v" | tr ',' ' ' | xargs)"
 }
 
+derive_scope_roots() {
+  # $1 = project root. Prints "<source_roots>|<tests_root>" from tracked top-level
+  # directories with conventional names; an empty side means no candidate was found.
+  local root="$1" dirs name src="" tst=""
+  dirs="$(git -C "$root" ls-files 2>/dev/null | awk -F/ 'NF > 1 { print $1 }' | sort -u)"
+  [ -n "$dirs" ] || dirs="$(cd "$root" && find . -mindepth 1 -maxdepth 1 -type d ! -name '.*' | sed 's#^\./##' | sort)"
+  for name in src app lib api server client packages cmd internal pages components; do
+    printf '%s\n' "$dirs" | grep -qx "$name" && src="${src:+$src,}$name"
+  done
+  for name in tests test __tests__ spec e2e; do
+    printf '%s\n' "$dirs" | grep -qx "$name" && tst="${tst:+$tst,}$name"
+  done
+  printf '%s|%s' "$src" "$tst"
+}
+
+scope_coverage() {
+  # $1 = project root, $2 = comma-separated roots. Prints "<code files under roots> <all code files>".
+  local root="$1" roots="$2" files
+  files="$(git -C "$root" ls-files 2>/dev/null | grep -E '\.(py|js|jsx|ts|tsx|mjs|cjs|go|rs|rb|java|kt|swift|c|cc|cpp|h|hpp|cs|php|vue|svelte|ex|exs|scala|sh)$')"
+  ROOTS="$roots" python3 -c '
+import os, sys
+roots = [r for r in os.environ["ROOTS"].split(",") if r]
+files = [f for f in sys.stdin.read().splitlines() if f]
+inside = sum(1 for f in files if any(f == r or f.startswith(r + "/") for r in roots))
+print(inside, len(files))' <<< "$files"
+}
+
+derive_test_cmd() {
+  # $1 = project root. Prints a test command from conventional project files, or nothing.
+  # Order: a real package.json test script, Go, Rust, pytest configuration, unittest-style
+  # test files, then a Makefile test target.
+  local root="$1" files script runner
+  files="$(git -C "$root" ls-files 2>/dev/null)"
+  [ -n "$files" ] || files="$(cd "$root" && find . -type f ! -path './.git/*' ! -path '*/node_modules/*' | sed 's#^\./##')"
+  if [ -f "$root/package.json" ]; then
+    script="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("scripts",{}).get("test",""))' "$root/package.json" 2>/dev/null)"
+    if [ -n "$script" ] && ! printf '%s' "$script" | grep -q 'no test specified'; then
+      runner=npm
+      [ -f "$root/pnpm-lock.yaml" ] && runner=pnpm
+      [ -f "$root/yarn.lock" ] && runner=yarn
+      [ -f "$root/bun.lockb" ] || [ -f "$root/bun.lock" ] && runner=bun
+      printf '%s test' "$runner"; return 0
+    fi
+  fi
+  [ -f "$root/go.mod" ] && { printf 'go test ./...'; return 0; }
+  [ -f "$root/Cargo.toml" ] && { printf 'cargo test'; return 0; }
+  if [ -f "$root/pytest.ini" ] || [ -f "$root/conftest.py" ] \
+     || grep -qs '^\[tool\.pytest' "$root/pyproject.toml" || grep -qs '^\[tool:pytest\]' "$root/setup.cfg"; then
+    printf 'python3 -m pytest'; return 0
+  fi
+  if printf '%s\n' "$files" | grep -Eq '^test_[^/]*\.py$'; then
+    printf 'python3 -m unittest'; return 0
+  fi
+  if printf '%s\n' "$files" | grep -Eq '^tests/(.*/)?test_[^/]*\.py$'; then
+    printf 'python3 -m unittest discover -s tests'; return 0
+  fi
+  if [ -f "$root/Makefile" ] && grep -Eq '^test:' "$root/Makefile"; then
+    printf 'make test'; return 0
+  fi
+  return 0
+}
+
+report_missing_selection() {
+  # An existing manifest that predates skill-commons lacks the selection keys. Name every
+  # missing key at once, with lines to paste, instead of failing on one key per run.
+  local manifest="$1" platforms="$2" legacy="$3" mode="$4" missing=()
+  [ -n "$platforms" ] || { echo "platform selection is required" >&2; missing+=("- platforms: codex"); }
+  if [ -z "$legacy" ] && [ -z "$mode" ]; then
+    echo "delivery mode is required" >&2
+    missing+=("- delivery_mode: personal")
+  fi
+  [ "${#missing[@]}" -eq 0 ] && return 0
+  echo "add these lines to $manifest, then run the same command again:" >&2
+  printf '%s\n' "${missing[@]}" "- capability_packs: optional" >&2
+  echo "platforms: any of claude-code, cursor, codex. delivery_mode: personal or team-sprint." >&2
+  echo "capability_packs is recommended: optional adds to-prd and the onboarder." >&2
+  return 2
+}
+
 validate_platform_selection() {
   local value="$1" token seen="" tokens=()
   [ -n "$value" ] || { echo "platform selection is required" >&2; return 2; }

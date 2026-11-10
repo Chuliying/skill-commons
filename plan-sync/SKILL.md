@@ -79,10 +79,17 @@ records under `#### Verification Evidence`:
 - PASS | external:ci-run-123 | bash tests/test_feature.sh
 ```
 
+An optional `| covers: prd.md#AC-002` must exist.
+
 Verification text and evidence command must match; result is PASS with a durable
 local/external reference. Plan Sync validates reference, shape, and consistency only;
 it never executes checks or turns an authored PASS into behavioral proof. Release
 confidence needs separately executed verification.
+
+One observation proves one claim: an `external:` reference, or a `local:` file the
+command does not name, cannot back different claims in different tasks. Stage reports
+(`implement-report.md`, `qa-report.md`, `gate-package.md`) log separate runs and are
+exempt. The name check is a speed bump.
 
 States: `pending`, `in_progress`, `blocked`, `needs_review`, `done`, `superseded`.
 `Concurrency` limits active tasks; dependency-ready work determines the next action.

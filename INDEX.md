@@ -28,7 +28,7 @@ profiles. Do not infer cost or quality from a hand-maintained skill count.
 
 The 7-owner core in the checked profiles is released in `v0.10.0`, with
 `sync-work` as the sole Git-delivery owner. Consumers that still need the legacy
-13-owner core remain pinned to `v0.7.1`. `v0.12.0` personal users select
+13-owner core remain pinned to `v0.7.1`. `v0.13.0` personal users select
 `CAPABILITY_PACKS=optional` for discovery, PRD, review, and onboarding owners.
 This membership change makes no effectiveness or quality claim.
 
@@ -72,10 +72,10 @@ an adaptable [template](sync-work/assets/project-brief-template.md), and
 ## Router flows
 
 ```text
-探索 → 建造 → 發布
+Explore → Build → Release
         ↑
-修錯 ──┘
-理解（read-only / optional utility）
+Fix ────┘
+Understand（read-only / optional utility）
 ```
 
 Execution modes, conditional artifacts, and the three workflow human decisions

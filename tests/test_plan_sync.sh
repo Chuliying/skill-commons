@@ -346,6 +346,83 @@ set -e
 assert_neq "0" "$user_evidence_rc" "done task rejects user assertion as execution evidence"
 assert_contains "$user_evidence_output" "cannot use a user reference" "user evidence rejection is actionable"
 
+# One external observation must not prove different claims in different tasks: the
+# mobile-workbench plan once cited one user reply for three unrelated claims and passed.
+# A shared observation for the same claim, a distinct reference per claim, and local files
+# that each claim's command can re-inspect stay valid.
+cross_fixture() { # root T01-evidence T02-command T02-evidence [T01-command]
+  cp -R "$CANONICAL_WORKSPACE" "$1"
+  local plan="$1/docs/work/canonical/plan/plan.md"
+  if [ -n "${5:-}" ]; then perl -0pi -e "s{Run the prerequisite check\.}{$5}g" "$plan"; fi
+  perl -0pi -e "s{- PASS \| local:\.\./evidence\.md#T01-PASS \|}{- PASS | $2 |}" "$plan"
+  perl -0pi -e "s{- Run the final check\.\n\n## Change Log}{- $3\n\n#### Verification Evidence\n- PASS | $4 | $3\n\n## Change Log}" "$plan"
+  printf '%s' "$1/docs/work/canonical/plan"
+}
+CROSS_REUSE_PLAN="$(cross_fixture "$TMP/cross-external" "external:https://example.com/reply/1" "Run the final check." "external:https://example.com/reply/1")"
+set +e
+cross_reuse_output="$(python3 "$REPO/plan-sync/scripts/validate_consistency.py" --plan-dir "$CROSS_REUSE_PLAN" 2>&1)"
+cross_reuse_rc=$?
+set -e
+assert_neq "0" "$cross_reuse_rc" "one external observation cannot prove different claims across tasks"
+assert_contains "$cross_reuse_output" "different claims" "cross-task evidence reuse error is actionable"
+assert_contains "$cross_reuse_output" "T01, T02" "cross-task reuse error names both tasks"
+
+# A saved observation (a reply or log copied into the repo) is not re-inspected by a
+# command that does not name it, so it gets the same rule as an external reference.
+LOCAL_OBS_PLAN="$(cross_fixture "$TMP/cross-local-observation" "local:../evidence.md#T01-PASS" "Run the final check." "local:../evidence.md#T01-PASS")"
+set +e
+local_obs_output="$(python3 "$REPO/plan-sync/scripts/validate_consistency.py" --plan-dir "$LOCAL_OBS_PLAN" 2>&1)"
+local_obs_rc=$?
+set -e
+assert_neq "0" "$local_obs_rc" "a saved local observation cannot prove different claims across tasks"
+assert_contains "$local_obs_output" "different claims" "local observation reuse error is actionable"
+
+for case in \
+  "distinct|external:https://example.com/reply/1|Run the final check.|external:https://example.com/reply/2|a distinct external reference per claim stays valid" \
+  "shared|external:https://example.com/run/1|Run the prerequisite check.|external:https://example.com/run/1|one observation may back the same claim in several tasks" \
+  "local|local:../evidence.md#T01-PASS|Run grep T02-PASS evidence.md.|local:../evidence.md#T01-PASS|a local file named by each claim's command may back different claims|Run grep T01-PASS evidence.md." \
+  "ledger|local:../implement-report.md|Run the final check.|local:../implement-report.md|a stage report ledger may back different claims (each line records its own run)" ; do
+  IFS='|' read -r name ev1 cmd2 ev2 label cmd1 <<<"$case"
+  plan_dir="$(cross_fixture "$TMP/cross-$name" "$ev1" "$cmd2" "$ev2" "${cmd1:-}")"
+  [ -f "$plan_dir/../implement-report.md" ] || printf '# Implement Report\n' >"$plan_dir/../implement-report.md"
+  if python3 "$REPO/plan-sync/scripts/validate_consistency.py" --plan-dir "$plan_dir" >/dev/null 2>&1; then
+    TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: $label"
+  else
+    fail "$label"
+  fi
+done
+
+# T05: an evidence line may name the acceptance segments it covers. The old three-part
+# line stays valid, and a command containing ` | ` (a shell pipe) still parses as before.
+covers_case() { # name evidence-tail expect(0|nonzero) label
+  local root="$TMP/covers-$1"
+  cp -R "$CANONICAL_WORKSPACE" "$root"
+  printf '# PRD\n\n### AC-001: Sort\nNewest first.\n' > "$root/docs/work/canonical/prd.md"
+  perl -0pi -e "s{- PASS \| local:\.\./evidence\.md#T01-PASS \| Run the prerequisite check\.}{- PASS | local:../evidence.md#T01-PASS | Run the prerequisite check.$2}" "$root/docs/work/canonical/plan/plan.md"
+  local rc=0
+  python3 "${VALIDATOR:-$REPO/plan-sync/scripts/validate_consistency.py}" --plan-dir "$root/docs/work/canonical/plan" >"$root.out" 2>&1 || rc=$?
+  if { [ "$3" = 0 ] && [ "$rc" = 0 ]; } || { [ "$3" != 0 ] && [ "$rc" != 0 ]; }; then
+    TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: $4"
+  else
+    fail "$4 (rc=$rc: $(head -3 "$root.out"))"
+  fi
+}
+covers_case present " | covers: prd.md#AC-001" 0 "evidence may name an acceptance segment it covers"
+covers_case missing " | covers: prd.md#AC-404" 1 "a covered segment must exist"
+covers_case escape " | covers: ../x.md#AC-001" 1 "a covered segment must stay inside the work item"
+covers_case several " | covers: prd.md#AC-001, prd.md#AC-001" 0 "covers accepts a comma-separated list"
+if [ -f "$REPO/.claude/skills/plan-sync/scripts/validate_consistency.py" ]; then
+  VALIDATOR="$REPO/.claude/skills/plan-sync/scripts/validate_consistency.py" covers_case fanned " | covers: prd.md#AC-001" 0 "the generated plan-sync copy finds the shared segment rule"
+fi
+PIPE_ROOT="$TMP/covers-pipe"
+cp -R "$CANONICAL_WORKSPACE" "$PIPE_ROOT"
+perl -0pi -e 's{Run the prerequisite check\.}{grep T01 evidence.md | wc -l}g' "$PIPE_ROOT/docs/work/canonical/plan/plan.md"
+if python3 "$REPO/plan-sync/scripts/validate_consistency.py" --plan-dir "$PIPE_ROOT/docs/work/canonical/plan" >/dev/null 2>&1; then
+  TESTS_PASS=$((TESTS_PASS+1)); echo "  ok: a command with a shell pipe still parses as three parts"
+else
+  fail "a command with a shell pipe still parses as three parts"
+fi
+
 INVALID_CONCURRENCY_ROOT="$TMP/canonical-invalid-concurrency"
 cp -R "$CANONICAL_WORKSPACE" "$INVALID_CONCURRENCY_ROOT"
 INVALID_CONCURRENCY_PLAN="$INVALID_CONCURRENCY_ROOT/docs/work/canonical/plan"

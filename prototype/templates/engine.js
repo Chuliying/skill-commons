@@ -45,8 +45,12 @@ function switchScenario(sid, navEl) {
 }
 
 function goTo(sid, stepId) {
+  // 先確認目標 frame 在該 scenario panel 內再改任何狀態；找不到就保留目前畫面並丟出錯誤。
   var panel = document.getElementById(PANEL_MAP[sid]);
-  if (!panel) return;
+  var el = document.getElementById(sid + '-' + stepId);
+  if (!panel || !el || !panel.contains(el)) {
+    throw new Error('goTo: no frame ' + sid + '-' + stepId + ' in scenario ' + sid);
+  }
   panel.querySelectorAll('.c-flow-frame').forEach(function(f) { f.classList.remove('is-active'); });
   panel.querySelectorAll('.c-confirm-dialog-overlay').forEach(function(d) { d.classList.remove('is-open'); d.style.display = 'none'; });
   panel.querySelectorAll('.c-payment-selector-overlay').forEach(function(d) { d.classList.remove('is-open'); d.style.display = 'none'; });
@@ -61,14 +65,10 @@ function goTo(sid, stepId) {
       backStep: page.backStep,
       nextStep: page.nextStep
     });
-    var frameEl = document.getElementById(sid + '-' + stepId);
-    if (frameEl) {
-      frameEl.innerHTML = FRAME_REGISTRY[page.frameRef](ctx);
-    }
+    el.innerHTML = FRAME_REGISTRY[page.frameRef](ctx);
   }
 
-  var el = document.getElementById(sid + '-' + stepId);
-  if (el) el.classList.add('is-active');
+  el.classList.add('is-active');
 
   if (sid !== currentScenario) {
     document.querySelectorAll('.l-scenario-panel').forEach(function(p) { p.classList.remove('is-active'); });

@@ -1,6 +1,6 @@
 # Team feature journey
 
-Read `AGENTS.md`, then read `.codex/skills/skill-router/SKILL.md` or `.claude/skills/skill-router/SKILL.md` for your harness. Follow the router and read every dispatched skill before editing.
+Read `AGENTS.md`, then read `.agents/skills/skill-router/SKILL.md` or `.claude/skills/skill-router/SKILL.md` for your harness. Follow the router and read every dispatched skill before editing.
 
 Add an optional `prefix` argument to `src/greet.py:greet`. Default behavior remains `hello Codex`; `greet("Codex", prefix="welcome")` returns `welcome Codex`. The product requirement, PRD approval, and team design approval are granted if the default is backward compatible, the function remains CLI-only, and tests cover both paths. Manifest capabilities are authoritative: do not invent UI, API, typed-contract, or E2E assets.
 

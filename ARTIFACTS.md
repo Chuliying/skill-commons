@@ -38,7 +38,7 @@ title: <one-line title>
 created_at: <ISO-8601 timestamp>
 updated_at: <ISO-8601 timestamp>
 execution_mode: team-feature | personal-feature | refactor | bug-fix
-work_status: active | completed | abandoned
+work_status: queued | active | completed | abandoned
 delivery_status: not_requested | awaiting_approval | approved | pr_created | merged | deployed
 documentation_impact: doc:<workspace-relative project document> | n/a:<bounded reason>
 stages:
@@ -109,6 +109,56 @@ Evidence is required only after the corresponding event actually occurs:
 plain claims such as `yes` are invalid. `deployment_id` is a non-boolean opaque
 provider identifier of at least six characters. These are shape checks, not proof
 that the external approval or deployment occurred.
+
+### Allowed scope
+
+`allowed_paths` in `meta.yml` is an optional comma-separated list on one line of
+project-relative globs (`**` crosses folders, `*` does not, a trailing `/` or the bare name of
+an existing folder means everything under it, `./` is ignored; no quotes or `#` comments).
+`work-items.sh new` records `base_commit`, and `start` replaces it for a queued item.
+`verify.sh --work-item` records the files changed outside the list since `base_commit` in
+`verification.json`, and `project-status` recomputes them when it reads the item: committed
+changes (deletions and both sides of a rename count), excluding commits already on the default
+branch (`origin/HEAD`, `origin/main`, `origin/master`, `main`, `master`), plus uncommitted
+changes. The work root and generated agent folders are always allowed; files Git ignores are
+never seen; uncommitted caches are ignored, and a committed cache is always listed. A change
+outside the list needs attention and fails `--strict`. On the default branch itself nothing is
+excluded, so commits pulled from others count, and the status says so. `base_commit..HEAD` is
+one range per branch: with more than one item that declares `allowed_paths` on it (active, or
+completed and undelivered), each list is shown but is not attention on its own. Without
+`base_commit`, or when it no longer resolves or is not an ancestor of HEAD after a rebase, only
+uncommitted changes are checked and the status says so.
+
+### Backlog and activity
+
+`work_status: queued` is a backlog item: `work-items.sh new <slug> --queued` creates it and
+`work-items.sh start <slug>` makes it `active`. Queued items are listed but do not count as
+active work. Commands append one line to the item's `activity.jsonl` after they succeed (`new`,
+`start`, `complete`, `verify.sh --work-item`, `approve`, `reaffirm`): time, event, result, and
+the AI tools and sessions the environment reports. `project-status.sh --ledger` shows one row
+per item (add `--json` or `--markdown`). Session ids are what the agent environment reports, not
+identity; set `SKILL_COMMONS_SESSION=none` to record tools and time without them.
+
+### Content-bound evidence and approval
+
+`verify.sh --work-item <slug>` writes `verification.json` in the item: the result, a
+fingerprint of the verified files and of the acceptance segments it covers
+(`--covers prd.md#AC-002`; by default every `AC-` segment in `prd.md` and `spec.md`).
+`verification_evidence.py approve --work-item <slug>` writes
+`approval.json`, binding the approval to the same segments; `approval_ref` may point
+to it as `local:approval.json`. The approval records how it was obtained: `terminal`
+(a person typed `yes` at `/dev/tty` with no agent variable set) or `agent-reported`
+(`--agent-reported` with `--quote` or `--reason`, for a person with no shell on the
+checkout). Approvals written before these levels show `recorded before levels`. A
+typed `approval_ref: user:...` string in `meta.yml` carries no level; prefer
+`local:approval.json`. Approvals written after an upgrade need the upgraded submodule
+in every checkout that reads them. Editing a bound segment makes the evidence or approval
+stale in `project-status`; whitespace and punctuation do not count. `reaffirm --ref
+<file>#<ID> --reason <why>` accepts an edited segment as meaning the same and is shown
+as a count; code has no such exemption. Agents write these files only through these
+commands. `--by` names who approved, and the level says how the approval was obtained;
+neither is identity verification. Reaffirming an approved segment needs the same
+confirmation as `approve`.
 
 `not_requested` and `awaiting_approval` carry no delivery evidence. Every state
 after `not_requested` requires `work_status: completed`; abandoned work stays at
@@ -191,10 +241,12 @@ Rules:
 
 Use `bash scripts/work-items.sh [--work-root <path>] <command>` to consume status:
 
-- `list [--status active|completed|abandoned]` lists current work items by work status.
+- `list [--status queued|active|completed|abandoned]` lists current work items by work status.
 - `stale [--days N]` lists only `active` items whose `updated_at` is older than N days.
 - `check` validates required metadata fields, work and delivery states, delivery
   evidence, stage values, timestamps, slug-directory alignment, and stage artifact paths.
+  `check --item <slug>` checks only `<work_root>/<slug>/meta.yml` and fails when it is
+  missing; a work root that itself contains `meta.yml` is a work item and is refused.
 
 The default retention period is a consuming-repository decision. After that period,
 a `completed` or `abandoned` work item may be deleted as a whole because Git remains

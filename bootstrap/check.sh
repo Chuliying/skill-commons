@@ -31,7 +31,7 @@ add_warn() { warnings="${warnings}⚠️ $1
 
 # Check 1: submodule initialized (directive present & non-empty)
 if [ ! -s "$DIRECTIVE" ]; then
-  add_warn "skill-commons submodule 未初始化,請執行: git submodule update --init"
+  add_warn "skill-commons submodule is not initialized; run: git submodule update --init"
   emit "$PLATFORM" "" "$warnings"
   exit 0
 fi
@@ -204,10 +204,35 @@ source_health_check() {
   rm -rf -- "$health_tmp"
 }
 
+# Consumer refresh writes only ignored copies and local state. If the pinned toolkit
+# is not checked out, warn before consulting its fan-out state or generating anything.
+if [ "$is_toolkit_source" -ne 1 ]; then
+  . "$HERE/lib/fanout.sh"
+  recorded="$(fanout_recorded_revision "$proj_root_abs" "$toolkit_root")"
+  current="$(git -C "$toolkit_root" rev-parse HEAD 2>/dev/null || true)"
+  if [ -n "$recorded" ] && [ "$recorded" != "$current" ]; then
+    add_warn "the skill-commons submodule is not at the commit this repository records; run: git submodule update --init (or commit the submodule update if you made it)"
+  elif [ -f "$shim" ] && grep -qF "skill-commons-stamp: $stamp" "$shim"; then
+    . "$HERE/lib/manifest.sh"
+    fanout_platforms="$(get_explicit_platforms "$PROJECT_ROOT/.agent/project-manifest.md" 2>/dev/null | tr ',' ' ')"
+    if [ -n "$(fanout_roots "$fanout_platforms")" ] &&
+        fanout_needs_regeneration "$PROJECT_ROOT" "$fanout_platforms" "$(fanout_signature "$toolkit_root" "$stamp")"; then
+      if fanout_log="$(mktemp 2>/dev/null)"; then
+        if ! bash "$HERE/onboard.sh" --refresh-ignored "$proj_root_abs" </dev/null >/dev/null 2>"$fanout_log"; then
+          add_warn "could not regenerate the skill copies ($(head -n 2 "$fanout_log" | tr '\n' ' ')); run: bash <submodule>/bootstrap/onboard.sh"
+        fi
+        rm -f -- "$fanout_log"
+      else
+        add_warn "could not create a temporary log for skill regeneration; run: bash <submodule>/bootstrap/onboard.sh"
+      fi
+    fi
+  fi
+fi
+
 # Check 3: platform coverage
 if [ ! -f "$shim" ]; then
   if [ "$is_toolkit_source" -ne 1 ]; then
-    add_warn "缺少 $shim,請執行: bash <submodule>/bootstrap/onboard.sh"
+    add_warn "$shim is missing; run: bash <submodule>/bootstrap/onboard.sh"
   fi
 else
   # Check 2: drift or not-onboarded
@@ -217,10 +242,10 @@ else
     # Exempt the toolkit source repo: it owns bootstrap and does not consume
     # itself, so its own sessions must not be nagged.
     if [ "$is_toolkit_source" -ne 1 ]; then
-      add_warn "$shim 缺少 skill-commons managed stamp(未 onboard),請執行: bash <submodule>/bootstrap/onboard.sh"
+      add_warn "$shim has no skill-commons managed stamp (not onboarded); run: bash <submodule>/bootstrap/onboard.sh"
     fi
   elif [ "$embedded" != "$stamp" ]; then
-    add_warn "設定已過期 (stamp ${embedded} ≠ ${stamp}),請執行: bash <submodule>/bootstrap/onboard.sh"
+    add_warn "configuration is out of date (stamp ${embedded} ≠ ${stamp}); run: bash <submodule>/bootstrap/onboard.sh"
   fi
 fi
 
@@ -232,7 +257,7 @@ fi
 # Point its emitted context at source paths that actually exist, then return
 # before the consumer-only substitution below.
 if [ "$is_toolkit_source" -eq 1 ]; then
-  directive_body=$'本專案是 skill-commons maintainer source checkout。\n\n任何開發任務(PRD、技術 spec、QA 方案、功能實作、除錯、code review),必須先讀取 `./skill-router/SKILL.md`,並依其「任務類型判斷表」載入對應 skill,再開始動作。\n\nsession 開始時請先執行 `bash ./bootstrap/check.sh --project-root .` 確認 source health;若出現警告,依指示修正後再繼續。'
+  directive_body=$'本專案是 skill-commons maintainer source checkout。\n\n任何開發任務(PRD、技術 spec、QA 方案、功能實作、除錯、code review),必須先讀取 `./skill-router/SKILL.md`,並依其「Task routing table」載入對應 skill,再開始動作。\n\nsession 開始時請先執行 `bash ./bootstrap/check.sh --project-root .` 確認 source health;若出現警告,依指示修正後再繼續。'
   emit "$PLATFORM" "$directive_body" "$warnings"
   exit 0
 fi

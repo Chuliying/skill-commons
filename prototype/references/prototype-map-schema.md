@@ -31,8 +31,10 @@ AC ID 用於需求追蹤；同一需求可對應多個頁面。
 
 V2 `type` 為 surface（省略時預設）或 flow-step。Flow-step 有非空 flowId，
 同 flowId 的所有 pages 都在同一 route；surface 不帶 flowId。
-backStep／nextStep 若提供則引用既有 page。Routes 的 insertion order 與各 route 的
-pages 陣列決定導覽順序；不要為 canonicalization 排序 route keys。
+backStep／nextStep 若提供，目標必須是既有 page，而且包含此 page 的每個 route
+都要包含目標。Frame 以 `goTo(ctx.sid, ctx.nextStep)` 在目前 route 內換頁；engine
+找不到該 route 的目標 frame 時丟出錯誤並保留目前畫面。Routes 的 insertion order
+與各 route 的 pages 陣列決定導覽順序；不要為 canonicalization 排序 route keys。
 
 ## 最小 v2 範例
 
@@ -69,6 +71,15 @@ Scenario-state JSON 的 keys 必須等於 routes keys；每個值為 object，�
 建立 SCENARIO_TITLES、NAV_PATH、STEPS、STEPPER_LABELS、PANEL_MAP、AC_DATA。
 AC_DATA 直接引用 map pages 的 acs。模型只編寫 FRAME_REGISTRY，不重寫這些 projection。
 
+runtime-data.js 在 frames.js 載入前深度凍結 PROTOTYPE_MAP 與這些 projection，
+全域名稱也不能重新指定。Frame 要調整資料就先複製；直接寫入在 sloppy mode 會被忽略，
+在 strict mode 或用 push 等陣列方法會丟出 TypeError。SCENARIO_STATE 保持可寫，
+是 frame 在步驟之間保存輸入的 runtime 狀態。
+
+凍結範圍只到嵌入的 map 與其 projection。frames.js 仍是任意 JavaScript，可以改 DOM
+與執行行為，例如替換 engine 函式、在 Object.prototype 加欄位、預填 localStorage 的
+AC 勾選；畫面與匯出的確認報告仍要在瀏覽器核對。
+
 ## 驗證邊界與遷移
 
 - Coverage 只做數值範圍檢查；PRD → AC 語意映射仍在 G4 的 coverage.md。
@@ -76,6 +87,10 @@ AC_DATA 直接引用 map pages 的 acs。模型只編寫 FRAME_REGISTRY，不重
 - Frames.js、component-library CSS 是可變輸入；固定模板完整性不證明這些輸入安全或正確。
 - 舊的手寫 shell／DATA_JS 需先保留原來源，再抽出 frames.js 與 state，使用 G5 產生程式。
   只遷移當前正在維護的 bundle，不掃描改寫歷史原型。
+- 舊 map 的 backStep／nextStep 若目標不在包含該 page 的每個 route，validate-map、bundle
+  產生與 verify-freeze 都會拒絕，v1 也一樣。依 [G4](gates/G4-freeze.md) 另存新 map 版本：
+  把目標 page 加進缺少它的 route、移除該欄位，或讓各 route 使用各自的 page；只重新產生
+  bundle 不能通過。
 
 ```text
 <artifact-dir>/

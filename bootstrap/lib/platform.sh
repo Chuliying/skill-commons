@@ -2,6 +2,8 @@
 
 detect_platform() {
   # Best-effort fallback only; generated artifacts pass --platform explicitly.
+  # Picks one install target. scripts/activity.py AGENT_VARS lists every variable it records
+  # and gates approval on; keep the two in step when a tool adds a variable.
   if [ -n "${CURSOR_TRACE_ID:-}${CURSOR_PLUGIN_ROOT:-}" ]; then echo "cursor"; return; fi
   if [ -n "${CLAUDECODE:-}${CLAUDE_PLUGIN_ROOT:-}${CLAUDE_CODE_ENTRYPOINT:-}" ]; then echo "claude-code"; return; fi
   if [ -n "${CODEX_SANDBOX:-}${CODEX_HOME:-}" ]; then echo "codex"; return; fi

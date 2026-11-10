@@ -7,238 +7,280 @@
     "required_read_bytes",
     "total_with_on_demand_bytes"
   ],
-  "entry_budget_amendment": {
-    "changes": {
-      "claude-code": {
-        "current_entry_bytes": 1971,
-        "delta_bytes": 567,
-        "previous_entry_bytes": 1404
+  "entry_budget_amendments": [
+    {
+      "changes": {
+        "claude-code": {
+          "current_entry_bytes": 1971,
+          "delta_bytes": 567,
+          "previous_entry_bytes": 1404
+        },
+        "codex": {
+          "current_entry_bytes": 1175,
+          "delta_bytes": 263,
+          "previous_entry_bytes": 912
+        }
       },
-      "codex": {
-        "current_entry_bytes": 1175,
-        "delta_bytes": 263,
-        "previous_entry_bytes": 912
-      }
+      "date": "2026-09-06",
+      "reason": "Integrate dev-main 381111e focused/release/cache instructions and explicit source/public CI explanation. Only entry bytes and their derived totals change; description/router/registry ceilings stay fixed."
     },
-    "date": "2026-09-06",
-    "reason": "Integrate dev-main 381111e focused/release/cache instructions and explicit source/public CI explanation. Only entry bytes and their derived totals change; description/router/registry ceilings stay fixed."
-  },
+    {
+      "changes": {
+        "cursor": {
+          "current_entry_bytes": 919,
+          "delta_bytes": 308,
+          "previous_entry_bytes": 611
+        }
+      },
+      "date": "2026-10-30",
+      "reason": "skill-commons-positioning T07: the consumer directive gains a command card (new work item, verify, status, approve, close out) so an agent can start without reading ARTIFACTS.md and prd-template.md (competitor test round 2, criterion D: 8 documents before the first task). Only the Cursor rows measure bootstrap/directive.md; description, router and registry ceilings stay fixed. After the T07 review the card also names the close-out command and keeps the session check.sh line for agents without a hook."
+    },
+    {
+      "changes": {
+        "cursor": {
+          "current_entry_bytes": 988,
+          "delta_bytes": 69,
+          "previous_entry_bytes": 919
+        }
+      },
+      "date": "2026-10-31",
+      "reason": "skill-commons-positioning T08: the command card names the ledger (`project-status.sh --ledger`) and the backlog commands (`new --queued`, `start`), the owner's layer-1 status list. Only the Cursor rows measure bootstrap/directive.md."
+    }
+  ],
+  "registry_budget_amendments": [
+    {
+      "current_registry_bytes": 6120,
+      "date": "2026-10-31",
+      "delta_bytes": 36,
+      "previous_registry_bytes": 6084,
+      "reason": "skill-commons-positioning T08: protocol-registry.json adds the `queued` work status (backlog items) to work_statuses and to not_requested's allowed work statuses. Every row links the same registry."
+    }
+  ],
+  "router_budget_amendments": [
+    {
+      "current_router_bytes": 6787,
+      "date": "2026-10-31",
+      "delta_bytes": 58,
+      "previous_router_bytes": 6729,
+      "reason": "skill-commons-positioning T09: the router is now English. The first translation was squeezed into the old byte budget and the Fable review found sentences whose meaning changed or weakened (must became need, a two-part condition read as one). Restoring the meaning costs a few dozen bytes; every row reads the same router."
+    }
+  ],
   "rows": {
     "claude-code|all": {
       "descriptions_bytes": 6506,
       "entry_bytes": 1971,
-      "linked_registry_bytes": 6084,
+      "linked_registry_bytes": 6120,
       "required_read_bytes": 15206,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 21290
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 21326
     },
     "claude-code|personal": {
       "descriptions_bytes": 1850,
       "entry_bytes": 1971,
-      "linked_registry_bytes": 6084,
+      "linked_registry_bytes": 6120,
       "required_read_bytes": 10550,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 16634
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 16670
     },
     "claude-code|personal+frontend": {
       "descriptions_bytes": 2119,
       "entry_bytes": 1971,
-      "linked_registry_bytes": 6084,
+      "linked_registry_bytes": 6120,
       "required_read_bytes": 10819,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 16903
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 16939
     },
     "claude-code|personal+frontend+optional": {
       "descriptions_bytes": 5192,
       "entry_bytes": 1971,
-      "linked_registry_bytes": 6084,
+      "linked_registry_bytes": 6120,
       "required_read_bytes": 13892,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 19976
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 20012
     },
     "claude-code|personal+optional": {
       "descriptions_bytes": 4923,
       "entry_bytes": 1971,
-      "linked_registry_bytes": 6084,
+      "linked_registry_bytes": 6120,
       "required_read_bytes": 13623,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 19707
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 19743
     },
     "claude-code|team-sprint": {
       "descriptions_bytes": 3164,
       "entry_bytes": 1971,
-      "linked_registry_bytes": 6084,
+      "linked_registry_bytes": 6120,
       "required_read_bytes": 11864,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 17948
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 17984
     },
     "claude-code|team-sprint+frontend": {
       "descriptions_bytes": 3433,
       "entry_bytes": 1971,
-      "linked_registry_bytes": 6084,
+      "linked_registry_bytes": 6120,
       "required_read_bytes": 12133,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 18217
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 18253
     },
     "claude-code|team-sprint+frontend+optional": {
       "descriptions_bytes": 6506,
       "entry_bytes": 1971,
-      "linked_registry_bytes": 6084,
+      "linked_registry_bytes": 6120,
       "required_read_bytes": 15206,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 21290
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 21326
     },
     "claude-code|team-sprint+optional": {
       "descriptions_bytes": 6237,
       "entry_bytes": 1971,
-      "linked_registry_bytes": 6084,
+      "linked_registry_bytes": 6120,
       "required_read_bytes": 14937,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 21021
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 21057
     },
     "codex|all": {
       "descriptions_bytes": 6506,
       "entry_bytes": 1175,
-      "linked_registry_bytes": 6084,
+      "linked_registry_bytes": 6120,
       "required_read_bytes": 14410,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 20494
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 20530
     },
     "codex|personal": {
       "descriptions_bytes": 1850,
       "entry_bytes": 1175,
-      "linked_registry_bytes": 6084,
+      "linked_registry_bytes": 6120,
       "required_read_bytes": 9754,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 15838
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 15874
     },
     "codex|personal+frontend": {
       "descriptions_bytes": 2119,
       "entry_bytes": 1175,
-      "linked_registry_bytes": 6084,
+      "linked_registry_bytes": 6120,
       "required_read_bytes": 10023,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 16107
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 16143
     },
     "codex|personal+frontend+optional": {
       "descriptions_bytes": 5192,
       "entry_bytes": 1175,
-      "linked_registry_bytes": 6084,
+      "linked_registry_bytes": 6120,
       "required_read_bytes": 13096,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 19180
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 19216
     },
     "codex|personal+optional": {
       "descriptions_bytes": 4923,
       "entry_bytes": 1175,
-      "linked_registry_bytes": 6084,
+      "linked_registry_bytes": 6120,
       "required_read_bytes": 12827,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 18911
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 18947
     },
     "codex|team-sprint": {
       "descriptions_bytes": 3164,
       "entry_bytes": 1175,
-      "linked_registry_bytes": 6084,
+      "linked_registry_bytes": 6120,
       "required_read_bytes": 11068,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 17152
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 17188
     },
     "codex|team-sprint+frontend": {
       "descriptions_bytes": 3433,
       "entry_bytes": 1175,
-      "linked_registry_bytes": 6084,
+      "linked_registry_bytes": 6120,
       "required_read_bytes": 11337,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 17421
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 17457
     },
     "codex|team-sprint+frontend+optional": {
       "descriptions_bytes": 6506,
       "entry_bytes": 1175,
-      "linked_registry_bytes": 6084,
+      "linked_registry_bytes": 6120,
       "required_read_bytes": 14410,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 20494
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 20530
     },
     "codex|team-sprint+optional": {
       "descriptions_bytes": 6237,
       "entry_bytes": 1175,
-      "linked_registry_bytes": 6084,
+      "linked_registry_bytes": 6120,
       "required_read_bytes": 14141,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 20225
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 20261
     },
     "cursor|all": {
       "descriptions_bytes": 0,
-      "entry_bytes": 611,
-      "linked_registry_bytes": 6084,
-      "required_read_bytes": 7340,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 13424
+      "entry_bytes": 988,
+      "linked_registry_bytes": 6120,
+      "required_read_bytes": 7767,
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 13887
     },
     "cursor|personal": {
       "descriptions_bytes": 0,
-      "entry_bytes": 611,
-      "linked_registry_bytes": 6084,
-      "required_read_bytes": 7340,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 13424
+      "entry_bytes": 988,
+      "linked_registry_bytes": 6120,
+      "required_read_bytes": 7767,
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 13887
     },
     "cursor|personal+frontend": {
       "descriptions_bytes": 0,
-      "entry_bytes": 611,
-      "linked_registry_bytes": 6084,
-      "required_read_bytes": 7340,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 13424
+      "entry_bytes": 988,
+      "linked_registry_bytes": 6120,
+      "required_read_bytes": 7767,
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 13887
     },
     "cursor|personal+frontend+optional": {
       "descriptions_bytes": 0,
-      "entry_bytes": 611,
-      "linked_registry_bytes": 6084,
-      "required_read_bytes": 7340,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 13424
+      "entry_bytes": 988,
+      "linked_registry_bytes": 6120,
+      "required_read_bytes": 7767,
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 13887
     },
     "cursor|personal+optional": {
       "descriptions_bytes": 0,
-      "entry_bytes": 611,
-      "linked_registry_bytes": 6084,
-      "required_read_bytes": 7340,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 13424
+      "entry_bytes": 988,
+      "linked_registry_bytes": 6120,
+      "required_read_bytes": 7767,
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 13887
     },
     "cursor|team-sprint": {
       "descriptions_bytes": 0,
-      "entry_bytes": 611,
-      "linked_registry_bytes": 6084,
-      "required_read_bytes": 7340,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 13424
+      "entry_bytes": 988,
+      "linked_registry_bytes": 6120,
+      "required_read_bytes": 7767,
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 13887
     },
     "cursor|team-sprint+frontend": {
       "descriptions_bytes": 0,
-      "entry_bytes": 611,
-      "linked_registry_bytes": 6084,
-      "required_read_bytes": 7340,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 13424
+      "entry_bytes": 988,
+      "linked_registry_bytes": 6120,
+      "required_read_bytes": 7767,
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 13887
     },
     "cursor|team-sprint+frontend+optional": {
       "descriptions_bytes": 0,
-      "entry_bytes": 611,
-      "linked_registry_bytes": 6084,
-      "required_read_bytes": 7340,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 13424
+      "entry_bytes": 988,
+      "linked_registry_bytes": 6120,
+      "required_read_bytes": 7767,
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 13887
     },
     "cursor|team-sprint+optional": {
       "descriptions_bytes": 0,
-      "entry_bytes": 611,
-      "linked_registry_bytes": 6084,
-      "required_read_bytes": 7340,
-      "router_bytes": 6729,
-      "total_with_on_demand_bytes": 13424
+      "entry_bytes": 988,
+      "linked_registry_bytes": 6120,
+      "required_read_bytes": 7767,
+      "router_bytes": 6787,
+      "total_with_on_demand_bytes": 13887
     }
   },
   "schema_version": "context-budget/ceilings/v1",

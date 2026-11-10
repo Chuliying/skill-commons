@@ -1,9 +1,9 @@
 ---
 name: systematic-debugging
 description: |
-  系統化除錯流程。Use when: (1) 遇到任何 bug 或測試失敗, (2) 行為不如預期, (3) 連續修復失敗, (4) 遇到建置或整合錯誤。
-  完成 Phase 1（根因調查）前不提出修復方案。
-  觸發關鍵字: bug, 測試失敗, 除錯, debug, unexpected behavior, 修不好, 一直失敗
+  Systematic debugging. Use when: (1) any bug or test failure, (2) unexpected behavior, (3) repeated fixes fail, (4) build or integration errors.
+  No fix proposal before Phase 1 (root cause investigation) is done.
+  Trigger keywords: bug, test failure, debug, unexpected behavior, can't fix it, keeps failing
 source: obra/superpowers@d884ae04edebef577e82ff7c4e143debd0bbec99
 source_kind: adapted
 stage: infra
@@ -52,19 +52,19 @@ Use for ANY technical issue:
 
 Complete Phases 1–4 in order; Phase 0 is optional.
 
-### Phase 0: 查詢 Memory 知識庫（選用）
+### Phase 0: Query the Memory knowledge base (optional)
 
-若使用者有保留 debug 記錄（見 [`references/memory.md`](references/memory.md)），進入 Phase 1 前先查相似症狀：
+If the user keeps debug records (see [`references/memory.md`](references/memory.md)), look up similar symptoms before Phase 1:
 
 ```bash
-# 查看最近 10 個 debug session
+# Show the last 10 debug sessions
 tail -10 ~/.skill-memory/systematic-debugging/debug-sessions.log 2>/dev/null || echo "(no history)"
 
-# 搜尋相似症狀（用錯誤關鍵字替換）
+# Search similar symptoms (swap in an error keyword)
 grep -i "[symptom keyword]" ~/.skill-memory/systematic-debugging/debug-sessions.log 2>/dev/null || true
 ```
 
-> 若找到相似記錄，直接引用其 `rootCause` 與 `fix` 作為 Phase 3 的優先假設。
+> If a similar record exists, use its `rootCause` and `fix` as the first Phase 3 hypothesis.
 
 ### Phase 1: Root Cause Investigation
 
@@ -132,7 +132,7 @@ grep -i "[symptom keyword]" ~/.skill-memory/systematic-debugging/debug-sessions.
 
    See `root-cause-tracing.md` in this directory for the complete backward tracing technique.
 
-   前置：執行 [Graph Context Check](../graph-context-check.md)。
+   Prerequisite: run the [Graph Context Check](../graph-context-check.md).
 
    **Quick version:**
    - Where does bad value originate?
@@ -305,59 +305,59 @@ These techniques are part of systematic debugging and available in this director
 - **`condition-based-waiting.md`** - Replace arbitrary timeouts with condition polling
 
 **Related skills:**
-- **`implement`**（本 repo 版）- For creating the failing test and implementing the fix (Phase 4)
-- **`verification-before-completion`**（本 repo 版）- Verify fix worked before claiming success
+- **`implement`** (this repo's version) - For creating the failing test and implementing the fix (Phase 4)
+- **`verification-before-completion`** (this repo's version) - Verify fix worked before claiming success
 
 ---
 
-## Execution Checklist（必填輸出）
+## Execution Checklist (required output)
 
-> Checklist 格式慣例見 [CHECKLIST-CONVENTION.md](../CHECKLIST-CONVENTION.md)。
+> Checklist format conventions: [CHECKLIST-CONVENTION.md](../CHECKLIST-CONVENTION.md).
 
 ```
 Skill: systematic-debugging
 Executed At: YYYY-MM-DD HH:MM
-Files: [修復的檔案]
+Files: [fixed files]
 
 Steps:
-Phase 0: 查詢 Memory 知識庫 - [PASS/N/A]
-   └─ 發現: [無歷史 / 找到相似記錄: X]
+Phase 0: Query the Memory knowledge base - [PASS/N/A]
+   └─ Found: [no history / similar record found: X]
 Phase 1: Root Cause Investigation - [PASS/SKIP]
-   Evidence: [錯誤訊息, 重現步驟, 最近變更]
-   └─ Graph Context: [依 `graph-context-check.md` 的 canonical status line]
+   Evidence: [error messages, reproduction steps, recent changes]
+   └─ Graph Context: [canonical status line per `graph-context-check.md`]
 Phase 2: Pattern Analysis - [PASS/SKIP]
-   Evidence: [參考的 working example]
+   Evidence: [working example referenced]
 Phase 3: Hypothesis and Testing - [PASS/SKIP]
-   Evidence: [假設內容, 測試結果]
+   Evidence: [hypothesis, test result]
 Phase 4: Implementation - [PASS/SKIP]
    Evidence: [failing test → fix → passing test]
-Phase 完成後: 寫入 Memory - [PASS/N/A]
-   └─ 路徑: ~/.skill-memory/systematic-debugging/debug-sessions.log
+After phases: write to Memory - [PASS/N/A]
+   └─ Path: ~/.skill-memory/systematic-debugging/debug-sessions.log
 
- Debug 結果:
-   □ Root Cause 已識別: [Y/N]
-   □ Failing Test 已建立: [Y/N]
-   □ Fix 已驗證: [Y/N]
-   □ 嘗試次數: [X] 次
+ Debug result:
+   □ Root Cause identified: [Y/N]
+   □ Failing Test created: [Y/N]
+   □ Fix verified: [Y/N]
+   □ Attempts: [X]
 
- Root Cause: [簡述根本原因]
- Fix: [簡述修復方式]
+ Root Cause: [brief root cause]
+ Fix: [brief fix]
 ```
 
-只有本次除錯交接 durable report 時，未把 Checklist 寫入 report 才算交接未完成。
+The Checklist is required only when this debugging hands off a durable report; without it, that handoff is incomplete.
 
 ---
 
-## Memory — 累積 Debug 知識庫
+## Memory — Building a debug knowledge base
 
-每次成功解決問題後，將根因與修復方式記錄下來，讓 AI 能識別重複出現的 bug 模式。選用：有保留記錄時，Phase 0 先查、修復成功後寫入。
+After each successful fix, record root cause and fix so the AI can spot recurring bug patterns. Optional: if records are kept, query in Phase 0 and write after a successful fix.
 
-> 完整讀寫格式、路徑與**選用/opt-out 說明**見 [`references/memory.md`](references/memory.md)。Phase 0 的快速讀取指令已內嵌於上方 Phase 0。
+> Full read/write format, paths and **optional/opt-out notes**: [`references/memory.md`](references/memory.md). Phase 0's quick read commands are inlined above.
 
 ---
 
-## Phase 5: Escalation（上報流程）
+## Phase 5: Escalation
 
-當 3+ 修復失敗、超過 30 分鐘、影響生產/安全、或根因無法識別時，**停止自主修復並上報用戶**。
+When 3+ fixes failed, over 30 minutes passed, production/security is affected, or the root cause cannot be found, **stop fixing on your own and escalate to the user**.
 
-> 觸發條件表、Escalation Report 格式、與 Phase 4.5 的關係見 [`references/escalation.md`](references/escalation.md)。
+> Trigger table, Escalation Report format and relation to Phase 4.5: [`references/escalation.md`](references/escalation.md).

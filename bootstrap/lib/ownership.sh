@@ -49,7 +49,7 @@ validate_project_managed_ancestors() {
     relatives="$relatives .claude .claude/skills"
   fi
   if platform_is_selected "$platforms" codex; then
-    relatives="$relatives .codex .codex/skills"
+    relatives="$relatives .agents .agents/skills .codex .codex/skills"
   fi
   if platform_is_selected "$platforms" cursor; then
     relatives="$relatives .cursor .cursor/rules"
@@ -160,6 +160,15 @@ reject_deselected_managed_adapters() {
       fi
     fi
   fi
+  local agents_safe=0
+  if [ -d "$project_root/.agents" ] && [ ! -L "$project_root/.agents" ]; then
+    agents_safe=1
+    if [ -d "$project_root/.agents/skills" ] && [ ! -L "$project_root/.agents/skills" ]; then
+      if platform_is_selected "$platforms" codex; then
+        validate_regular_candidate "$project_root/.agents/skills/$OWNERSHIP_FILE" "managed adapter candidate" || return 1
+      fi
+    fi
+  fi
   if [ -d "$project_root/.cursor" ] && [ ! -L "$project_root/.cursor" ] && \
      [ -d "$project_root/.cursor/rules" ] && [ ! -L "$project_root/.cursor/rules" ]; then
     cursor_safe=1
@@ -175,8 +184,9 @@ reject_deselected_managed_adapters() {
       stale="${stale:+$stale }claude-code"
     fi
   fi
-  if ! platform_is_selected "$platforms" codex && \
-     [ "$codex_safe" = 1 ] && [ -f "$project_root/.codex/skills/$OWNERSHIP_FILE" ] && [ ! -L "$project_root/.codex/skills/$OWNERSHIP_FILE" ]; then
+  if ! platform_is_selected "$platforms" codex && {
+       { [ "$codex_safe" = 1 ] && [ -f "$project_root/.codex/skills/$OWNERSHIP_FILE" ] && [ ! -L "$project_root/.codex/skills/$OWNERSHIP_FILE" ]; } ||
+       { [ "$agents_safe" = 1 ] && [ -f "$project_root/.agents/skills/$OWNERSHIP_FILE" ] && [ ! -L "$project_root/.agents/skills/$OWNERSHIP_FILE" ]; }; }; then
     stale="${stale:+$stale }codex"
   fi
   if ! platform_is_selected "$platforms" cursor && \
@@ -277,7 +287,7 @@ ledger_owns() {
 }
 
 validate_managed_path() {
-  local target="$1" kind="$2" relative="$3" current="$target" part old_ifs="$IFS" index=0
+  local target="$1" kind="$2" relative="$3" current="$1" part old_ifs="$IFS" index=0
   IFS='/'
   read -r -a components <<< "$relative"
   IFS="$old_ifs"
@@ -302,14 +312,14 @@ validate_managed_path() {
 }
 
 preflight_owned_ledger() {
-  local target="$1" ledger="$2" seen="$3" kind relative extra
+  local target="$1" ledger="$2" seen="$3" allow_missing="${4:-0}" kind relative extra
   [ -d "$target" ] && [ ! -L "$target" ] || { error "generated target is missing or unsafe: $target"; return 1; }
   [ -f "$ledger" ] || { error "ownership ledger is missing: $ledger"; return 1; }
   validate_ledger "$ledger" "$seen" || return 1
   while IFS=$'\t' read -r kind relative extra || [ -n "${kind:-}${relative:-}${extra:-}" ]; do
     [ -n "${kind:-}${relative:-}" ] || continue
     validate_managed_path "$target" "$kind" "$relative" || return 1
-    [ -e "$target/$relative" ] || { error "owned generated unit is missing: $target/$relative"; return 1; }
+    [ "$allow_missing" = 1 ] || [ -e "$target/$relative" ] || { error "owned generated unit is missing: $target/$relative"; return 1; }
   done < <(tail -n +2 "$ledger")
 }
 
@@ -344,7 +354,9 @@ skill_commons_shared_scripts() {
     work_items.py \
     execution_modes.py \
     check-prd.py \
-    check_protocol_registry.py
+    check_protocol_registry.py \
+    verification_evidence.py \
+    activity.py
 }
 
 write_expected_ownership_ledger() {

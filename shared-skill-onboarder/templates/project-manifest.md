@@ -3,11 +3,13 @@
 ## skill-commons bootstrap
 
 - submodule_path: .agent/skills/_shared
-- platforms: claude-code, cursor, codex
+- platforms: claude-code, codex
+<!-- onboard.sh replaces this with the agents it finds (.claude, .codex, .cursor) when it creates the manifest. -->
 - delivery_mode: personal
-- capability_packs:
-<!-- Add optional above when using the v0.9.0 core and personal discovery,
-     PRD, review, or onboarding owners are needed (direct form: CAPABILITY_PACKS=optional). -->
+- capability_packs: optional
+<!-- Default since 2026-10-29: optional is included so a fresh install can run the full flow
+     (to-prd, discovery, review, onboarding). Remove it for the smallest skill set
+     (direct form: CAPABILITY_PACKS=optional). -->
 
 ## Paths
 

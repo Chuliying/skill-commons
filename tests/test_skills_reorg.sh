@@ -904,7 +904,7 @@ fi
 # remain machine gates and must not be presented as extra approvals.
 router_gate_text="$(cat "$REPO/skill-router/SKILL.md")"
 gate_ok=1
-for gate in "PRD 核可" "team 設計核可" "發布核可"; do
+for gate in "Human gate: PRD approval" "Human gate: team design approval" "Human gate: release approval"; do
   printf '%s\n' "$router_gate_text" | grep -qF "$gate" || gate_ok=0
 done
 if [ "$gate_ok" -eq 1 ] &&
@@ -975,7 +975,9 @@ for skill_md in sorted(repo.glob("*/SKILL.md")):
         if re.search(r"(^|[\s;&|(])python\s", line) and not line.lstrip().startswith("```"):
             errors.append(f"{skill_md.relative_to(repo)}:{lineno} uses bare python; use python3")
 
-new_url = "git@github.com:Chuliying/skill-commons.git"
+# Owner decision 2026-10-29 (skill-commons-positioning T01): install over HTTPS so a new
+# user needs no SSH key.
+new_url = "https://github.com/Chuliying/skill-commons.git"
 if new_url not in readme or new_url not in bridge:
     errors.append("active onboarding docs must use the skill-commons repository URL")
 
@@ -1106,7 +1108,7 @@ if set(modes) != {"team-feature", "personal-feature", "bug-fix", "refactor"}:
 flow_modes = {
     "### Team feature\n": "team-feature",
     "### Personal feature\n": "personal-feature",
-    "## Flow: 修錯\n": "bug-fix",
+    "## Flow: Fix\n": "bug-fix",
     "### Refactor\n": "refactor",
 }
 for heading, mode in flow_modes.items():
@@ -1139,7 +1141,7 @@ for forbidden in (
 
 required_contract_tokens = (
     "Execution Mode",
-    "條件式輸入",
+    "conditional inputs",
     "protocol-registry.json",
     "verification-before-completion",
 )
@@ -1167,7 +1169,7 @@ import sys
 router = (Path(sys.argv[1]) / "skill-router/SKILL.md").read_text(errors="replace")
 errors = []
 
-start = router.find("### Micro-task 直達")
+start = router.find("### Micro-task direct path")
 ends = (
     [router.find(marker, start + 1) for marker in ("\n### ", "\n---\n")]
     if start >= 0 else []
@@ -1175,16 +1177,16 @@ ends = (
 end = min((position for position in ends if position >= 0), default=len(router))
 section = router[start:end] if start >= 0 else ""
 for token in (
-    "單檔或少數檔",
-    "無新依賴",
-    "無 schema/API 變更",
-    "任一條件不成立或不確定",
+    "One or few files",
+    "No new dependency",
+    "No schema/API change",
+    "If any fails or is unsure",
     "failing test",
     "verification-before-completion",
     # Personal micro is native implementation: it creates no work item, no plan, and
     # no implement dispatch, so the bounded fix cannot grow a durable artifact chain.
-    "不建立 work item",
-    "不派發 `implement`",
+    "no work item",
+    "no `implement` dispatch",
 ):
     if token not in section:
         errors.append(f"router Micro-task branch missing {token!r}")
@@ -1423,7 +1425,7 @@ else:
         "## 12. Gate 1 Check",
         "### In scope",
         "### Out of scope",
-        "使用者價值",
+        "User value",
         "Design tokens",
         "Mockup evidence",
     ):

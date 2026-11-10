@@ -209,7 +209,7 @@ print(len(d["human_gates"]))
 
   # Bidirectional drift: mutating either side must fail closed.
   mut_router="$TMP/router.md"
-  sed 's/## Flow: 修錯/## Flow: 修錯錯/' "$REPO/skill-router/SKILL.md" > "$mut_router"
+  sed 's/## Flow: Fix/## Flow: Fixx/' "$REPO/skill-router/SKILL.md" > "$mut_router"
   (cd "$REPO" && python3 "$TOOL" check-flows --router "$mut_router" >/dev/null 2>&1); rc_mr=$?
   assert_neq 0 "$rc_mr" "check-flows fails when the router drifts"
 

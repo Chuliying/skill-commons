@@ -1,28 +1,28 @@
-# Memory — 累積 Debug 知識庫（讀寫格式）
+# Memory — accumulated debug knowledge base (read/write format)
 
-> 由 `systematic-debugging` 在 Phase 0（讀）與修復成功後（寫）載入。
-> 屬**選用**：若不在家目錄留痕，可跳過或改成專案內路徑（如 `.agent/knowledge/debug-sessions.log`）。寫入前避免記入敏感資訊（路徑、密鑰、內部 URL）。
+> Loaded by `systematic-debugging` in Phase 0 (read) and after a successful fix (write).
+> This is **optional**: if you do not want to leave traces in your home directory, skip it or use a path inside the project instead (for example `.agent/knowledge/debug-sessions.log`). Before writing, avoid recording sensitive information (paths, secrets, internal URLs).
 
-**儲存路徑**：`~/.skill-memory/systematic-debugging/debug-sessions.log`（家目錄，跨專案共用）
+**Storage path**: `~/.skill-memory/systematic-debugging/debug-sessions.log` (home directory, shared across projects)
 
-## 寫入格式（JSON Lines）
+## Write format (JSON Lines)
 
 ```json
 {"date":"2025-03-25","symptom":"type-check fails after rebase","rootCause":"import path changed due to file rename","fix":"update import in 3 files","attempts":1,"tags":["import","type-check"]}
 {"date":"2025-03-20","symptom":"chart not re-rendering","rootCause":"missing dependency in useEffect","fix":"add dataSource to deps array","attempts":2,"tags":["react","useEffect"]}
 ```
 
-## 讀取歷史（除錯前 / Phase 0）
+## Reading history (before debugging / Phase 0)
 
 ```bash
-# 查看最近 10 個 debug session
+# Show the 10 most recent debug sessions
 tail -10 ~/.skill-memory/systematic-debugging/debug-sessions.log 2>/dev/null || echo "(no history)"
 
-# 搜尋相似症狀
+# Search for similar symptoms
 grep -i "useEffect\|react" ~/.skill-memory/systematic-debugging/debug-sessions.log 2>/dev/null || true
 ```
 
-## 寫入（修復後）
+## Writing (after a fix)
 
 ```bash
 mkdir -p ~/.skill-memory/systematic-debugging
@@ -30,4 +30,4 @@ echo '{"date":"'$(date +%F)'","symptom":"[symptom]","rootCause":"[root cause]","
   >> ~/.skill-memory/systematic-debugging/debug-sessions.log
 ```
 
-**用途**：逐漸成為專案的 bug 知識庫。對於相似病狀，AI 可先查過去的治療方式（Phase 0）。
+**Purpose**: over time this becomes the project's bug knowledge base. For similar symptoms, the AI can first look up how they were treated before (Phase 0).

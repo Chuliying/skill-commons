@@ -28,6 +28,11 @@ python3 <skill-dir>/scripts/prototype_bundle.py \
 `runtime-data.js` 從純 JSON 建立 SCENARIO_TITLES、NAV_PATH、STEPS、STEPPER_LABELS、
 PANEL_MAP、AC_DATA；不要手寫這些衍生資料或修改產生的 shell。
 
+`runtime-data.js` 在 `frames.js` 之前深度凍結 PROTOTYPE_MAP 與這些衍生資料，全域名稱
+也不能重新指定。Frame 要排序或增減資料時先複製，例如 `slice()`；直接寫入在 sloppy mode
+無效，在 strict mode 或用 `push`、就地 `sort` 會丟出 TypeError。步驟之間的輸入寫進
+`SCENARIO_STATE`，它保持可寫。凍結範圍見 [Map contract](../prototype-map-schema.md)。
+
 `frames.js` 保留彈性，也保留任意 JavaScript 的風險。產生程式不執行、不證明其安全性；
 在宿主允許的 synthetic-data 環境做 G6 行為檢查。缺少 frame function 或 JS 語法錯誤
 要由實際載入檢查發現，不能把結構驗證當作 runtime 測試。

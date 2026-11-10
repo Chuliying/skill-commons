@@ -528,6 +528,41 @@ def blocker_errors(plan_dir: Path, task: object) -> list[str]:
     return errors
 
 
+COVERS_PREFIX = "covers:"
+
+
+def split_evidence(item: str) -> tuple[list[str], list[str]]:
+    """RESULT | REFERENCE | COMMAND [| covers: <file>#<ID>, ...]. The optional covers
+    segment is taken from the right only when it starts with `covers:`, so a command
+    that contains ` | ` (a shell pipe) still parses as before."""
+    covers: list[str] = []
+    head, separator, tail = item.rpartition(" | ")
+    if separator and tail.strip().startswith(COVERS_PREFIX) and head.count(" | ") >= 2:
+        item = head
+        covers = [ref.strip() for ref in tail.strip()[len(COVERS_PREFIX):].split(",") if ref.strip()]
+    return [part.strip() for part in item.split(" | ", 2)], covers
+
+
+def covers_errors(plan_dir: Path, task_id: str, covers: list[str]) -> list[str]:
+    """Each covered segment must exist once in the work item (the segment rule lives in
+    scripts/verification_evidence.py, shared with project-status)."""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+        from verification_evidence import segment_digest
+    except ImportError:
+        return [f"{task_id} Verification Evidence covers cannot be checked: shared scripts are missing"]
+    errors = []
+    for ref in covers:
+        try:
+            found = segment_digest(plan_dir.parent, ref) is not None
+        except ValueError as exc:
+            errors.append(f"{task_id} Verification Evidence covers: {exc}")
+            continue
+        if not found:
+            errors.append(f"{task_id} Verification Evidence covers a missing or ambiguous segment: {ref}")
+    return errors
+
+
 def verification_evidence_errors(plan_dir: Path, task: object) -> list[str]:
     task_id = str(task.task_id)
     verification = list(getattr(task, "verification", []))
@@ -536,14 +571,15 @@ def verification_evidence_errors(plan_dir: Path, task: object) -> list[str]:
     records: dict[str, str] = {}
 
     for item in evidence_items:
-        parts = [part.strip() for part in item.split(" | ", 2)]
+        parts, covers = split_evidence(item)
         if len(parts) != 3:
             errors.append(
                 f"{task_id} has malformed Verification Evidence; expected "
-                "RESULT | REFERENCE | COMMAND"
+                "RESULT | REFERENCE | COMMAND [| covers: <file>#<ID>]"
             )
             continue
         result, reference, command = parts
+        errors.extend(covers_errors(plan_dir, task_id, covers))
         if result not in {"PASS", "FAIL"}:
             errors.append(f"{task_id} Verification Evidence uses invalid result `{result}`")
         errors.extend(
@@ -603,6 +639,60 @@ def canonical_execution_errors(plan_dir: Path, plan: object) -> list[str]:
             )
         errors.extend(blocker_errors(plan_dir, task))
         errors.extend(verification_evidence_errors(plan_dir, task))
+    errors.extend(cross_task_evidence_errors(plan))
+    return errors
+
+
+# Stage reports are ledgers: each line records its own run, and the claim's command is
+# that run. Citing one report from several tasks is not one observation counted twice.
+REPORT_LEDGERS = {"implement-report.md", "qa-report.md", "gate-package.md"}
+
+
+def _file_name(reference: str) -> str:
+    return reference.split(":", 1)[1].split("#", 1)[0].rsplit("/", 1)[-1]
+
+
+def _reinspects(reference: str, command: str) -> bool:
+    """A local file is re-checked by a claim only when that claim's command names it.
+    This is a speed bump, not proof: any command text that contains the name passes."""
+    name = _file_name(reference)
+    return bool(name) and name in command
+
+
+def cross_task_evidence_errors(plan: object) -> list[str]:
+    """An observation (a user reply, a CI run, a saved log) cannot be rerun, so it may back
+    the same claim in several tasks but not different claims in different tasks: that counts
+    one observation as several proofs. A local file is exempt when it is a stage report
+    (a ledger of separate runs) or when every claim's command names it, so each claim
+    re-inspects the file itself (for example, one decision document whose sections are
+    checked by different commands)."""
+    claims: dict[str, dict[str, set[str]]] = {}
+    for task in plan.tasks:
+        for item in getattr(task, "verification_evidence", []):
+            parts, _covers = split_evidence(item)
+            if len(parts) != 3:
+                continue  # Shape errors are reported per task.
+            _result, reference, command = parts
+            if not reference.startswith(("external:", "local:")):
+                continue
+            claims.setdefault(reference, {}).setdefault(str(task.task_id), set()).add(command)
+    errors: list[str] = []
+    for reference, by_task in claims.items():
+        if len(by_task) < 2:
+            continue
+        commands = set().union(*by_task.values())
+        if reference.startswith("local:") and (
+            _file_name(reference) in REPORT_LEDGERS
+            or all(_reinspects(reference, command) for command in commands)
+        ):
+            continue
+        if len(commands) > 1:
+            tasks = ", ".join(sorted(by_task))
+            errors.append(
+                f"Verification Evidence `{reference}` proves different claims in tasks "
+                f"{tasks}; one observation needs its own reference per claim, or each "
+                "claim's command must name the file it re-inspects"
+            )
     return errors
 
 

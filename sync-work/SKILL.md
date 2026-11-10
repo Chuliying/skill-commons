@@ -2,7 +2,7 @@
 name: sync-work
 description: |
   Authoritative Git delivery interface for scoped save, integration, branch finish, and recovery. Preserves unrelated work and gates external or irreversible actions.
-  觸發關鍵字: /sync-work, 保存進度, commit, push, merge, PR, 收尾, recovery
+  Trigger keywords: /sync-work, save progress, commit, push, merge, PR, finish, recovery
 source_kind: original
 stage: infra
 ---

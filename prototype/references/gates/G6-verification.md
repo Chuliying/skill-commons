@@ -33,5 +33,7 @@ Frame JavaScript、畫面是否可見、操作是否正確，都不在 Python �
 
 原型驗證完成可將 prototype stage 記為 `validated`；`work_status: completed` 仍須滿足
 [Artifact contract](../../../ARTIFACTS.md) 中該 execution mode 的 required stages，否則維持 `active`。
-用共用的 `python3 <skills-root>/scripts/work_items.py --work-root <work-root> check` 核對本工作項
-metadata；`<skills-root>` 是本 skill 的父目錄。若共用 checker 未提供，揭露交接狀態尚未驗證。
+用共用的 `python3 <skills-root>/scripts/work_items.py --work-root <work-root> check --item <slug>`
+核對本工作項 metadata：`<skills-root>` 是本 skill 的父目錄；`<work-root>` 是放 `<slug>/meta.yml`
+的目錄，預設為 Artifact contract 的 `docs/work`。exit 0 且輸出含 `PASS .../<slug>/meta.yml`
+那一行才算通過。若共用 checker 未提供，揭露交接狀態尚未驗證。

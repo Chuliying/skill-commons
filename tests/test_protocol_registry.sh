@@ -103,7 +103,7 @@ for mode, expected in expected_modes.items():
 work_item = registry.get("work_item", {})
 if work_item.get("schema_version") != "work-item/v3":
     errors.append("work-item schema mismatch")
-if work_item.get("work_statuses") != ["active", "completed", "abandoned"]:
+if work_item.get("work_statuses") != ["queued", "active", "completed", "abandoned"]:
     errors.append("work status contract mismatch")
 expected_evidence = {
     "not_requested": [],

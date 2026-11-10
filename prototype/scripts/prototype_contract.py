@@ -192,8 +192,17 @@ def validate_map(data):
         if frames is not None and isinstance(page.get("frameRef"), str) and page["frameRef"] not in frames:
             error(path + "/frameRef", "unknown frame reference")
         for field in ("backStep", "nextStep"):
-            if field in page and (not isinstance(page[field], str) or page[field] not in pages):
+            if field not in page:
+                continue
+            target = page[field]
+            if not isinstance(target, str) or target not in pages:
                 error(pointer(path, field), "unknown page reference")
+                continue
+            # Frames navigate with goTo(sid, target): every route showing this page needs the target.
+            missing = memberships[page_id] - memberships[target]
+            for route_id in routes:
+                if route_id in missing:
+                    error(pointer(path, field), f"target {target} is missing from route {route_id}, which contains this page")
         if version == 2:
             kind = page.get("type", "surface")
             if kind not in ("surface", "flow-step"):

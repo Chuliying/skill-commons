@@ -4,6 +4,70 @@
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-09
+
+### Breaking changes
+
+- Codex 副本移至 `.agents/skills/`。明確執行 onboard 時會驗證舊 ledger 與檔案，再移除舊副本。`.codex/config.toml` 與使用者自己的技能保留。有本地改動時請先移出檔案再重試。若 Git 追蹤舊副本，onboard 會提示提交其刪除。
+- Claude Code 與 Codex 的技能副本改由 `.gitignore` 逐檔排除。初始化 submodule 後，`check.sh` 可依已提交的 manifest 與現有忽略規則補檔，只更新忽略中的副本與本地狀態。若 Git 仍追蹤副本，請用 onboard 或 `manage.sh doctor` 列出的 `git rm -r --cached` 指令。遷移時一併提交 submodule、`.gitignore` 與追蹤變更。隊友 pull 後須執行 `git submodule update --init`。見 `docs/skill-commons-submodule-bridge.md`。
+- `approve` 不加 `--agent-reported` 時，只在互動終端機（`/dev/tty`）且沒有偵測到代理環境變數時執行，並要求輸入 `yes`；否則以 exit 2 拒絕，並印出給人執行的指令與 `--agent-reported --quote` 的指令。`approval.json` 升為 schema 2，新增 `confirmation`（`terminal`、`agent-reported`）與 `agent_env`；schema 1 的核准顯示為 `recorded before levels`。升級後寫入的核准需要每個 checkout 都更新 submodule 才能讀。`reaffirm` 改到核准過的段落時走相同的確認，`--evidence-only` 只改驗證證據。
+- 產生到使用者 repo 的文字改為英文：`AGENTS.md` 指令卡、`CLAUDE.md` 引用說明、Cursor rule、guardrails 範本、`check.sh` 警告、PRD 範本本文。既有 repo 下次 onboard 時會換成英文，沒有中文指令卡的選項。
+- `skill-router`、`implement`、`verification-before-completion`、`systematic-debugging`、`sync-work` 改為英文。router 的 flow 標題改為 `## Flow: Explore|Build|Fix|Release|Understand`，人工核可標籤改為 `Human gate: PRD approval` 等；`flows.json` 的 `router_heading`、`router_label` 同步。
+- `verify.sh` 對無法辨識的參數回 exit 2；原本會忽略。`--skip-test` 的用法不變。
+- `project-status` 的 JSON `schema_version` 由 2 升為 3，新增 `verification` 與 `verification_attention`。
+
+- prototype map 的 `backStep`／`nextStep` 目標必須出現在包含該 page 的每個 route；
+  跨 route 的引用改由 validator 拒絕，v1 與 v2 都適用。原本 frame 在缺少目標的 route
+  用這個欄位換頁時，預覽區會空白。既有 frozen map 會在 `validate-map`、bundle 產生與
+  `verify-freeze` 失敗，只重新產生 bundle 不能解決；依 G4 另存新 map 版本，把目標 page
+  加進缺少它的 route、移除該欄位，或讓各 route 使用各自的 page。
+- engine 的 `goTo` 找不到目標 frame 時丟出錯誤並保留目前畫面，不再無聲清空預覽。
+- `runtime-data.js` 在 `frames.js` 載入前深度凍結 map 與衍生資料，全域名稱不能重新指定。
+  Frame 直接改 AC 或 projection 時，sloppy mode 下改動無效，strict mode 與 `push` 等
+  陣列方法會丟出 TypeError。`SCENARIO_STATE` 仍可寫。
+- 固定模板 `engine.js` 與 `runtime-data.js` 有變動，既有 bundle 要用 `prototype_bundle.py`
+  重新產生，`verify-freeze.py` 才會通過。
+- `work-items check` 遇到本身含 `meta.yml` 的 work root 會以 exit 2 拒絕；原本回報
+  `0 valid` 並通過。沒有任何工作項的 work root 照舊通過。
+
+### Added
+
+- 工作項目可在 `meta.yml` 選填 `allowed_paths`（T12）：`work-items.sh new` 記錄 `base_commit`（`start` 會更新），`verify.sh --work-item` 把範圍外的改動寫進 `verification.json`，`project-status` 讀取時重新計算並顯示為 attention（`--strict` 失敗）。排除已在預設分支上的 commit（在預設分支上工作時不排除，並註明）；base 不再是 HEAD 的祖先（rebase）時只檢查未提交改動；同一分支上有多個宣告 `allowed_paths` 的項目時只顯示、不給 attention；路徑以專案為準，專案可在 Git 頂層之下。工作根目錄與產生的代理目錄永遠允許；未提交的快取不算，已提交的快取一律列出。
+- Quick Start 改為兩個指令：用 HTTPS 加入 submodule，再執行 `onboard.sh`。預設 manifest 包含 `optional`，新安裝即有 `to-prd`。
+- `verify.sh --work-item <slug>` 在工作項目寫入 `verification.json`：結果與內容指紋（原始碼、測試與 manifest 檢查命令，含未 commit 內容）。只有測試實際執行且全部通過才是 pass。
+- `project-status` 為每個工作項目回報 `verification`（current、covered、stale、failed、unknown、unbound、n/a），並列出 `verification_attention`；JSON `schema_version` 升為 3。`--strict` 在有待處理的驗證時回 3。只有一個進行中的項目（或指定進行中的 `--slug`）時，狀態仍為 attention，下一步仍指向該項目並附上待處理的驗證。
+- `planctl check` 拒絕同一個觀察（外部證據，或命令沒有讀取的本機檔案）佐證不同任務的不同主張。階段報告（`implement-report.md`、`qa-report.md`、`gate-package.md`）每行記錄各自的執行，不受此限。
+- 既有 manifest 缺少 `platforms` 或 `delivery_mode` 時，`onboard.sh` 與 `manage.sh` 一次列出所有缺少的欄位，並印出可直接貼上的行。
+- `onboard.sh` 新建 manifest 時，從頂層目錄推導 `source_roots` 與 `tests_root` 寫入，並請使用者確認；既有 manifest 不修改，只印出建議的行。沒有這兩個欄位時，驗證指紋涵蓋整個 repo，改 README 也會讓完成的項目過期。
+- 升級步驟最後加上 `project-status`：`doctor` 只檢查安裝，舊工作項目是否符合新版規則要由 `project-status` 檢查。
+- `onboard.sh` 新建 manifest 時從專案檔案推導 `test_cmd`（`package.json` 的 test script、`go.mod`、`Cargo.toml`、pytest 設定、`test_*.py`、Makefile 的 `test`），第一次驗證不必先改 manifest；既有 manifest 只印出建議的行。
+- 只有一份一般用途的 `AGENTS.md` 時不再推定為 Codex；`project-status.sh --ledger` 的文字與 Markdown 輸出列出每個 stage 的檔案。
+- 新增工作狀態 `queued`（待辦）：`work-items.sh new <slug> --queued` 建立、`work-items.sh start <slug>` 開始；待辦不算 active，不觸發多個 active 的提示。
+- 每個工作項目新增只增不改的 `activity.jsonl`：`new`、`start`、`complete`、`verify.sh --work-item`、`approve`、`reaffirm` 成功後各記一行（時間、事件、結果、偵測到的 AI 工具與 session；驗證另記開始時間）。子程序會繼承上層 agent 的變數，所以記錄所有偵測到的工具；`SKILL_COMMONS_SESSION=none` 不記 session id。
+- `project-status.sh --ledger` 一項一列列出所有工作項目：stage、測試案例欄、最後一次驗證與核准、最後的活動與 session 數；`--json`、`--markdown` 另有兩種輸出。
+- `complete` 拒絕非 active 的項目；對已完成的項目不再重寫。沒有 plan 的 active 項目驗證為 current 時，狀態不再是 unknown。
+- 新增 `work-items.sh new <slug>`：產生通過檢查的 `meta.yml`、PRD 骨架（team-feature 為 team tier，其他為 core tier；未填寫前 `check-prd` 不通過）與實作報告，列出該模式完成前還需要的 stage；`--mode` 選執行模式，`--input` 記錄來源。
+- 新增 `work-items.sh complete <slug> --na <理由>|--doc <文件>`：未完成的 stage 標為 done、`work_status: completed`、更新 `updated_at` 並記錄 `documentation_impact`；結果不通過檢查時拒絕並保留原檔。
+- 自訂 `submodule_path` 時，`AGENTS.md`、`CLAUDE.md` 與 Cursor rule 的指令改用該路徑（原本固定寫 `.agent/skills/_shared`）。
+- consumer directive 改為指令卡（開始工作、驗證、狀態、核准、完成），代理不必先讀 `ARTIFACTS.md` 與 PRD 範本；同時管理 `AGENTS.md` 時，`CLAUDE.md` 改為 `@AGENTS.md` 引用，不重複全文。Cursor 的入口預算依此調整並記錄理由。
+- 新建 manifest 的平台依 repo 既有的 `.claude`、`.codex`、`.cursor` 判斷，都沒有時預設 Claude Code 與 Codex，不再預設 Cursor。既有 manifest 不變。
+- `project-status` 對仍在進行中、但已有 `verification.json` 的項目也評估證據；項目停在 active 時，改了程式不再被忽略。
+- 依 Fable 抽查修正：推導出的 `source_roots`／`tests_root` 必須涵蓋九成以上的程式檔才寫入 manifest，否則只印建議與涵蓋比例；驗收段落在同級或更高的標題才結束（小標題不再截斷），程式碼區塊裡的 ID 不算，`- [ ] AC-01` 這類 checkbox 算；標點改為斷字（`1.5` 與 `15` 不同）；預設綁定時，新增的驗收條件也會讓證據與核准過期；`approval.json` 的核准人不是 typed reference 時為 unknown；`approve` 在驗證不是 current 時提示；快取清單加入 `htmlcov`、`.hypothesis`、`coverage`、`test-results`、`playwright-report`、`target`、`.coverage.*`。指紋版本再升一級。
+- `project-status` 的項目那一行：驗證或核准需要處理時，`state` 顯示 attention，不再在 `verify=stale` 旁邊顯示 `state=PASS`。
+- 驗證指紋不再計入測試執行產生的快取（`__pycache__`、`.pytest_cache`、`node_modules` 等），repo 沒有忽略它們時也不會每跑一次測試就過期。指紋演算法版本升級，之前的證據需要重跑一次 `verify.sh`。
+- 證據與核准綁定驗收條件：`verify.sh --work-item` 預設綁定 `prd.md`、`spec.md` 的 `AC-` 段落（`--covers` 可指定），改了段落證據就過期；`verification_evidence.py approve` 把核准綁在當下內容；`reaffirm` 記錄「意思沒變」的理由，只適用文件段落。`project-status` 新增 `approval` 與 `reaffirmed` 數。`planctl` 的證據行可加 `| covers: <file>#<ID>`，三段格式照舊。
+- `spec` 缺少 `system_context` 時先從 repo 推導並標註來源，推導不足才詢問，不再直接停止。
+
+- `work-items check --item <slug>` 只檢查單一工作項，`meta.yml` 不存在就失敗；
+  prototype G6 的交接檢查改用這個形式。
+- `check-repair.py --base-rev REV:PATH` 要求 base 與已提交的 blob 完全相同；checkout 有
+  換行轉換時，用 `git cat-file blob REV:PATH` 取出的檔案當 base。
+
+### Changed
+
+- `check-repair.py` 拒絕修改 `/meta/frozenAt` 與 `/meta/gaps/*/acknowledgedBy` 這兩種決策欄位；
+  `tuning.md` 改寫為程式實際保證的範圍。
+
 ## [0.12.0] - 2026-10-07
 
 ### Breaking changes

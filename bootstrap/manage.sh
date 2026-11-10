@@ -17,6 +17,7 @@ error() {
 . "$HERE/lib/ownership.sh"
 . "$HERE/lib/render.sh"
 . "$HERE/lib/stamp.sh"
+. "$HERE/lib/fanout.sh"
 
 usage() {
   echo "usage: bootstrap/manage.sh doctor|update|uninstall [project-root]" >&2
@@ -39,6 +40,7 @@ LEGACY_PROFILE="$(get_profile "$MANIFEST")"
 DELIVERY_MODE_VALUE="$(get_delivery_mode "$MANIFEST")"
 CAPABILITY_PACKS_VALUE="$(get_capability_packs "$MANIFEST")"
 SUBMODULE_PATH="$(get_submodule_path "$MANIFEST")"
+report_missing_selection "$MANIFEST" "$PLATFORMS" "$LEGACY_PROFILE" "$DELIVERY_MODE_VALUE" || exit 1
 validate_platform_selection "$PLATFORMS" || exit 1
 validate_profile_selection "$LEGACY_PROFILE" "$DELIVERY_MODE_VALUE" "$CAPABILITY_PACKS_VALUE" || exit 1
 validate_submodule_path "$SUBMODULE_PATH" "$PROJECT_ROOT" || exit 1
@@ -85,7 +87,15 @@ has_platform() {
 
 TARGETS=()
 if has_platform claude-code; then TARGETS+=("$PROJECT_ROOT/.claude/skills"); fi
-if has_platform codex; then TARGETS+=("$PROJECT_ROOT/.codex/skills"); fi
+LEGACY_CODEX_TARGET=""
+if has_platform codex && [ -f "$PROJECT_ROOT/$FANOUT_LEGACY_CODEX/$OWNERSHIP_FILE" ]; then
+  LEGACY_CODEX_TARGET="$PROJECT_ROOT/$FANOUT_LEGACY_CODEX"
+fi
+
+if has_platform codex && { [ -z "$LEGACY_CODEX_TARGET" ] || [ -e "$PROJECT_ROOT/.agents/skills/$OWNERSHIP_FILE" ] ||
+    [ -L "$PROJECT_ROOT/.agents/skills/$OWNERSHIP_FILE" ]; }; then
+  TARGETS+=("$PROJECT_ROOT/.agents/skills")
+fi
 
 if [ "${#TARGETS[@]}" -gt 0 ]; then
   for i in "${!TARGETS[@]}"; do
@@ -209,9 +219,28 @@ preflight_shims() {
   if has_platform cursor; then validate_cursor_rule "$require_current" "$STAMP" || return 1; fi
 }
 
+ignore_block_present() {
+  [ -f "$PROJECT_ROOT/.gitignore" ] && [ ! -L "$PROJECT_ROOT/.gitignore" ] \
+    && { grep -qF "$GI_START" "$PROJECT_ROOT/.gitignore" || grep -qF "$GI_END" "$PROJECT_ROOT/.gitignore"; }
+}
+
 if [ "$COMMAND" = doctor ]; then
+  if [ -n "$LEGACY_CODEX_TARGET" ]; then
+    error "Codex skill copies are still in $FANOUT_LEGACY_CODEX; run onboard.sh (or manage.sh update) to move them to .agents/skills"
+    exit 1
+  fi
   preflight_targets || exit 1
   preflight_shims 1 || exit 1
+  if ignore_block_present; then
+    validate_ignore_block "$PROJECT_ROOT/.gitignore" || { error "the skill-commons block in .gitignore is malformed"; exit 1; }
+  fi
+  tracked="$(fanout_tracked "$PROJECT_ROOT" "$PLATFORMS")"
+  if [ -n "$tracked" ]; then
+    echo "doctor: note: Git still tracks generated skill copies; they are regenerated at session start, so they can be untracked:"
+    printf '  git rm -r --cached --'
+    while IFS= read -r file; do printf ' %q' "$file"; done <<< "$tracked"
+    printf '\n'
+  fi
   echo "doctor: healthy (platforms=$PLATFORMS; selection=$PROFILE_NAMES)"
   exit 0
 fi
@@ -219,7 +248,9 @@ fi
 # Uninstall is destructive but scoped. Acquire the same locks as generation,
 # then preflight every target, ledger, path, shim, rule, and hook before deleting
 # the first owned unit.
-for target in ${TARGETS[@]+"${TARGETS[@]}"}; do
+UNINSTALL_TARGETS=("${TARGETS[@]+"${TARGETS[@]}"}")
+[ -z "$LEGACY_CODEX_TARGET" ] || UNINSTALL_TARGETS+=("$LEGACY_CODEX_TARGET")
+for target in ${UNINSTALL_TARGETS[@]+"${UNINSTALL_TARGETS[@]}"}; do
   lock_dir="$(ownership_lock_path "$target")"
   mkdir "$lock_dir" 2>/dev/null || { error "generation target is locked: $target"; exit 1; }
   printf '%s\n' "$$" > "$lock_dir/pid"
@@ -227,10 +258,23 @@ for target in ${TARGETS[@]+"${TARGETS[@]}"}; do
 done
 preflight_targets || exit 1
 preflight_shims 0 || exit 1
+if [ -n "$LEGACY_CODEX_TARGET" ]; then
+  legacy_ledger="$LEGACY_CODEX_TARGET/$OWNERSHIP_FILE"
+  preflight_owned_ledger "$LEGACY_CODEX_TARGET" "$legacy_ledger" "$TEMP_ROOT/legacy-seen" 1 || exit 1
+  validate_fanout_payload "$LEGACY_CODEX_TARGET" "$legacy_ledger" "$ROOT" 1 \
+    "$(fanout_previous_revision "$PROJECT_ROOT")" "$(fanout_recorded_revision "$PROJECT_ROOT" "$ROOT")" || exit 1
+fi
+if ignore_block_present; then
+  validate_ignore_block "$PROJECT_ROOT/.gitignore" || { error "the skill-commons block in .gitignore is malformed"; exit 1; }
+fi
+validate_fanout_state "$PROJECT_ROOT" || exit 1
 
 for target in ${TARGETS[@]+"${TARGETS[@]}"}; do
   remove_preflighted_owned_units "$target" "$target/$OWNERSHIP_FILE"
 done
+if [ -n "$LEGACY_CODEX_TARGET" ]; then
+  remove_preflighted_owned_units "$LEGACY_CODEX_TARGET" "$LEGACY_CODEX_TARGET/$OWNERSHIP_FILE"
+fi
 if has_platform codex || has_platform cursor; then remove_managed_block "$PROJECT_ROOT/AGENTS.md"; fi
 if has_platform claude-code; then
   remove_managed_block "$PROJECT_ROOT/CLAUDE.md"
@@ -247,5 +291,7 @@ if has_platform claude-code; then
   atomic_publish_file "$settings_tmp" "$settings"
 fi
 if has_platform cursor; then rm -f -- "$PROJECT_ROOT/.cursor/rules/skill-commons.mdc"; fi
+if ignore_block_present; then remove_ignore_block "$PROJECT_ROOT/.gitignore"; fi
+rm -f -- "$PROJECT_ROOT/$FANOUT_STATE"
 
 echo "uninstall: removed owned skills and managed platform content; manifest, guardrails, submodule, and foreign content preserved"

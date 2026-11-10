@@ -40,9 +40,5 @@ tests/py/_sbx_*/
 # Content-addressed local public verdict cache; release/CI always run fresh.
 .verify-cache/
 
-# Full repository snapshots captured as local review evidence. They duplicate
-# every skill contract, so repository search would keep finding stale copies.
-# Reports cite them by local path only; the JSON results beside them are tracked.
-/docs/work/oui1-ui-skills-review/artifacts/public-c3a5aa3/
-/docs/work/oui1-ui-skills-review/artifacts/renee-d5a54a3/
-/docs/work/ui-skill-contracts/artifacts/**/skills/
+# Ignore rules for local evidence inside a work item live in that work item's own
+# .gitignore under docs/work/, which the public export leaves out.
